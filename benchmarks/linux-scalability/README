@@ -1,0 +1,9 @@
+This benchmark is from "malloc() Performance in a Multithreaded Linux Environment":
+
+http://www.citi.umich.edu/techreports/reports/citi-tr-00-5.pdf
+
+Try the following parameters, where P = 1 and then the number of
+processors on your system:
+
+./linux-scalability 512 10000000 P
+./linux-scalability-hoard 512 10000000 P
