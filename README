@@ -1,0 +1,48 @@
+The Hoard Memory Allocator
+Copyright (C) 1998-2012 by Emery Berger
+
+ <http://www.hoard.org>
+ <http://www.cs.umass.edu/~emery>
+ <mailto:emery@cs.umass.edu>
+
+Building Hoard (Unix)
+---------------------
+
+To build Hoard on non-Windows platforms, change into the src/
+directory and run "make" followed by the appropriate target. If you
+type "make", it will present a list of available targets. These
+include linux-gcc-x86, solaris-sunw-sparc, etc.
+
+You can then use Hoard by linking it with your executable, or
+by setting the LD_PRELOAD environment variable, as in
+
+  % export LD_PRELOAD=/path/to/libhoard.so
+
+in Solaris:
+
+  % export LD_PRELOAD="/path/to/libhoard_32.so:/usr/lib/libCrun.so.1"
+  (32-bit version)
+
+  % export LD_PRELOAD="/path/to/libhoard_64.so:/usr/lib/64/libCrun.so.1"
+  (64-bit version)
+
+or, in Mac OS X:
+
+  % export DYLD_INSERT_LIBRARIES=/path/to/libhoard.dylib
+
+Building Hoard (Windows)
+------------------------
+
+Change into the src directory and type "nmake windows", as in:
+
+  C:\hoard\src> nmake windows
+
+To use Hoard, link your executable with 'source\uselibhoard.cpp' and 'winhoard.lib'.
+You *must* use the /MD flag.
+
+Example:
+  C:\hoard\src> cl /Ox /MD yourapp.cpp source\uselibhoard.cpp libhoard.lib
+
+To run yourapp.exe, you will need to have libhoard.dll in your path.
+
+

@@ -1,0 +1,46 @@
+This directory contains all source code required to build Hoard.
+
+heaplayers/  - Heap Layers (heaplayers.org), an infrastructure for building memory allocators
+include/     - all Hoard-specific header files (the bulk of Hoard's functionality)
+source/      - all .cpp files required to use Hoard
+
+** Building Hoard: **
+
+To compile Hoard on any platform, use "make" (or on Windows, "nmake").
+Just type
+
+     make
+
+to see all possible options.
+
+** Using Hoard with Windows: **
+
+First, build the libhoard.dll ("nmake windows").
+Then, link your executable with 'source\uselibhoard.cpp' and 'libhoard.lib'.
+You must use the /MD flag.
+
+Example:
+  C:\hoard\src> cl /Ox /MD yourapp.cpp source\uselibhoard.cpp libhoard.lib
+
+To run yourapp.exe, you will need to have libhoard.dll in your path.
+
+
+** Using Hoard with other systems: **
+
+You can use Hoard by linking it with your executable, or by setting a
+single environment variable. For UNIX systems, this is the LD_PRELOAD
+environment variable:
+
+  % export LD_PRELOAD=/path/to/libhoard.so
+
+in Solaris:
+
+  % export LD_PRELOAD="/path/to/libhoard_32.so:/usr/lib/libCrun.so.1"
+  (32-bit version)
+
+  % export LD_PRELOAD="/path/to/libhoard_64.so:/usr/lib/64/libCrun.so.1"
+  (64-bit version)
+
+in Mac OS X, use DYLD_INSERT_LIBRARIES.
+
+  % export DYLD_INSERT_LIBRARIES=/path/to/libhoard.dylib
