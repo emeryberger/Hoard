@@ -171,3 +171,11 @@ Example:
 To run yourapp.exe, you will need to have libhoard.dll in your path.
 
 
+Benchmarks
+----------
+
+The directory benchmarks/ contains a number of benchmarks used to
+evaluate and tune Hoard.
+
+
+
