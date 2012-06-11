@@ -46,6 +46,9 @@
 
 */
 
+
+#include <assert.h>
+
 extern "C" {
 
   void * xxmalloc (size_t);
@@ -74,14 +77,18 @@ extern "C" {
 extern "C" {
 
   void * MACWRAPPER_PREFIX(malloc) (size_t sz) {
-#if 0
-    static int mallocs = 0;
-    ++mallocs;
-    char buf[255];
-    sprintf (buf, "mallocs = %d\n", mallocs);
-    fprintf (stderr, buf);
+#if defined(__APPLE__)
+    // Mac OS ABI requires 16-byte alignment, so we round up the size
+    // to the next multiple of 16.
+    if (sz < 16) {
+      sz = 16;
+    }
+    if (sz % 16 != 0) {
+      sz += 16 - (sz % 16);
+    }
 #endif
-    return xxmalloc(sz);
+    void * ptr = xxmalloc(sz);
+    return ptr;
   }
 
   size_t MACWRAPPER_PREFIX(malloc_usable_size) (void * ptr) {
@@ -134,7 +141,7 @@ extern "C" {
     }
 #endif
 
-    void * buf = xxmalloc((size_t) (sz));
+    void * buf = MACWRAPPER_PREFIX(malloc)((size_t) (sz));
 
     if (buf != NULL) {
       // Successful malloc.
@@ -453,6 +460,8 @@ __interpose_malloc_zone_print_ptr_info
 // A class to initialize exactly one malloc zone with the calls used
 // by our replacement.
 
+static const char * theOneTrueZoneName = "OneTrueZone";
+
 class initializeDefaultZone {
 public:
   initializeDefaultZone() {
@@ -462,7 +471,7 @@ public:
     theDefaultZone.free    = MACWRAPPER_PREFIX(malloc_zone_free);
     theDefaultZone.realloc = MACWRAPPER_PREFIX(malloc_zone_realloc);
     theDefaultZone.size    = MACWRAPPER_PREFIX(internal_malloc_zone_size);
-    theDefaultZone.zone_name = "OneTrueZone";
+    theDefaultZone.zone_name = theOneTrueZoneName;
     theDefaultZone.batch_malloc = NULL;
     theDefaultZone.batch_free   = NULL;
     theDefaultZone.introspect   = NULL;
