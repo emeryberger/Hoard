@@ -331,7 +331,7 @@ namespace Hoard {
       }
     };
 
-  public:
+  private:
 
     NO_INLINE void * getAnotherSuperblock (size_t sz) {
 
@@ -364,8 +364,6 @@ namespace Hoard {
       }
       return sb;
     }
-
-  private:
 
     LockType _theLock;
 
