@@ -69,24 +69,25 @@ using namespace HL;
 #include "freelistheap.h"
 #include "hybridheap.h"
 
-#if defined(_WIN32)
-#include "winlock.h"
-typedef HL::WinLockType TheLockType;
-#elif defined(__APPLE__) || defined(__SVR4)
-#include "posixlock.h"
-#include "spinlock.h"
-// NOTE: On older versions of the Mac OS, Hoard CANNOT use Posix locks,
-// since they may call malloc themselves. However, as of Snow Leopard,
-// that problem seems to have gone away.
-// typedef HL::PosixLockType TheLockType;
-typedef HL::SpinLockType TheLockType;
-#else
-#include "posixlock.h"
-#include "spinlock.h"
 // Note: I plan to eventually eliminate the use of the spin lock,
 // since the right place to do locking is in an OS-supplied library,
 // and platforms have substantially improved the efficiency of these
 // primitives.
+
+#if defined(_WIN32)
+#include "winlock.h"
+typedef HL::WinLockType TheLockType;
+#elif defined(__APPLE__)
+#include "maclock.h"
+// NOTE: On older versions of the Mac OS, Hoard CANNOT use Posix locks,
+// since they may call malloc themselves. However, as of Snow Leopard,
+// that problem seems to have gone away. Nonetheless, we use Mac-specific locks.
+typedef HL::MacLockType TheLockType;
+#elif defined(__SVR4)
+#include "spinlock.h"
+#else
+#include "posixlock.h"
+#include "spinlock.h"
 typedef HL::SpinLockType TheLockType;
 // typedef HL::PosixLockType TheLockType;
 #endif
