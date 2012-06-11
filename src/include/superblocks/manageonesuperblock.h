@@ -108,19 +108,21 @@ namespace Hoard {
     void * slowMallocPath (size_t sz) {
       void * ptr = NULL;
       while (!ptr) {
-	if (_current) {
-	  ptr = _current->malloc (sz);
-	  if (ptr) {
-	    return ptr;
-	  } else {
-	    SuperHeap::put (_current);
+	// If we don't have a superblock, get one.
+	if (!_current) {
+	  _current = SuperHeap::get();
+	  if (!_current) {
+	    // Out of memory.
+	    return NULL;
 	  }
 	}
-	_current = SuperHeap::get();
-	if (!_current) {
-	  return NULL;
-	}
+	// Try to allocate memory from it.
 	ptr = _current->malloc (sz);
+	if (!ptr) {
+	  // No memory left: put the superblock away and get a new one next time.
+	  SuperHeap::put (_current);
+	  _current = NULL;
+	}
       }
       return ptr;
     }
