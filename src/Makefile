@@ -44,19 +44,19 @@ WIN_INCLUDES = /I. /Iinclude /Iinclude/util /Iinclude/hoard /Iinclude/superblock
 
 FREEBSD_COMPILE = g++ -O2 -DNDEBUG  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared $(UNIX_SRC) -Bsymbolic -o libhoard.so -pthread -fPIC
 
-MACOS_COMPILE = g++ -arch i386 -arch x86_64 -pipe -g -O3 -Wall -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -dynamiclib -D'CUSTOM_PREFIX(x)=xx\#\#x' $(MACOS_SRC) -o libhoard.dylib -ldl -lpthread
+MACOS_COMPILE = g++ -arch i386 -arch x86_64 -pipe -g -O3 -Wall -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -dynamiclib -D'CUSTOM_PREFIX(x)=xx\#\#x' $(MACOS_SRC) -o libhoard.dylib -ldl -lpthread 
 
 MACOS_COMPILE_DEBUG = g++ -arch i386 -arch x86_64 -pipe -g -O0 -Wall $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -dynamiclib $(MACOS_SRC) -o libhoard.dylib -ldl -lpthread
 
-LINUX_GCC_x86_COMPILE = g++ -m32 -fPIC -I/usr/include/nptl -ffast-math -g -malign-double -pipe -march=pentium4 -O3 -finline-limit=20000 -fomit-frame-pointer -finline-functions  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared  $(CFLAGS) $(UNIX_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
+LINUX_GCC_x86_COMPILE = g++ -m32 -I/usr/include/nptl -ffast-math -g -malign-double -pipe -march=pentium4 -O3 -finline-limit=20000 -finline-functions  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared  $(UNIX_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
-LINUX_GCC_x86_64_COMPILE = g++ -g -W -Wconversion -Wall -m64 -I/usr/include/nptl -pipe -fPIC -O3 -finline-limit=20000 -fomit-frame-pointer -finline-functions  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared   $(CFLAGS) $(UNIX_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
+LINUX_GCC_x86_64_COMPILE = g++ -g -W -Wconversion -Wall -m64 -I/usr/include/nptl -pipe -fPIC -O3 -finline-limit=20000 -finline-functions  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared   $(UNIX_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
-LINUX_GCC_x86_64_COMPILE_DEBUG = g++ -W -Wconversion -Wall -march=nocona -m64 -I/usr/include/nptl -pipe -fPIC -O0 -g $(INCLUDES) -D_REENTRANT=1 -shared   $(CFLAGS) $(UNIX_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
+LINUX_GCC_x86_64_COMPILE_DEBUG = g++ -W -Wconversion -Wall -march=nocona -m64 -I/usr/include/nptl -pipe -fPIC -O0 -g $(INCLUDES) -D_REENTRANT=1 -shared   $(UNIX_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
-LINUX_GCC_x86_COMPILE_STATIC = g++ -m32 -I/usr/include/nptl -static -pipe -march=pentium4 -O3 -finline-limit=20000 -fomit-frame-pointer -finline-functions  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 $(CFLAGS) -c $(UNIX_SRC) ; ar cr libhoard.a libhoard.o
+LINUX_GCC_x86_COMPILE_STATIC = g++ -m32 -I/usr/include/nptl -static -pipe -march=pentium4 -O3 -finline-limit=20000 -finline-functions  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1  -c $(UNIX_SRC) ; ar cr libhoard.a libhoard.o
 
-LINUX_GCC_x86_COMPILE_DEBUG = g++ -fPIC -m32 -O0 -fno-inline -I/usr/include/nptl  -g -pipe $(INCLUDES) -D_REENTRANT=1  -shared $(CFLAGS) $(UNIX_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
+LINUX_GCC_x86_COMPILE_DEBUG = g++ -m32 -O0 -fPIC -fno-inline -I/usr/include/nptl  -g -pipe $(INCLUDES) -D_REENTRANT=1  -shared $(UNIX_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
 SOLARIS_SUNW_SPARC_COMPILE_32_DEBUG = CC -dalign -mt -g -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -G -PIC $(UNIX_SRC) heaplayers/util/sparc-interchange.il -o libhoard_32.so -lthread -ldl -lCrun
 
@@ -70,13 +70,13 @@ SOLARIS_SUNW_x86_COMPILE_32_DEBUG = CC -mt -g -xildoff -xthreadvar=dynamic -L/us
 
 SOLARIS_SUNW_x86_COMPILE_64 = CC -xarch=amd64 -fns -fsimple=2 -ftrap=%none -xbuiltin=%all -xO5 -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -G -PIC $(UNIX_SRC) heaplayers/util/x86_64-interchange.il -o libhoard_64.so -lthread -ldl -lCrun
 
-SOLARIS_GCC_SPARC_COMPILE_32 = g++ -nostartfiles -pipe -DNDEBUG -mcpu=ultrasparc -m32 -O3 -finline-limit=20000 -fPIC -fkeep-inline-functions -finline-functions -ffast-math -fomit-frame-pointer $(INCLUDES) -D_REENTRANT=1 -shared $(UNIX_SRC) -lthread -lpthread -ldl -o libhoard_32.so
+SOLARIS_GCC_SPARC_COMPILE_32 = g++ -nostartfiles -pipe -DNDEBUG -mcpu=ultrasparc -m32 -O3 -finline-limit=20000 -fPIC -fkeep-inline-functions -finline-functions -ffast-math $(INCLUDES) -D_REENTRANT=1 -shared $(UNIX_SRC) -lthread -lpthread -ldl -o libhoard_32.so
 
-SOLARIS_GCC_SPARC_COMPILE_64 = g++ -nostartfiles -pipe -DNDEBUG -mcpu=ultrasparc -m64 -O3 -finline-limit=20000 -fPIC -fkeep-inline-functions -finline-functions -ffast-math -fomit-frame-pointer $(INCLUDES) -D_REENTRANT=1 -shared $(UNIX_SRC) -lthread -lpthread -ldl -o libhoard_64.so
+SOLARIS_GCC_SPARC_COMPILE_64 = g++ -nostartfiles -pipe -DNDEBUG -mcpu=ultrasparc -m64 -O3 -finline-limit=20000 -fPIC -fkeep-inline-functions -finline-functions -ffast-math $(INCLUDES) -D_REENTRANT=1 -shared $(UNIX_SRC) -lthread -lpthread -ldl -o libhoard_64.so
 
 SOLARIS_GCC_SPARC_COMPILE_DEBUG = g++ -nostartfiles -pipe -mcpu=ultrasparc -g -fPIC $(INCLUDES) -D_REENTRANT=1 -shared $(UNIX_SRC) -lthread -lpthread -ldl -o libhoard.so
 
-GENERIC_GCC_COMPILE = g++ -I/usr/include/nptl -pipe -O3 -finline-limit=20000 -fomit-frame-pointer -finline-functions  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared $(CFLAGS) $(UNIX_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
+GENERIC_GCC_COMPILE = g++ -I/usr/include/nptl -pipe -O3 -finline-limit=20000 -finline-functions  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared $(UNIX_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
 
 windows: libhoard.dll
