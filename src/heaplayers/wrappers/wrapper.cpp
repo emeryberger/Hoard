@@ -4,7 +4,7 @@
 
   Heap Layers: An Extensible Memory Allocation Infrastructure
   
-  Copyright (C) 2000-2007 by Emery Berger
+  Copyright (C) 2000-2012 by Emery Berger
   http://www.cs.umass.edu/~emery
   emery@cs.umass.edu
   
@@ -30,9 +30,27 @@
  * @author Emery Berger <http://www.cs.umass.edu/~emery>
  */
 
+
 #pragma once
 
 #include <string.h> // for memcpy and memset
+#include <stdlib.h> // size_t
+
+extern "C" {
+
+  void * xxmalloc (size_t);
+  void   xxfree (void *);
+
+  // Takes a pointer and returns how much space it holds.
+  size_t xxmalloc_usable_size (void *);
+
+  // Locks the heap(s), used prior to any invocation of fork().
+  void xxmalloc_lock (void);
+
+  // Unlocks the heap(s), after fork().
+  void xxmalloc_unlock (void);
+
+}
 
 #if defined(__APPLE__)
 #include <malloc/malloc.h>
@@ -100,25 +118,18 @@
 #define MYCDECL
 #endif
 
-static inline void * internalMalloc (size_t sz)
-{
-  TheCustomHeapType * theCustomHeap = getCustomHeap();
-  void * ptr = theCustomHeap->malloc (sz);
-  return ptr;
-}
-
 /***** generic malloc functions *****/
 
 extern "C" void * MYCDECL CUSTOM_MALLOC(size_t sz)
 {
-  void * ptr = internalMalloc(sz);
+  void * ptr = xxmalloc(sz);
   return ptr;
 }
 
 extern "C" void * MYCDECL CUSTOM_CALLOC(size_t nelem, size_t elsize)
 {
   size_t n = nelem * elsize;
-  void * ptr = internalMalloc (n);
+  void * ptr = CUSTOM_MALLOC(n);
   // Zero out the malloc'd block.
   if (ptr != NULL) {
     memset (ptr, 0, n);
@@ -153,9 +164,9 @@ extern "C" void * MYCDECL CUSTOM_MEMALIGN (size_t alignment, size_t size)
 {
   // NOTE: This function is deprecated.
   if (alignment == sizeof(double)) {
-    return internalMalloc (size);
+    return CUSTOM_MALLOC (size);
   } else {
-    void * ptr = internalMalloc (size + 2 * alignment);
+    void * ptr = CUSTOM_MALLOC (size + 2 * alignment);
     void * alignedPtr = (void *) (((size_t) ptr + alignment - 1) & ~(alignment - 1));
     return alignedPtr;
   }
@@ -163,23 +174,18 @@ extern "C" void * MYCDECL CUSTOM_MEMALIGN (size_t alignment, size_t size)
 
 extern "C" size_t MYCDECL CUSTOM_GETSIZE (void * ptr)
 {
-  TheCustomHeapType * theCustomHeap = getCustomHeap();
-  if (ptr == NULL) {
-    return 0;
-  }
-  return theCustomHeap->getSize(ptr);
+  return xxmalloc_usable_size (ptr);
 }
 
 extern "C" void MYCDECL CUSTOM_FREE (void * ptr)
 {
-  TheCustomHeapType * theCustomHeap = getCustomHeap();
-  theCustomHeap->free (ptr);
+  xxfree (ptr);
 }
 
 extern "C" void * MYCDECL CUSTOM_REALLOC (void * ptr, size_t sz)
 {
   if (ptr == NULL) {
-    ptr = internalMalloc (sz);
+    ptr = CUSTOM_MALLOC (sz);
     return ptr;
   }
   if (sz == 0) {
@@ -189,7 +195,7 @@ extern "C" void * MYCDECL CUSTOM_REALLOC (void * ptr, size_t sz)
 
   size_t objSize = CUSTOM_GETSIZE (ptr);
 
-  void * buf = internalMalloc(sz);
+  void * buf = CUSTOM_MALLOC(sz);
 
   if (buf != NULL) {
     if (objSize == CUSTOM_GETSIZE(buf)) {
@@ -218,7 +224,7 @@ extern "C" char * MYCDECL CUSTOM_STRNDUP(const char * s, size_t sz)
   char * newString = NULL;
   if (s != NULL) {
     size_t cappedLength = strnlen (s, sz);
-    if ((newString = (char *) internalMalloc(cappedLength + 1))) {
+    if ((newString = (char *) CUSTOM_MALLOC(cappedLength + 1))) {
       strncpy(newString, s, cappedLength);
       newString[cappedLength] = '\0';
     }
@@ -231,7 +237,7 @@ extern "C" char * MYCDECL CUSTOM_STRDUP(const char * s)
 {
   char * newString = NULL;
   if (s != NULL) {
-    if ((newString = (char *) internalMalloc(strlen(s) + 1))) {
+    if ((newString = (char *) CUSTOM_MALLOC(strlen(s) + 1))) {
       strcpy(newString, s);
     }
   }
@@ -260,7 +266,7 @@ extern "C"  char * MYCDECL CUSTOM_GETCWD(char * buf, size_t size)
     if (size == 0) {
       size = PATH_MAX;
     }
-    buf = (char *) internalMalloc(size);
+    buf = (char *) CUSTOM_MALLOC(size);
   }
   return (real_getcwd)(buf, size);
 }
@@ -268,15 +274,21 @@ extern "C"  char * MYCDECL CUSTOM_GETCWD(char * buf, size_t size)
 #endif
 
 
-#ifndef _NEW_INCLUDED_
-#define _NEW_INCLUDED_
+#if defined(__SVR4)
+// Apparently we no longer need to replace new and friends for Solaris.
+#define NEW_INCLUDED
+#endif
+
+
+#ifndef NEW_INCLUDED
+#define NEW_INCLUDED
 
 void * operator new (size_t sz)
 #if defined(__APPLE__)
   throw (std::bad_alloc)
 #endif
 {
-  void * ptr = internalMalloc (sz);
+  void * ptr = CUSTOM_MALLOC (sz);
   if (ptr == NULL) {
     throw std::bad_alloc();
   } else {
@@ -294,7 +306,7 @@ void operator delete (void * ptr)
 
 #if !defined(__SUNPRO_CC) || __SUNPRO_CC > 0x420
 void * operator new (size_t sz, const std::nothrow_t&) throw() {
-  return internalMalloc(sz);
+  return CUSTOM_MALLOC(sz);
 } 
 
 void * operator new[] (size_t size) 
@@ -302,7 +314,7 @@ void * operator new[] (size_t size)
   throw (std::bad_alloc)
 #endif
 {
-  void * ptr = internalMalloc(size);
+  void * ptr = CUSTOM_MALLOC(size);
   if (ptr == NULL) {
     throw std::bad_alloc();
   } else {
@@ -313,7 +325,7 @@ void * operator new[] (size_t size)
 void * operator new[] (size_t sz, const std::nothrow_t&)
   throw()
  {
-  return internalMalloc (sz);
+  return CUSTOM_MALLOC(sz);
 } 
 
 void operator delete[] (void * ptr)
