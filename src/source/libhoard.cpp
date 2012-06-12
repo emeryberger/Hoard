@@ -112,7 +112,8 @@ TheCustomHeapType * getCustomHeap();
 extern "C" {
 
   void * xxmalloc (size_t sz) {
-    void * ptr = getCustomHeap()->malloc (sz);
+    TheCustomHeapType * h = getCustomHeap();
+    void * ptr = h->malloc (sz);
     return ptr;
   }
 
