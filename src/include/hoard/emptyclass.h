@@ -137,7 +137,9 @@ namespace Hoard {
       for (int n = 0; n <= EmptinessClasses + 1; n++) {
 	SuperblockType * p = _available(n);
 	while (p) {
-	  assert (p != s);
+	  if (p == s) {
+	    abort();
+	  }
 	  p = p->getNext();
 	}
       }
