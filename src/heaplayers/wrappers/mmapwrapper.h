@@ -84,7 +84,7 @@ namespace HL {
 	madvise (ptr, sz, MADV_FREE);
 #else
 	// Assume Unix platform.
-	madvise (ptr, sz, MADV_DONTNEED);
+	madvise ((caddr_t) ptr, sz, MADV_DONTNEED);
 #endif
       }
     }
@@ -142,7 +142,7 @@ namespace HL {
     static void unmap (void * ptr, size_t sz) {
       // Round up the size to a page-sized value.
       sz = Size * ((sz + Size - 1) / Size);
-      munmap (ptr, sz);
+      munmap ((caddr_t) ptr, sz);
     }
    
 #endif
