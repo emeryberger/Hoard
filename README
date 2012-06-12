@@ -21,17 +21,20 @@ drop-in replacement for the C and C++ memory routines and is very fast
 on multiprocessor machines."
 
  -- Debugging Applications for Microsoft .NET and Microsoft Windows, Microsoft Press
+    <http://www.microsoft.com/mspress/books/5822.aspx>
 
 "(To improve scalability), consider an open source alternative such as
 the Hoard Memory Manager..."
 
  -- Windows System Programming, Addison-Wesley
+    <http://www.amazon.com/Windows-Programming-Addison-Wesley-Microsoft-Technology/dp/0321657748/>
 
 "Hoard dramatically improves program performance through its more
 efficient use of memory. Moreover, Hoard has provably bounded memory
 blowup and low synchronization costs."
 
  --  Principles of Parallel Programming, Addison-Wesley
+     <http://www.amazon.com/Principles-Parallel-Programming-Calvin-Lin/dp/0321487907/>
 
 Users
 -----
@@ -133,6 +136,8 @@ D. Berger, Kathryn S. McKinley, Robert D. Blumofe, and Paul
 R. Wilson. The Ninth International Conference on Architectural Support
 for Programming Languages and Operating Systems
 (ASPLOS-IX). Cambridge, MA, November 2000.
+
+<http://dl.acm.org/citation.cfm?id=379232>
 
 
 Building Hoard (Unix/Mac)
