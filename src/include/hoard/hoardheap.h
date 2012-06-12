@@ -85,6 +85,7 @@ typedef HL::WinLockType TheLockType;
 typedef HL::MacLockType TheLockType;
 #elif defined(__SVR4)
 #include "spinlock.h"
+typedef HL::SpinLockType TheLockType;
 #else
 #include "posixlock.h"
 #include "spinlock.h"
@@ -122,7 +123,6 @@ namespace Hoard {
     public ExactlyOneHeap<ThreadHeap<32, LockedHeap<TheLockType, ThresholdedLevelOne> > > {};
   
 #else
-  // FIX ME was
   // class MmapSource : public ExactlyOneHeap<LockedHeap<TheLockType, ThresholdedMmapSource> > {};
   class MmapSource : public AlignedMmap<SUPERBLOCK_SIZE, TheLockType> {};
 #endif
