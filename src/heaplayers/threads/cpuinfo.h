@@ -26,8 +26,8 @@
 
 
 
-#ifndef HL_CPUINFO_H_
-#define HL_CPUINFO_H_
+#ifndef HL_CPUINFO_H
+#define HL_CPUINFO_H
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -133,41 +133,13 @@ int CPUInfo::computeNumProcessors (void)
   }
 }
 
-  // Note: when stacksize arg is NULL for pthread_attr_setstacksize [Solaris],
-// stack size is 1 MB for 32-bit arch, 2 MB for 64-bit arch.
-// pthread_attr_getstacksize
-// pthread_attr_setstackaddr
-// pthread_attr_getstackaddr
-// PTHREAD_STACK_SIZE is minimum.
-// or should we just assume we have __declspec(thread) or __thread?
-
 #if defined(USE_THREAD_KEYWORD)
   extern __thread int localThreadId;
 #endif
 
-
 unsigned int CPUInfo::getThreadId (void) {
-#if 0 // defined(USE_THREAD_KEYWORD) // FIX ME!
-  return localThreadId;
-#elif defined(__SVR4)
-  size_t THREAD_STACK_SIZE;
-  if (sizeof(size_t) <= 4) {
-    THREAD_STACK_SIZE = 1048576;
-  } else {
-    // 64-bits.
-    THREAD_STACK_SIZE = 1048576 * 2;
-  }
-  if (0) { // !anyThreadStackCreated) {
-    // We know a priori that all stack variables
-    // are on different stacks. Since no one has created
-    // a special one, we are in control, and thus all stacks
-    // are 1 MB in size and on 1 MB boundaries.
-    // (Actually: 1 MB for 32-bits, 2 MB for 64-bits.)
-    char buf;
-    return (((size_t) &buf) & ~(THREAD_STACK_SIZE-1)) >> 20;
-  } else {
-    return (unsigned int) pthread_self();
-  }
+#if defined(__SVR4)
+  return (unsigned int) pthread_self();
 #elif defined(_WIN32)
   // It looks like thread id's are always multiples of 4, so...
   return GetCurrentThreadId() >> 2;
@@ -190,6 +162,7 @@ unsigned int CPUInfo::getThreadId (void) {
   unsigned int pid = (unsigned int) PRDA->sys_prda.prda_sys.t_pid;
   return pid;
 #else
+#error "This platform is not currently supported."
   return 0;
 #endif
 }
