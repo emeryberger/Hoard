@@ -329,7 +329,7 @@ extern "C" {
   }
 
   void MACWRAPPER_PREFIX(malloc_destroy_zone) (malloc_zone_t *) {
-    // A stub for now. FIX ME
+    // Do nothing.
   }
   
   malloc_zone_t * MACWRAPPER_PREFIX(malloc_zone_from_ptr) (const void *) {
