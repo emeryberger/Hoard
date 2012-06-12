@@ -101,7 +101,6 @@ namespace Hoard {
     // ----- below here are non-conventional heap methods ----- //
     
     INLINE bool isValidSuperblock (void) const {
-      assert (_header.isValid());
       bool b = _header.isValid();
       return b;
     }
