@@ -81,13 +81,13 @@ To obtain a license, please contact Jitendra Jain directly
 
 Jitendra Jain's full contact information follows:
 
-Jitendra Jain 
-The University of Texas at Austin 
-Office of Technology Commercialization 
-MCC Building, Suite 1.9A 
-3925 West Braker Lane 
-Austin, Texas 78759 
-(512) 471-9055, (512) 475-6894 (fax)
+Jitendra Jain  
+The University of Texas at Austin  
+Office of Technology Commercialization  
+MCC Building, Suite 1.9A  
+3925 West Braker Lane  
+Austin, Texas 78759  
+(512) 471-9055, (512) 475-6894 (fax)  
 
 
 Why Hoard?
