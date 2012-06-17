@@ -8,7 +8,8 @@ memory allocator for Linux, Solaris, Mac OS X, and Windows. Hoard is a
 drop-in replacement for malloc that can dramatically improve
 application performance, especially for multithreaded programs running
 on multiprocessors and multicore CPUs. No source code changes
-necessary: just link it in or set one environment variable (see below).
+necessary: just link it in or set one environment variable (see
+Building Hoard, below).
 
 Press
 -----
@@ -63,17 +64,17 @@ for commercial use.
 
 Because of the restrictions imposed by the GPL license (you must make
 your code open-source), commercial users of Hoard can purchase non-GPL
-licenses through the University of Texas at Austin. Please consult
-the current Hoard pricing information (updated 2/5/2009), which lists
-a number of options for purchasing licenses, as well as Software
-license terms and conditions, and the software license agreement: note
-that the main UT-Austin licensing page always contains the most
-up-to-date documents.
-
-<http://www.cs.umass.edu/~emery/hoard/Hoard%20Pricing%202-05-2009.pdf>
-<http://www.cs.umass.edu/~emery/hoard/SLA%20Terms%20and%20Conditions%209.22.2006.pdf>
-<http://www.cs.umass.edu/~emery/hoard/SLA%20Short%20Form%209-26-2006.pdf>
-<http://www.otc.utexas.edu/IndustryForms.jsp>
+licenses through the University of Texas at Austin. Please consult the
+[current Hoard pricing
+information](http://www.cs.umass.edu/~emery/hoard/Hoard%20Pricing%202-05-2009.pdf)
+(updated 2/5/2009), which lists a number of options for purchasing
+licenses, as well as [software license terms and
+conditions](http://www.cs.umass.edu/~emery/hoard/SLA%20Terms%20and%20Conditions%209.22.2006.pdf),
+and the [software license
+agreement](http://www.cs.umass.edu/~emery/hoard/SLA%20Short%20Form%209-26-2006.pdf):
+note that the [main UT-Austin licensing
+page](http://www.otc.utexas.edu/IndustryForms.jsp) always contains the
+most up-to-date documents.
 
 To obtain a license, please contact Jitendra Jain directly
 (jjain@otc.utexas.edu) and copy Emery Berger (emery@cs.umass.edu).
@@ -86,8 +87,7 @@ Office of Technology Commercialization
 MCC Building, Suite 1.9A 
 3925 West Braker Lane 
 Austin, Texas 78759 
-(512) 471-9055
-(512) 475-6894 (FAX)
+(512) 471-9055, (512) 475-6894 (fax)
 
 
 Why Hoard?
@@ -96,7 +96,8 @@ Why Hoard?
 There are a number of problems with existing memory allocators that
 make Hoard a better choice.
 
--- Contention --
+### Contention ###
+
 
 Multithreaded programs often do not scale because the heap is a
 bottleneck. When multiple threads simultaneously allocate or
@@ -106,7 +107,7 @@ down as the number of processors increases. Your program may be
 allocation-intensive without you realizing it, for instance, if your
 program makes many calls to the C++ Standard Template Library (STL).
 
--- False Sharing --
+### False Sharing ###
 
 The allocator can cause other problems for multithreaded code. It can
 lead to false sharing in your application: threads on different CPUs
@@ -114,7 +115,7 @@ can end up with memory in the same cache line, or chunk of
 memory. Accessing these falsely-shared cache lines is hundreds of
 times slower than accessing unshared cache lines.
 
--- Blowup --
+### Blowup ###
 
 Multithreaded programs can also lead the allocator to blowup memory
 consumption. This effect can multiply the amount of memory needed to
@@ -125,61 +126,65 @@ allocator that solves all of these problems.
 Technical Information
 ---------------------
 
-For technical details of a previous version of Hoard, read "Hoard: A
-Scalable Memory Allocator for Multithreaded Applications", by Emery
-D. Berger, Kathryn S. McKinley, Robert D. Blumofe, and Paul
+For technical details of a previous version of Hoard, read [Hoard: A
+Scalable Memory Allocator for Multithreaded Applications](http://dl.acm.org/citation.cfm?id=379232),
+by Emery D. Berger, Kathryn S. McKinley, Robert D. Blumofe, and Paul
 R. Wilson. The Ninth International Conference on Architectural Support
 for Programming Languages and Operating Systems
 (ASPLOS-IX). Cambridge, MA, November 2000.
 
-<http://dl.acm.org/citation.cfm?id=379232>
-
-
 Building Hoard (Unix/Mac)
 -------------------------
 
-To build Hoard on non-Windows platforms, change into the src/
-directory and run "make" followed by the appropriate target. If you
-type "make", it will present a list of available targets. These
-include linux-gcc-x86, solaris-sunw-sparc, etc.
+To build Hoard on non-Windows platforms, change into the `src/`
+directory and run `make` followed by the appropriate target. If you
+type `make`, it will present a list of available targets. These
+include `linux-gcc-x86`, `solaris-sunw-sparc`, `macos`, `windows`, and
+more.
+
+	% make linux-gcc-x86-64
 
 You can then use Hoard by linking it with your executable, or
-by setting the LD_PRELOAD environment variable, as in
+by setting the `LD_PRELOAD` environment variable, as in
 
-  % export LD_PRELOAD=/path/to/libhoard.so
+	% export LD_PRELOAD=/path/to/libhoard.so
 
 in Solaris:
 
-  % export LD_PRELOAD="/path/to/libhoard_32.so:/usr/lib/libCrun.so.1"
+	% make solaris-sunw-sparc
+	% export LD_PRELOAD="/path/to/libhoard_32.so:/usr/lib/libCrun.so.1"
+
   (32-bit version)
 
-  % export LD_PRELOAD="/path/to/libhoard_64.so:/usr/lib/64/libCrun.so.1"
+	% export LD_PRELOAD="/path/to/libhoard_64.so:/usr/lib/64/libCrun.so.1"
   (64-bit version)
 
 or, in Mac OS X:
 
-  % export DYLD_INSERT_LIBRARIES=/path/to/libhoard.dylib
+	% make macos
+	% export DYLD_INSERT_LIBRARIES=/path/to/libhoard.dylib
 
 Building Hoard (Windows)
 ------------------------
 
-Change into the src directory and type "nmake windows", as in:
+Change into the `src` directory and build the Windows version:
 
-  C:\hoard\src> nmake windows
+	C:\hoard\src> nmake windows
 
-To use Hoard, link your executable with 'source\uselibhoard.cpp' and 'winhoard.lib'.
-You *must* use the /MD flag.
+To use Hoard, link your executable with `source\uselibhoard.cpp` and `libhoard.lib`.
+You *must* use the `/MD` flag.
 
 Example:
-  C:\hoard\src> cl /Ox /MD yourapp.cpp source\uselibhoard.cpp libhoard.lib
 
-To run yourapp.exe, you will need to have libhoard.dll in your path.
+	C:\hoard\src> cl /Ox /MD yourapp.cpp source\uselibhoard.cpp libhoard.lib
+
+To run `yourapp.exe`, you will need to have `libhoard.dll` in your path.
 
 
 Benchmarks
 ----------
 
-The directory benchmarks/ contains a number of benchmarks used to
+The directory `benchmarks/` contains a number of benchmarks used to
 evaluate and tune Hoard.
 
 
