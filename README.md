@@ -1,9 +1,7 @@
-_The Hoard Memory Allocator_
-Copyright (C) 1998-2012 by Emery Berger
+[The Hoard Memory Allocator](http://www.hoard.org)
+--------------------------
 
- <http://www.hoard.org>
- <http://www.cs.umass.edu/~emery>
- <mailto:emery@cs.umass.edu>
+Copyright (C) 1998-2012 by [Emery Berger](http://www.cs.umass.edu/~emery)
 
 The Hoard memory allocator is a fast, scalable, and memory-efficient
 memory allocator for Linux, Solaris, Mac OS X, and Windows. Hoard is a
