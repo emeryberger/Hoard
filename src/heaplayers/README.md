@@ -3,7 +3,7 @@
 
 Copyright (C) 2000 - 2012 by [Emery Berger](http://www.cs.umass.edu/~emery)
 
-Please read [COPYING](COPYING) for licensing information.
+Please read [COPYING](heaplayers/COPYING) for licensing information.
 
 Heap Layers is distributed under the terms of the GNU General Public License.  
 
