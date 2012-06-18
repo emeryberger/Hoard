@@ -136,7 +136,7 @@ for Programming Languages and Operating Systems
 Building Hoard (Unix/Mac)
 -------------------------
 
-**NOTE: Make sure to invoke git as follows: `git clone --recursive https://github.com/emeryberger/DieHard.git`**
+**NOTE: Make sure to invoke git as follows: `git clone --recursive https://github.com/emeryberger/Hoard.git`**
 
 To build Hoard on non-Windows platforms, change into the `src/`
 directory and run `make` followed by the appropriate target. If you
