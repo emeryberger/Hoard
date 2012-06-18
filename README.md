@@ -9,28 +9,28 @@ drop-in replacement for malloc that can dramatically improve
 application performance, especially for multithreaded programs running
 on multiprocessors and multicore CPUs. No source code changes
 necessary: just link it in or set one environment variable (see
-Building Hoard, below).
+[Building Hoard](#building-hoard-unixmac), below).
 
 Press
 -----
 
-"If you'll be running on multiprocessor machines, ... use Emery
+*   "If you'll be running on multiprocessor machines, ... use Emery
 Berger's excellent Hoard multiprocessor memory management code. It's a
 drop-in replacement for the C and C++ memory routines and is very fast
 on multiprocessor machines."
 
- -- [Debugging Applications for Microsoft .NET and Microsoft Windows, Microsoft Press](http://www.microsoft.com/mspress/books/5822.aspx)
+    * [Debugging Applications for Microsoft .NET and Microsoft Windows, Microsoft Press](http://www.microsoft.com/mspress/books/5822.aspx)
 
-"(To improve scalability), consider an open source alternative such as
+*   "(To improve scalability), consider an open source alternative such as
 the Hoard Memory Manager..."
 
- -- [Windows System Programming, Addison-Wesley](http://www.amazon.com/Windows-Programming-Addison-Wesley-Microsoft-Technology/dp/0321657748/)
+    * [Windows System Programming, Addison-Wesley](http://www.amazon.com/Windows-Programming-Addison-Wesley-Microsoft-Technology/dp/0321657748/)
 
-"Hoard dramatically improves program performance through its more
+*   "Hoard dramatically improves program performance through its more
 efficient use of memory. Moreover, Hoard has provably bounded memory
 blowup and low synchronization costs."
 
- --  [Principles of Parallel Programming, Addison-Wesley](http://www.amazon.com/Principles-Parallel-Programming-Calvin-Lin/dp/0321487907/)
+    * [Principles of Parallel Programming, Addison-Wesley](http://www.amazon.com/Principles-Parallel-Programming-Calvin-Lin/dp/0321487907/)
 
 Users
 -----
