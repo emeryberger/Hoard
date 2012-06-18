@@ -23,9 +23,9 @@ all:
 
 MAIN_SRC  = source/libhoard.cpp
 UNIX_SRC  = $(MAIN_SRC) source/unixtls.cpp
-SUNW_SRC  = $(UNIX_SRC) heaplayers/wrappers/wrapper.cpp
-GNU_SRC   = $(UNIX_SRC) heaplayers/wrappers/gnuwrapper.cpp
-MACOS_SRC = $(MAIN_SRC) heaplayers/wrappers/macwrapper.cpp source/mactls.cpp
+SUNW_SRC  = $(UNIX_SRC) Heap-Layers/wrappers/wrapper.cpp
+GNU_SRC   = $(UNIX_SRC) Heap-Layers/wrappers/gnuwrapper.cpp
+MACOS_SRC = $(MAIN_SRC) Heap-Layers/wrappers/macwrapper.cpp source/mactls.cpp
 
 #
 # All dependencies.
@@ -37,9 +37,9 @@ DEPS = $(MACOS_SRC) $(UNIX_SRC) source/libhoard.cpp
 # Include directories
 #
 
-INCLUDES = -I. -Iinclude -Iinclude/util -Iinclude/hoard -Iinclude/superblocks -Iheaplayers -Iheaplayers/arch-specific -Iheaplayers/wrappers -Iheaplayers/utility -Iheaplayers/locks -Iheaplayers/threads -Iheaplayers/heaps/buildingblock -Iheaplayers/heaps/threads -Iheaplayers/heaps/utility -Iheaplayers/heaps/general -Iheaplayers/heaps/combining -Iheaplayers/heaps/objectrep -Iheaplayers/heaps/top -Iheaplayers/heaps/debug -Iheaplayers/heaps/special
+INCLUDES = -I. -Iinclude -Iinclude/util -Iinclude/hoard -Iinclude/superblocks -IHeap-Layers -IHeap-Layers/arch-specific -IHeap-Layers/wrappers -IHeap-Layers/utility -IHeap-Layers/locks -IHeap-Layers/threads -IHeap-Layers/heaps/buildingblock -IHeap-Layers/heaps/threads -IHeap-Layers/heaps/utility -IHeap-Layers/heaps/general -IHeap-Layers/heaps/combining -IHeap-Layers/heaps/objectrep -IHeap-Layers/heaps/top -IHeap-Layers/heaps/debug -IHeap-Layers/heaps/special
 
-WIN_INCLUDES = /I. /Iinclude /Iinclude/util /Iinclude/hoard /Iinclude/superblocks /Iheaplayers /Iheaplayers/arch-specific /Iheaplayers/wrappers /Iheaplayers/utility /Iheaplayers/locks /Iheaplayers/threads /Iheaplayers/heaps/buildingblock /Iheaplayers/heaps/threads /Iheaplayers/heaps/utility /Iheaplayers/heaps/general /Iheaplayers/heaps/combining /Iheaplayers/heaps/objectrep /Iheaplayers/heaps/top /Iheaplayers/heaps/debug -Iheaplayers/heaps/special
+WIN_INCLUDES = /I. /Iinclude /Iinclude/util /Iinclude/hoard /Iinclude/superblocks /IHeap-Layers /IHeap-Layers/arch-specific /IHeap-Layers/wrappers /IHeap-Layers/utility /IHeap-Layers/locks /IHeap-Layers/threads /IHeap-Layers/heaps/buildingblock /IHeap-Layers/heaps/threads /IHeap-Layers/heaps/utility /IHeap-Layers/heaps/general /IHeap-Layers/heaps/combining /IHeap-Layers/heaps/objectrep /IHeap-Layers/heaps/top /IHeap-Layers/heaps/debug -IHeap-Layers/heaps/special
 
 #
 # Compile commands for individual targets.
@@ -61,17 +61,17 @@ LINUX_GCC_x86_COMPILE_STATIC = g++ -m32 -I/usr/include/nptl -static -pipe -march
 
 LINUX_GCC_x86_COMPILE_DEBUG = g++ -m32 -O0 -fPIC -fno-inline -I/usr/include/nptl  -g -pipe $(INCLUDES) -D_REENTRANT=1  -shared $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
-SOLARIS_SUNW_SPARC_COMPILE_32_DEBUG = CC -dalign -xbuiltin=%all -fast -mt -g -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) heaplayers/arch-specific/sparc-interchange.il -o libhoard_32.so -lthread -ldl -lCrun
+SOLARIS_SUNW_SPARC_COMPILE_32_DEBUG = CC -dalign -xbuiltin=%all -fast -mt -g -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) Heap-Layers/arch-specific/sparc-interchange.il -o libhoard_32.so -lthread -ldl -lCrun
 
-SOLARIS_SUNW_SPARC_COMPILE_32 = CC -dalign -xbuiltin=%all -fast -xO5 -DNDEBUG -mt -g -xtarget=ultra2 -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) heaplayers/arch-specific/sparc-interchange.il -o libhoard_32.so -lthread -ldl -lCrun 
+SOLARIS_SUNW_SPARC_COMPILE_32 = CC -dalign -xbuiltin=%all -fast -xO5 -DNDEBUG -mt -g -xtarget=ultra2 -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) Heap-Layers/arch-specific/sparc-interchange.il -o libhoard_32.so -lthread -ldl -lCrun 
 
-SOLARIS_SUNW_SPARC_COMPILE_64 = CC -xcode=pic13 -m64 -mt -fast -dalign -xbuiltin=%all -xO5 -xtarget=ultra2 -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) heaplayers/arch-specific/sparc-interchange.il -o libhoard_64.so -lthread -ldl -lCrun
+SOLARIS_SUNW_SPARC_COMPILE_64 = CC -xcode=pic13 -m64 -mt -fast -dalign -xbuiltin=%all -xO5 -xtarget=ultra2 -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) Heap-Layers/arch-specific/sparc-interchange.il -o libhoard_64.so -lthread -ldl -lCrun
 
-SOLARIS_SUNW_x86_COMPILE_32 = CC -fns -fsimple=2 -ftrap=%none -xbuiltin=%all -mt -xO5 -fast -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) heaplayers/util/x86-interchange.il -o libhoard_32.so -lthread -ldl -lCrun
+SOLARIS_SUNW_x86_COMPILE_32 = CC -fns -fsimple=2 -ftrap=%none -xbuiltin=%all -mt -xO5 -fast -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) Heap-Layers/util/x86-interchange.il -o libhoard_32.so -lthread -ldl -lCrun
 
-SOLARIS_SUNW_x86_COMPILE_32_DEBUG = CC -mt -g -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) heaplayers/util/x86-interchange.il -o libhoard_32.so -lthread -ldl -lCrun
+SOLARIS_SUNW_x86_COMPILE_32_DEBUG = CC -mt -g -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) Heap-Layers/util/x86-interchange.il -o libhoard_32.so -lthread -ldl -lCrun
 
-SOLARIS_SUNW_x86_COMPILE_64 = CC -xarch=amd64 -fns -fsimple=2 -ftrap=%none -xbuiltin=%all -xO5 -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) heaplayers/util/x86_64-interchange.il -o libhoard_64.so -lthread -ldl -lCrun
+SOLARIS_SUNW_x86_COMPILE_64 = CC -xarch=amd64 -fns -fsimple=2 -ftrap=%none -xbuiltin=%all -xO5 -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) Heap-Layers/util/x86_64-interchange.il -o libhoard_64.so -lthread -ldl -lCrun
 
 SOLARIS_GCC_SPARC_COMPILE_32 = g++ -nostartfiles -pipe -DNDEBUG -mcpu=ultrasparc -m32 -O3 -finline-limit=20000 -fPIC -fkeep-inline-functions -finline-functions -ffast-math $(INCLUDES) -D_REENTRANT=1 -shared $(GNU_SRC) -lthread -lpthread -ldl -o libhoard_32.so
 
@@ -85,7 +85,7 @@ GENERIC_GCC_COMPILE = g++ -I/usr/include/nptl -pipe -O3 -finline-limit=20000 -fi
 windows: libhoard.dll
 
 libhoard.dll: $(DEPS)
-	cl $(WIN_INCLUDES) /Zi /nologo /W1 /WX- /Ox /Oi /Oy- /GL /D "_WINRT_DLL" /D "NDEBUG" /D "_WINDOWS" /D "_WINDLL" /D "_UNICODE" /D "UNICODE" /D "WINAPI_FAMILY=2" /Gm- /EHsc /MD /GS /Gy /fp:precise /Zc:wchar_t /Zc:forScope /Gd /errorReport:queue "source\libhoard.cpp" "heaplayers\wrappers\winwrapper.cpp" "source\wintls.cpp" /link /DLL /subsystem:console /OUT:libhoard.dll
+	cl $(WIN_INCLUDES) /Zi /nologo /W1 /WX- /Ox /Oi /Oy- /GL /D "_WINRT_DLL" /D "NDEBUG" /D "_WINDOWS" /D "_WINDLL" /D "_UNICODE" /D "UNICODE" /D "WINAPI_FAMILY=2" /Gm- /EHsc /MD /GS /Gy /fp:precise /Zc:wchar_t /Zc:forScope /Gd /errorReport:queue "source\libhoard.cpp" "Heap-Layers\wrappers\winwrapper.cpp" "source\wintls.cpp" /link /DLL /subsystem:console /OUT:libhoard.dll
 
 macos:
 	$(MACOS_COMPILE)
