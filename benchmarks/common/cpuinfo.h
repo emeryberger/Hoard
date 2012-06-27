@@ -26,8 +26,8 @@
 
 
 
-#ifndef _CPUINFO_H_
-#define _CPUINFO_H_
+#ifndef HL_CPUINFO_H
+#define HL_CPUINFO_H
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -146,7 +146,7 @@ int CPUInfo::computeNumProcessors (void)
 #endif
 
   // FIX ME FIXME
-#include <stdio.h>
+  //#include <stdio.h>
 
 unsigned long CPUInfo::getThreadId (void) {
 #if defined(__SVR4)

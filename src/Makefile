@@ -37,7 +37,7 @@ DEPS = $(MACOS_SRC) $(UNIX_SRC) source/libhoard.cpp
 # Include directories
 #
 
-INCLUDES = -I. -Iinclude -Iinclude/util -Iinclude/hoard -Iinclude/superblocks -IHeap-Layers -IHeap-Layers/arch-specific -IHeap-Layers/wrappers -IHeap-Layers/utility -IHeap-Layers/locks -IHeap-Layers/threads -IHeap-Layers/heaps/buildingblock -IHeap-Layers/heaps/threads -IHeap-Layers/heaps/utility -IHeap-Layers/heaps/general -IHeap-Layers/heaps/combining -IHeap-Layers/heaps/objectrep -IHeap-Layers/heaps/top -IHeap-Layers/heaps/debug -IHeap-Layers/heaps/special
+INCLUDES = -I. -Iinclude -Iinclude/util -Iinclude/hoard -Iinclude/superblocks -IHeap-Layers -IHeap-Layers/arch-specific -IHeap-Layers/wrappers -IHeap-Layers/wrappers/arch-specific -IHeap-Layers/utility -IHeap-Layers/locks -IHeap-Layers/threads -IHeap-Layers/heaps/buildingblock -IHeap-Layers/heaps/threads -IHeap-Layers/heaps/utility -IHeap-Layers/heaps/general -IHeap-Layers/heaps/combining -IHeap-Layers/heaps/objectrep -IHeap-Layers/heaps/top -IHeap-Layers/heaps/debug -IHeap-Layers/heaps/special
 
 WIN_INCLUDES = /I. /Iinclude /Iinclude/util /Iinclude/hoard /Iinclude/superblocks /IHeap-Layers /IHeap-Layers/arch-specific /IHeap-Layers/wrappers /IHeap-Layers/utility /IHeap-Layers/locks /IHeap-Layers/threads /IHeap-Layers/heaps/buildingblock /IHeap-Layers/heaps/threads /IHeap-Layers/heaps/utility /IHeap-Layers/heaps/general /IHeap-Layers/heaps/combining /IHeap-Layers/heaps/objectrep /IHeap-Layers/heaps/top /IHeap-Layers/heaps/debug -IHeap-Layers/heaps/special
 
