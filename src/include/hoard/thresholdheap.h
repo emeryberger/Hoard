@@ -66,15 +66,18 @@
 #define DEBUG_PRINT3(f,a,b,c)
 #endif
 
-#include "freelistheap.h"
-#include "kingsleyheap.h"
-#include "stlallocator.h"
+#include "heaplayers.h"
+
+//#include "freelistheap.h"
+//#include "kingsleyheap.h"
+//#include "stlallocator.h"
+//#include "bumpalloc.h"
+//#include "nullheap.h"
+//#include "sizeheap.h"
+//#include "uniqueheap.h"
+//#include "adaptheap.h"
+
 #include "mmapalloc.h"
-#include "bumpalloc.h"
-#include "nullheap.h"
-#include "sizeheap.h"
-#include "uniqueheap.h"
-#include "adaptheap.h"
 #include "exactlyoneheap.h"
 
 using namespace std;

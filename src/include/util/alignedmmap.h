@@ -34,12 +34,13 @@
 #ifndef HOARD_ALIGNEDMMAP_H
 #define HOARD_ALIGNEDMMAP_H
 
-#include "align.h"
-#include "sassert.h"
-#include "myhashmap.h"
-#include "freelistheap.h"
-#include "mmapwrapper.h"
-#include "bumpalloc.h"
+#include "heaplayers.h"
+// #include "align.h"
+// #include "sassert.h"
+// #include "freelistheap.h"
+// #include "mmapwrapper.h"
+// #include "bumpalloc.h"
+// #include "myhashmap.h"
 #include "exactlyoneheap.h"
 #include "mmapalloc.h"
 

@@ -28,7 +28,8 @@
 #ifndef HOARD_MMAPALLOC_H
 #define HOARD_MMAPALLOC_H
 
-#include "mmapwrapper.h"
+#include "heaplayers.h"
+// #include "mmapwrapper.h"
 
 /**
  * @class MmapAlloc

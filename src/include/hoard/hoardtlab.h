@@ -37,11 +37,13 @@
 #define HOARD_HOARDTLAB_H
 
 #include "hoardheap.h"
-#include "ansiwrapper.h"
-#include "cpuinfo.h"
 #include "heapmanager.h"
 #include "tlab.h"
 #include "hoardconstants.h"
+
+#include "heaplayers.h"
+// #include "ansiwrapper.h"
+// #include "cpuinfo.h"
 
 namespace Hoard {
   

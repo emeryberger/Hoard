@@ -32,18 +32,18 @@
 #include <new>
 
 // Hoard-specific Heap Layers
-#include "sassert.h"
 #include "statistics.h"
 #include "emptyclass.h"
 #include "array.h"
 #include "manageonesuperblock.h"
-
-
-// Generic Heap Layers
-#include "bins.h"
 #include "basehoardmanager.h"
 #include "emptyhoardmanager.h"
-#include "guard.h"
+
+
+#include "heaplayers.h"
+//#include "sassert.h"
+//#include "bins.h"
+//#include "guard.h"
 
 using namespace HL;
 

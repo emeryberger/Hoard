@@ -31,7 +31,9 @@
 #include <cassert>
 #include <cstdlib>
 
-#include "freesllist.h"
+#include "heaplayers.h"
+//#include "freesllist.h"
+
 #include "hoardsuperblockheader.h"
 
 namespace Hoard {

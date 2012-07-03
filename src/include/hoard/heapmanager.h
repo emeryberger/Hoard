@@ -31,8 +31,10 @@
 #include <cstdlib>
 
 #include "hoardconstants.h"
-#include "guard.h"
-#include "cpuinfo.h"
+
+#include "heaplayers.h"
+// #include "guard.h"
+// #include "cpuinfo.h"
 
 namespace Hoard {
 

@@ -40,10 +40,9 @@ using namespace HL;
 #define EMPTINESS_CLASSES 8
 
 
-// Hoard-specific Heap Layers
+// Hoard-specific layers
 
 #include "thresholdheap.h"
-#include "bins64k.h"
 #include "hoardmanager.h"
 #include "addheaderheap.h"
 #include "threadpoolheap.h"
@@ -58,16 +57,21 @@ using namespace HL;
 
 // Generic Heap Layers
 
-#include "ansiwrapper.h"
-#include "debugheap.h"
-#include "lockedheap.h"
+//#include "bins64k.h"
+//#include "ansiwrapper.h"
+//#include "debugheap.h"
+//#include "lockedheap.h"
 
 //#include "bins4k.h"
 //#include "bins8k.h"
 //#include "bins16k.h"
-#include "oneheap.h"
-#include "freelistheap.h"
-#include "hybridheap.h"
+//#include "oneheap.h"
+//#include "freelistheap.h"
+//#include "hybridheap.h"
+//#include "exactlyoneheap.h"
+//#include "threadheap.h"
+
+#include "releaseheap.h"
 
 // Note: I plan to eventually eliminate the use of the spin lock,
 // since the right place to do locking is in an OS-supplied library,
@@ -75,27 +79,18 @@ using namespace HL;
 // primitives.
 
 #if defined(_WIN32)
-#include "winlock.h"
 typedef HL::WinLockType TheLockType;
 #elif defined(__APPLE__)
-#include "maclock.h"
 // NOTE: On older versions of the Mac OS, Hoard CANNOT use Posix locks,
 // since they may call malloc themselves. However, as of Snow Leopard,
 // that problem seems to have gone away. Nonetheless, we use Mac-specific locks.
 typedef HL::MacLockType TheLockType;
 #elif defined(__SVR4)
-#include "spinlock.h"
 typedef HL::SpinLockType TheLockType;
 #else
-#include "posixlock.h"
-#include "spinlock.h"
 typedef HL::SpinLockType TheLockType;
 // typedef HL::PosixLockType TheLockType;
 #endif
-
-#include "exactlyoneheap.h"
-#include "releaseheap.h"
-#include "threadheap.h"
 
 namespace Hoard {
 

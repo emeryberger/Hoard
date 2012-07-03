@@ -30,8 +30,9 @@
 
 #include <cassert>
 
+#include "heaplayers.h"
 #include "array.h"
-#include "cpuinfo.h"
+//#include "cpuinfo.h"
 
 namespace Hoard {
 

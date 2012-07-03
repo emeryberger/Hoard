@@ -36,7 +36,8 @@
 #pragma warning( disable: 4355 ) // this used in base member initializer list
 #endif
 
-#include "align.h"
+#include "heaplayers.h"
+//#include "align.h"
 
 #include <cstdlib>
 

@@ -28,8 +28,9 @@
 #ifndef HOARD_ADDHEADERHEAP_H
 #define HOARD_ADDHEADERHEAP_H
 
-#include "sassert.h"
-#include "gcd.h"
+#include "heaplayers.h"
+//#include "sassert.h"
+//#include "gcd.h"
 
 
 namespace Hoard {

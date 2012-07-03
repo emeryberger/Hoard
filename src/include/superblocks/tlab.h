@@ -35,11 +35,12 @@
 #ifndef HOARD_TLAB_H
 #define HOARD_TLAB_H
 
-#include "mallocinfo.h"
-#include "dllist.h"
-#include "util/array.h"
-#include "sassert.h"
-#include "gcd.h"
+#include "heaplayers.h"
+// #include "mallocinfo.h"
+// #include "dllist.h"
+// #include "array.h"
+// #include "sassert.h"
+// #include "gcd.h"
 
 namespace Hoard {
 
