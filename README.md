@@ -1,3 +1,7 @@
+__if downloading from GitHub, make sure to use "--recursive", as in:__
+    % git clone --recursive https://github.com/emeryberger/Hoard
+
+
 [The Hoard Memory Allocator](http://www.hoard.org)
 --------------------------
 
