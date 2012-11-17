@@ -116,7 +116,7 @@ namespace Hoard {
 	  break;
 	}
 	size_t objSz = SuperHeap::getSize (obj);
-	DEBUG_PRINT1("found a big object in the cache of size %d.\n", objSz);
+	DEBUG_PRINT1("found a big object in the cache of size %lu.\n", objSz);
 	// Free it.
 	DEBUG_PRINT3("Freeing %d: inUse = %d, allocated = %d\n", objSz, _inUse, _allocated);
 	_allocated -= objSz;
