@@ -1,0 +1,11 @@
+*~
+*.pdb
+*.dylib
+*.obj
+*.o
+*.a
+*.exe
+*.dll
+a.out
+*.exp
+*.lib
