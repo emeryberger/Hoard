@@ -36,11 +36,6 @@
 #define HOARD_TLAB_H
 
 #include "heaplayers.h"
-// #include "mallocinfo.h"
-// #include "dllist.h"
-// #include "array.h"
-// #include "sassert.h"
-// #include "gcd.h"
 
 namespace Hoard {
 
@@ -63,7 +58,7 @@ namespace Hoard {
 
     ThreadLocalAllocationBuffer (ParentHeap * parent)
       : _parentHeap (parent),
-	_localHeapBytes (0)
+      	_localHeapBytes (0)
     {
       sassert<gcd<Alignment, DesiredAlignment>::value == DesiredAlignment> verifyAlignment;
       sassert<(Alignment >= 2 * sizeof(size_t))> verifyCanHoldTwoPointers;
@@ -79,20 +74,20 @@ namespace Hoard {
 
     inline void * malloc (size_t sz) {
       if (sz < Alignment) {
-	sz = Alignment;
+      	sz = Alignment;
       }
       // Get memory from the local heap,
       // and deduct that amount from the local heap bytes counter.
       if (sz <= LargestObject) {
-	unsigned int c = getSizeClass (sz);
-	void * ptr = _localHeap(c).get();
-	if (ptr) {
-	  assert (_localHeapBytes >= sz);
-	  _localHeapBytes -= getClassSize (c); // sz; 
-	  assert (getSize(ptr) >= sz);
-	  assert ((size_t) ptr % Alignment == 0);
-	  return ptr;
-	}
+      	unsigned int c = getSizeClass (sz);
+      	void * ptr = _localHeap(c).get();
+      	if (ptr) {
+      	  assert (_localHeapBytes >= sz);
+      	  _localHeapBytes -= getClassSize (c); // sz; 
+      	  assert (getSize(ptr) >= sz);
+      	  assert ((size_t) ptr % Alignment == 0);
+      	  return ptr;
+      	}
       }
 
       // No more local memory (for this size, at least).
@@ -105,33 +100,33 @@ namespace Hoard {
 
     inline void free (void * ptr) {
       if (!ptr) {
-	return;
+        	return;
       }
       const SuperblockType * s = getSuperblock (ptr);
       // If this isn't a valid superblock, just return.
 
       if (s->isValidSuperblock()) {
 
-	ptr = s->normalize (ptr);
-	const size_t sz = s->getObjectSize ();
+      	ptr = s->normalize (ptr);
+      	const size_t sz = s->getObjectSize ();
 
-	if ((sz <= LargestObject) && (sz + _localHeapBytes <= LocalHeapThreshold)) {
-	  // Free small objects locally, unless we are out of space.
+      	if ((sz <= LargestObject) && (sz + _localHeapBytes <= LocalHeapThreshold)) {
+      	  // Free small objects locally, unless we are out of space.
 
-	  assert (getSize(ptr) >= sizeof(HL::DLList::Entry *));
-	  unsigned int c = getSizeClass (sz);
+      	  assert (getSize(ptr) >= sizeof(HL::DLList::Entry *));
+      	  unsigned int c = getSizeClass (sz);
 
-	  _localHeap(c).insert ((HL::DLList::Entry *) ptr);
-	  _localHeapBytes += getClassSize(c); // sz;
-	  
-	} else {
+      	  _localHeap(c).insert ((HL::DLList::Entry *) ptr);
+      	  _localHeapBytes += getClassSize(c); // sz;
+      	  
+      	} else {
 
-	  // Free it to the parent.
-	  _parentHeap->free (ptr);
-	}
+      	  // Free it to the parent.
+      	  _parentHeap->free (ptr);
+      	}
 
       } else {
-	// Illegal pointer.
+      	// Illegal pointer.
       }
     }
 
@@ -139,13 +134,13 @@ namespace Hoard {
       // Free every object to the 'parent' heap.
       int i = NumBins - 1;
       while ((_localHeapBytes > 0) && (i >= 0)) {
-	const size_t sz = getClassSize (i);
-	while (!_localHeap(i).isEmpty()) {
-	  HL::DLList::Entry * e = _localHeap(i).get();
-	  _parentHeap->free (e);
-	  _localHeapBytes -= sz;
-	}
-	i--;
+      	const size_t sz = getClassSize (i);
+      	while (!_localHeap(i).isEmpty()) {
+      	  HL::DLList::Entry * e = _localHeap(i).get();
+      	  _parentHeap->free (e);
+      	  _localHeapBytes -= sz;
+      	}
+      	i--;
       }
     }
 
