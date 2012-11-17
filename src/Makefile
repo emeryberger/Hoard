@@ -1,6 +1,8 @@
 # Commands to compile Hoard for various targets.
 # Run make (with no arguments) to see the complete target list.
 
+all: macos
+
 all:
 	@echo To build Hoard, specify the desired build target:
 	@echo -------------------------------------------------
@@ -47,7 +49,7 @@ WIN_INCLUDES = /I. /Iinclude /Iinclude/util /Iinclude/hoard /Iinclude/superblock
 
 FREEBSD_COMPILE = g++ -O2 -DNDEBUG  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared $(UNIX_SRC) -Bsymbolic -o libhoard.so -pthread -fPIC
 
-MACOS_COMPILE = g++ -arch i386 -arch x86_64 -pipe -g -O3 -Wall -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -dynamiclib -D'CUSTOM_PREFIX(x)=xx\#\#x' $(MACOS_SRC) -o libhoard.dylib -ldl -lpthread 
+MACOS_COMPILE = clang++ -arch i386 -arch x86_64 -pipe -g -O3 -Wall -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -dynamiclib -D'CUSTOM_PREFIX(x)=xx\#\#x' $(MACOS_SRC) -o libhoard.dylib -ldl -lpthread 
 
 MACOS_COMPILE_DEBUG = g++ -arch i386 -arch x86_64 -pipe -g -O0 -Wall $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -dynamiclib $(MACOS_SRC) -o libhoard.dylib -ldl -lpthread
 
