@@ -1,8 +1,6 @@
 # Commands to compile Hoard for various targets.
 # Run make (with no arguments) to see the complete target list.
 
-all: macos
-
 all:
 	@echo To build Hoard, specify the desired build target:
 	@echo -------------------------------------------------
