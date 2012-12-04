@@ -1,7 +1,7 @@
 // -*- C++ -*-
 
-#ifndef _FRED_H_
-#define _FRED_H_
+#ifndef HL_FRED_H
+#define HL_FRED_H
 
 /// A thread-wrapper of childlike simplicity :).
 
@@ -23,20 +23,21 @@
 
 #endif
 
-namespace HL {
+typedef void * (*ThreadFunctionType) (void *);
 
-  extern "C" typedef void * (*ThreadFunctionType) (void *);
+namespace HL {
 
 class Fred {
 public:
 
-  Fred (void) {
+  Fred() {
 #if !defined(_WIN32)
     pthread_attr_init (&attr);
+    pthread_attr_setscope (&attr, PTHREAD_SCOPE_SYSTEM);
 #endif
   }
 
-  ~Fred (void) {
+  ~Fred() {
 #if !defined(_WIN32)
     pthread_attr_destroy (&attr);
 #endif
