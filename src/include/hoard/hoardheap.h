@@ -92,6 +92,11 @@ typedef HL::SpinLockType TheLockType;
 // typedef HL::PosixLockType TheLockType;
 #endif
 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-variable"
+#endif
+
 namespace Hoard {
 
   class ThresholdedMmapSource :
@@ -221,5 +226,8 @@ namespace Hoard {
 
 }
 
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
 #endif
