@@ -41,6 +41,11 @@
 
 #include <cstdlib>
 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-variable"
+#endif
+
 namespace Hoard {
 
   template <class LockType,
@@ -292,6 +297,10 @@ namespace Hoard {
 #endif
 
 }
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
 #if defined(_WIN32)
 #pragma warning( pop )

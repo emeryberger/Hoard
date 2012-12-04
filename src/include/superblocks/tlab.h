@@ -37,6 +37,11 @@
 
 #include "heaplayers.h"
 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-variable"
+#endif
+
 namespace Hoard {
 
   template <int NumBins,
@@ -167,6 +172,10 @@ namespace Hoard {
   };
 
 }
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
 #endif
 
