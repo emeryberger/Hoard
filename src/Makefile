@@ -135,6 +135,6 @@ solaris-sunw-x86-64:
 	$(SOLARIS_SUNW_x86_COMPILE_64)
 
 clean:
-	rm -f libhoard.*
+	rm -rf libhoard.*
 
 
