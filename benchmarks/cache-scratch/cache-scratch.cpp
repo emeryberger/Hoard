@@ -18,7 +18,7 @@
 /**
  * @file cache-scratch.cpp
  *
- * cache-scratch is a benchmark that exercises a heap's cache-locality.
+ * cache-scratch is a benchmark that exercises a heap's cache locality.
  * An allocator that allows multiple threads to re-use the same small
  * object (possibly all in one cache-line) will scale poorly, while
  * an allocator like Hoard will exhibit near-linear scaling.
@@ -34,7 +34,6 @@
  *  The ideal is a P-fold speedup.
 */
 
-
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -45,6 +44,9 @@
 // This class just holds arguments to each thread.
 class workerArg {
 public:
+
+  workerArg() {}
+
   workerArg (char * obj, int objSize, int repetitions, int iterations)
     : _object (obj),
       _objSize (objSize),
@@ -72,12 +74,13 @@ extern "C" void * worker (void * arg)
   //   then free it.
   workerArg * w = (workerArg *) arg;
   delete w->_object;
-  for (int i = 0; i < w->_iterations; i++) {
+  workerArg w1 = *w;
+  for (int i = 0; i < w1._iterations; i++) {
     // Allocate the object.
-    char * obj = new char[w->_objSize];
+    char * obj = new char[w1._objSize];
     // Write into it a bunch of times.
-    for (int j = 0; j < w->_repetitions; j++) {
-      for (int k = 0; k < w->_objSize; k++) {
+    for (int j = 0; j < w1._repetitions; j++) {
+      for (int k = 0; k < w1._objSize; k++) {
 	obj[k] = (char) k;
 	volatile char ch = obj[k];
 	ch++;
@@ -86,7 +89,6 @@ extern "C" void * worker (void * arg)
     // Free the object.
     delete [] obj;
   }
-  delete w;
 
 #if !defined(_WIN32)
   return NULL;
@@ -114,6 +116,8 @@ int main (int argc, char * argv[])
   HL::Fred * threads = new HL::Fred[nthreads];
   HL::Fred::setConcurrency (HL::CPUInfo::getNumProcessors());
 
+  workerArg w[nthreads];
+
   int i;
 
   // Allocate nthreads objects and distribute them among the threads.
@@ -126,8 +130,8 @@ int main (int argc, char * argv[])
   t.start();
 
   for (i = 0; i < nthreads; i++) {
-    workerArg * w = new workerArg (objs[i], objSize, repetitions / nthreads, iterations);
-    threads[i].create (&worker, (void *) w);
+    w[i] = workerArg (objs[i], objSize, repetitions / nthreads, iterations);
+    threads[i].create (&worker, (void *) &w[i]);
   }
   for (i = 0; i < nthreads; i++) {
     threads[i].join();
