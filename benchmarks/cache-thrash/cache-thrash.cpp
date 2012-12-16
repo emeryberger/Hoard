@@ -45,6 +45,7 @@ using namespace std;
 // This class just holds arguments to each thread.
 class workerArg {
 public:
+  workerArg() {}
   workerArg (int objSize, int repetitions, int iterations)
     : _objSize (objSize),
       _iterations (iterations),
@@ -68,21 +69,27 @@ extern "C" void * worker (void * arg)
   //   repeatedly write on it,
   //   then free it.
   workerArg * w = (workerArg *) arg;
-  for (int i = 0; i < w->_iterations; i++) {
+  workerArg w1 = *w;
+  for (int i = 0; i < w1._iterations; i++) {
     // Allocate the object.
-    char * obj = new char[w->_objSize];
+    char * obj = new char[w1._objSize];
+    //    printf ("obj = %p\n", obj);
     // Write into it a bunch of times.
-    for (int j = 0; j < w->_repetitions; j++) {
-      for (int k = 0; k < w->_objSize; k++) {
+    for (int j = 0; j < w1._repetitions; j++) {
+      for (int k = 0; k < w1._objSize; k++) {
+#if 0
+	volatile double d = 1.0;
+	d = d * d + d * d;
+#else
 	obj[k] = (char) k;
 	volatile char ch = obj[k];
 	ch++;
+#endif
       }
     }
     // Free the object.
     delete [] obj;
   }
-  delete w;
 #if !defined(_WIN32)
   return NULL;
 #endif
@@ -106,7 +113,7 @@ int main (int argc, char * argv[])
     exit(1);
   }
 
-  HL::Fred * threads = new HL::Fred[nthreads];
+  HL::Fred threads[nthreads];
   HL::Fred::setConcurrency (HL::CPUInfo::getNumProcessors());
 
   int i;
@@ -114,16 +121,16 @@ int main (int argc, char * argv[])
   HL::Timer t;
   t.start();
 
+  workerArg w[nthreads];
+
   for (i = 0; i < nthreads; i++) {
-    workerArg * w = new workerArg (objSize, repetitions / nthreads, iterations);
-    threads[i].create (&worker, (void *) w);
+    w[i] = workerArg (objSize, repetitions / nthreads, iterations);
+    threads[i].create (&worker, (void *) &w[i]);
   }
   for (i = 0; i < nthreads; i++) {
     threads[i].join();
   }
   t.stop();
-
-  delete [] threads;
 
   cout << "Time elapsed = " << (double) t << " seconds." << endl;
 }
