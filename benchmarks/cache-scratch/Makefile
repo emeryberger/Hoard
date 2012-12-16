@@ -2,7 +2,7 @@ include ../Makefile.inc
 
 TARGET = cache-scratch
 
-$(TARGET):
+$(TARGET): cache-scratch.cpp
 	$(CXX) $(CXXFLAGS) cache-scratch.cpp -o $(TARGET) -lpthread
 
 clean:
