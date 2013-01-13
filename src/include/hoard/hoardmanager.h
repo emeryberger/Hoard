@@ -41,9 +41,6 @@
 
 
 #include "heaplayers.h"
-//#include "sassert.h"
-//#include "bins.h"
-//#include "guard.h"
 
 using namespace HL;
 
