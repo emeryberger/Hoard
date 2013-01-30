@@ -87,6 +87,7 @@ public:
     bool r = findIndex (key, index);
     if (r) {
       _entries[index].erase();
+      _numElements--;
     }
     return r;
   }
