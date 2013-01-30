@@ -42,12 +42,12 @@ public:
 
   DynamicHashTable() :
     _size (INIT_SIZE),
-    _entries (allocTable (_size)),
+    _entries (allocTable (INIT_SIZE)),
     _numElements (0)
   {
     HL::sassert<(LOAD_FACTOR_RECIPROCAL > 1)> verify0;
     CheckPowerOfTwo<ExpansionFactor> verify1;
-    CheckPowerOfTwo<INIT_SIZE / sizeof(VALUE_TYPE)> verify2;
+    CheckPowerOfTwo<INIT_SIZE> verify2;
     verify0 = verify0;
     verify1 = verify1;
     verify2 = verify2;
@@ -88,6 +88,12 @@ public:
     if (r) {
       _entries[index].erase();
       _numElements--;
+      if (_numElements < _size / (2 * ExpansionFactor * LOAD_FACTOR_RECIPROCAL)) {
+	  if (_numElements >= 2 * INIT_SIZE) {
+	    // Shrink.
+	    shrink();
+	  }
+      }
     }
     return r;
   }
@@ -111,23 +117,63 @@ private:
 
   void grow() 
   {
-#if 1
-    {
-      char buf[255];
-      sprintf (buf, "GROWING, now %d/%d\n", _numElements, _size);
-      fprintf (stderr, buf);
-    }
-#endif
-
     // Save old values.
     size_t old_size             = _size;
     StoredObject * old_entries  = _entries;
     unsigned long old_elt_count = _numElements;
-    old_elt_count               = old_elt_count;
 
     // Make room for a new table, growing the current one.
     _size                      = _size * ExpansionFactor;
     _entries                   = allocTable (_size);
+
+#if 0
+    {
+      char buf[255];
+      sprintf (buf, "GROWING, was %d/%d, now %d/%d\n", old_elt_count, old_size, _numElements, _size);
+      fprintf (stderr, buf);
+    }
+#endif
+
+    if (_entries == NULL) {
+      // Failed to allocate space for a bigger table.
+      // Give up the ghost.
+      abort();
+    }
+
+    // Rehash all the elements.
+    unsigned long ct = 0;
+    for (unsigned long i = 0; i < old_size; i++) {
+      VALUE_TYPE v;
+      bool isValid = old_entries[i].get (v);
+      if (isValid) {
+        ct++;
+	insertOne (v);
+      }
+    }
+
+    assert (ct == _numElements);
+    _sh.free (old_entries);
+  }
+
+  void shrink() 
+  {
+    // Save old values.
+    size_t old_size             = _size;
+    StoredObject * old_entries  = _entries;
+    unsigned long old_elt_count = _numElements;
+
+    // Make room for a new table, growing the current one.
+    _size                      = _size / ExpansionFactor;
+    _entries                   = allocTable (_size);
+
+#if 0
+    {
+      char buf[255];
+      sprintf (buf, "SHRINKING, was %d/%d, now %d/%d\n", old_elt_count, old_size, _numElements, _size);
+      fprintf (stderr, buf);
+    }
+#endif
+
 
     if (_entries == NULL) {
       // Failed to allocate space for a bigger table.
