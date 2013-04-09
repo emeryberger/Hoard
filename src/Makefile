@@ -84,8 +84,12 @@ GENERIC_GCC_COMPILE = g++ -I/usr/include/nptl -pipe -O3 -finline-limit=20000 -fi
 
 windows: libhoard.dll
 
+WIN_DEFINES = /D "NDEBUG" /D "_WINDOWS" /D "_WINDLL" /D "_WINRT_DLL" /D "_UNICODE" /D "UNICODE"
+WIN_FLAGS   = /Zi /Ox /MD /nologo /W1 /WX- /Ox /Oi /Oy- /GL /Gm- /EHsc /MD /GS /Gy /Zc:wchar_t /Zc:forScope /Gd /errorReport:queue
+
 libhoard.dll: $(DEPS)
-	cl $(WIN_INCLUDES) /Zi /nologo /W1 /WX- /Ox /Oi /Oy- /GL /D "_WINRT_DLL" /D "NDEBUG" /D "_WINDOWS" /D "_WINDLL" /D "_UNICODE" /D "UNICODE" /D "WINAPI_FAMILY=2" /Gm- /EHsc /MD /GS /Gy /fp:precise /Zc:wchar_t /Zc:forScope /Gd /errorReport:queue "source\libhoard.cpp" "Heap-Layers\wrappers\winwrapper.cpp" "source\wintls.cpp" /link /DLL /subsystem:console /OUT:libhoard.dll
+	cl $(WIN_INCLUDES) $(WIN_DEFINES) $(WIN_FLAGS) "source\libhoard.cpp" "Heap-Layers\wrappers\winwrapper.cpp" "source\wintls.cpp" /link /DLL /subsystem:console /OUT:libhoard.dll
+#	cl $(WIN_INCLUDES) /Zi /nologo /W1 /WX- /Ox /Oi /Oy- /GL /D "_WINRT_DLL" /D "NDEBUG" /D "_WINDOWS" /D "_WINDLL" /D "_UNICODE" /D "UNICODE" /D "WINAPI_FAMILY=2" /Gm- /EHsc /MD /GS /Gy /fp:precise /Zc:wchar_t /Zc:forScope /Gd /errorReport:queue "source\libhoard.cpp" "Heap-Layers\wrappers\winwrapper.cpp" "source\wintls.cpp" /link /DLL /subsystem:console /OUT:libhoard.dll
 
 macos:
 	$(MACOS_COMPILE)
