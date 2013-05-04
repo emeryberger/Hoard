@@ -59,6 +59,8 @@ LINUX_GCC_x86_64_COMPILE_DEBUG = g++ -W -Wconversion -Wall -march=nocona -m64 -I
 
 LINUX_GCC_x86_COMPILE_STATIC = g++ -m32 -I/usr/include/nptl -static -pipe -march=pentium4 -O3 -finline-limit=20000 -finline-functions  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1  -c $(GNU_SRC) ; ar cr libhoard.a libhoard.o
 
+LINUX_GCC_x86_64_COMPILE_STATIC = g++ -g -W -Wconversion -Wall -m64 -I/usr/include/nptl -static -pipe -fPIC -O3 -finline-limit=20000 -finline-functions  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared -c $(GNU_SRC) -Bsymbolic ; ar cr libhoard.a libhoard.o
+
 LINUX_GCC_x86_COMPILE_DEBUG = g++ -m32 -O0 -fPIC -fno-inline -I/usr/include/nptl  -g -pipe $(INCLUDES) -D_REENTRANT=1  -shared $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
 SOLARIS_SUNW_SPARC_COMPILE_32_DEBUG = CC -dalign -xbuiltin=%all -fast -mt -g -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) Heap-Layers/arch-specific/sparc-interchange.il -o libhoard_32.so -lthread -ldl -lCrun
@@ -114,6 +116,9 @@ linux-gcc-x86-debug:
 
 linux-gcc-x86-64:
 	$(LINUX_GCC_x86_64_COMPILE)
+
+linux-gcc-x86-64-static:
+	$(LINUX_GCC_x86_64_COMPILE_STATIC)
 
 linux-gcc-x86-64-debug:
 	$(LINUX_GCC_x86_64_COMPILE_DEBUG)
