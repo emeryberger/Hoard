@@ -132,15 +132,8 @@ namespace Hoard {
 		 EMPTINESS_CLASSES,
 		 TheLockType,
 		 hoardThresholdFunctionClass,
-		 SmallHeap> > {
-  public:
-    void * malloc (size_t sz) {
-      void * ptr = SuperHeap::malloc (sz);
-      assert (getSize(ptr) >= sz);
-      assert ((size_t) ptr % Alignment == 0);
-      return ptr;
-    }
-  };
+		 SmallHeap> > 
+  {};
 
   class BigHeap;
 
