@@ -89,6 +89,7 @@ namespace Hoard {
       if (!ptr) {
 	ptr = slowPathMalloc (realSize);
       }
+      assert (getSize(ptr) >= sz);
       assert ((size_t) ptr % Alignment == 0);
       return ptr;
     }
