@@ -55,24 +55,6 @@ using namespace HL;
 #include "alignedmmap.h"
 #include "globalheap.h"
 
-// Generic Heap Layers
-
-//#include "bins64k.h"
-//#include "ansiwrapper.h"
-//#include "debugheap.h"
-//#include "lockedheap.h"
-
-//#include "bins4k.h"
-//#include "bins8k.h"
-//#include "bins16k.h"
-//#include "oneheap.h"
-//#include "freelistheap.h"
-//#include "hybridheap.h"
-//#include "exactlyoneheap.h"
-//#include "threadheap.h"
-
-#include "releaseheap.h"
-
 // Note: I plan to eventually eliminate the use of the spin lock,
 // since the right place to do locking is in an OS-supplied library,
 // and platforms have substantially improved the efficiency of these
@@ -100,32 +82,12 @@ typedef HL::SpinLockType TheLockType;
 namespace Hoard {
 
   class ThresholdedMmapSource :
-#if 0
-    public ReleaseHeap<ThresholdHeap<1048576,
-				     1, EMPTINESS_CLASSES,
-				     AlignedMmap<SUPERBLOCK_SIZE, TheLockType> > >
-#else
     public ThresholdHeap<1048576,
 			 1, EMPTINESS_CLASSES,
 			 AlignedMmap<SUPERBLOCK_SIZE, TheLockType> >
-#endif
   {};
   
-#if 0
-  class ThresholdedLevelOne :
-    public 
-    ThresholdHeap<1048576,
-		  1, EMPTINESS_CLASSES,
-		  ExactlyOneHeap<LockedHeap<TheLockType, ThresholdedMmapSource> > > {
-  };
-
-  class MmapSource :
-    public ExactlyOneHeap<ThreadHeap<32, LockedHeap<TheLockType, ThresholdedLevelOne> > > {};
-  
-#else
-  // class MmapSource : public ExactlyOneHeap<LockedHeap<TheLockType, ThresholdedMmapSource> > {};
   class MmapSource : public AlignedMmap<SUPERBLOCK_SIZE, TheLockType> {};
-#endif
   
   //
   // There is just one "global" heap, shared by all of the per-process heaps.

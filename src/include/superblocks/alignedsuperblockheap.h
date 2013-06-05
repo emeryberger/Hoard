@@ -29,9 +29,6 @@
 #define HOARD_ALIGNEDSUPERBLOCKHEAP_H
 
 #include "heaplayers.h"
-// #include "sassert.h"
-// #include "lockedheap.h"
-// #include "dllist.h"
 
 #include "conformantheap.h"
 #include "fixedrequestheap.h"
