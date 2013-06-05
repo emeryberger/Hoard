@@ -37,7 +37,6 @@
 #endif
 
 #include "heaplayers.h"
-//#include "align.h"
 
 #include <cstdlib>
 
