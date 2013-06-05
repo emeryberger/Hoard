@@ -35,12 +35,6 @@
 #define HOARD_ALIGNEDMMAP_H
 
 #include "heaplayers.h"
-// #include "align.h"
-// #include "sassert.h"
-// #include "freelistheap.h"
-// #include "mmapwrapper.h"
-// #include "bumpalloc.h"
-// #include "myhashmap.h"
 #include "exactlyoneheap.h"
 #include "mmapalloc.h"
 
@@ -75,19 +69,21 @@ namespace Hoard {
 	return ptr;
       }
 
+      void * ptr = NULL;
+
       // Try a map call and hope that it's suitably aligned. If we get lucky,
       // we're done.
 
-      char * ptr = reinterpret_cast<char *>(HL::MmapWrapper::map (sz));
+      ptr = HL::MmapWrapper::map (sz);
 
-      if (ptr == (char *) HL::align<Alignment>((size_t) ptr)) {
+      if ((size_t) ptr == HL::align<Alignment>((size_t) ptr)) {
 	// We're done.
 	MyMap.set (ptr, sz);
 	return ptr;
-      } else {
-	// Try again.
-	HL::MmapWrapper::unmap ((void *) ptr, sz);
       }
+
+      // Try again.
+      HL::MmapWrapper::unmap ((void *) ptr, sz);
 
       // We have to align it ourselves. We get memory from
       // mmap, align a pointer in the space, and free the space before
@@ -110,6 +106,7 @@ namespace Hoard {
 	HL::MmapWrapper::unmap (ptr, prolog);
       }
 
+      // Get rid of the epilog.
       size_t epilog = Alignment - prolog;
       HL::MmapWrapper::unmap ((char *) newptr + sz, epilog);
 
