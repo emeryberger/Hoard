@@ -29,10 +29,6 @@
 #define HOARD_REDIRECTFREE_H
 
 #include "heaplayers.h"
-//#include "fred.h"
-//#include "guard.h"
-//#include "sassert.h"
-
 
 namespace Hoard {
 
