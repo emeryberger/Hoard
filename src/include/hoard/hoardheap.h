@@ -28,6 +28,8 @@
 #ifndef HOARD_HOARDHEAP_H
 #define HOARD_HOARDHEAP_H
 
+#include <assert.h>
+
 #include "heaplayers.h"
 
 using namespace HL;
