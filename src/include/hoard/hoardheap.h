@@ -153,7 +153,7 @@ namespace Hoard {
   };
 #else
   // Experimental faster support for large objects.
-   public ThresholdSegHeap<20,
+   public HL::LockedHeap<TheLockType, ThresholdSegHeap<20,
 			   80,
 			   GeometricSizeClass<20>::size2class,
 			   GeometricSizeClass<20>::class2size,
@@ -162,10 +162,8 @@ namespace Hoard {
 						       MmapSource > >,
 			   AddHeaderHeap<BigSuperblockType,
 						       SUPERBLOCK_SIZE,
-						       MmapSource > > 
+					 MmapSource > > >
    {
-   public:
-     enum { Alignment = MmapSource::Alignment };
    };
 #endif
 
