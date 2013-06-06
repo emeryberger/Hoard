@@ -55,10 +55,13 @@ using namespace HL;
 #include "alignedmmap.h"
 #include "globalheap.h"
 
-// Note: I plan to eventually eliminate the use of the spin lock,
-// since the right place to do locking is in an OS-supplied library,
-// and platforms have substantially improved the efficiency of these
-// primitives.
+#include "thresholdsegheap.h"
+#include "geometricsizeclass.h"
+
+// Note from Emery Berger: I plan to eventually eliminate the use of
+// the spin lock, since the right place to do locking is in an
+// OS-supplied library, and platforms have substantially improved the
+// efficiency of these primitives.
 
 #if defined(_WIN32)
 typedef HL::WinLockType TheLockType;
@@ -141,12 +144,29 @@ namespace Hoard {
 
   // The heap that manages large objects.
   class BigHeap :
+#if 0
     public ConformantHeap<HL::LockedHeap<TheLockType,
 					 AddHeaderHeap<BigSuperblockType,
 						       SUPERBLOCK_SIZE,
 						       MmapSource > > >
   {
   };
+#else
+   public ThresholdSegHeap<20,
+			   80,
+			   GeometricSizeClass<20>::size2class,
+			   GeometricSizeClass<20>::class2size,
+			   AdaptHeap<DLList, AddHeaderHeap<BigSuperblockType,
+						       SUPERBLOCK_SIZE,
+						       MmapSource > >,
+			   AddHeaderHeap<BigSuperblockType,
+						       SUPERBLOCK_SIZE,
+						       MmapSource > > 
+   {
+   public:
+     enum { Alignment = MmapSource::Alignment };
+   };
+#endif
 
 
   enum { BigObjectSize = 
