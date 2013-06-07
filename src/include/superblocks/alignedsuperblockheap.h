@@ -43,9 +43,7 @@ namespace Hoard {
 
     enum { Alignment = MmapSource::Alignment };
 
-    void * malloc (size_t sz) {
-      assert (sz == SuperblockSize);
-      sz = SuperblockSize; // This is only to silent warnings.
+    void * malloc (size_t) {
       if (_freeSuperblocks.isEmpty()) {
 	// Get more memory.
 	void * ptr = _superblockSource.malloc (ChunksToGrab * SuperblockSize);

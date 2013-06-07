@@ -67,6 +67,8 @@ namespace Hoard {
     {
       sassert<gcd<Alignment, DesiredAlignment>::value == DesiredAlignment> verifyAlignment;
       sassert<(Alignment >= 2 * sizeof(size_t))> verifyCanHoldTwoPointers;
+      verifyAlignment = verifyAlignment;
+      verifyCanHoldTwoPointers = verifyCanHoldTwoPointers;
     }
 
     ~ThreadLocalAllocationBuffer (void) {
