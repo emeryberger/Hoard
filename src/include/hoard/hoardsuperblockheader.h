@@ -66,7 +66,7 @@ namespace Hoard {
       : _magicNumber (MAGIC_NUMBER ^ (size_t) this),
 	_objectSize (sz),
 	_objectSizeIsPowerOfTwo (!(sz & (sz - 1)) && sz),
-	_totalObjects ((unsigned int) bufferSize / sz),
+	_totalObjects ((unsigned int) (bufferSize / sz)),
 	_owner (NULL),
 	_prev (NULL),
 	_next (NULL),
@@ -284,6 +284,7 @@ namespace Hoard {
       : HoardSuperblockHeaderHelper<LockType,SuperblockSize,HeapType> (sz, bufferSize, (char *) (this + 1))
     {
       sassert<((sizeof(*this) % Parent::Alignment) == 0)> verifySize;
+      verifySize = verifySize;
     }
 
   private:
