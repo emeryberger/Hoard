@@ -146,7 +146,7 @@ namespace Hoard {
 
   // The heap that manages large objects.
   class BigHeap :
-#if 1
+#if 0
     public ConformantHeap<HL::LockedHeap<TheLockType,
 					 AddHeaderHeap<BigSuperblockType,
 						       SUPERBLOCK_SIZE,
@@ -155,16 +155,18 @@ namespace Hoard {
   };
 #else
   // Experimental faster support for large objects.
-   public HL::ThreadHeap<64, HL::LockedHeap<TheLockType, ThresholdSegHeap<20,
-			   80,
-			   GeometricSizeClass<20>::size2class,
-			   GeometricSizeClass<20>::class2size,
-			   AdaptHeap<DLList, AddHeaderHeap<BigSuperblockType,
-						       SUPERBLOCK_SIZE,
-						       MmapSource > >,
-			   AddHeaderHeap<BigSuperblockType,
-						       SUPERBLOCK_SIZE,
-					 MmapSource > > > >
+   public HL::ThreadHeap<64, HL::LockedHeap<TheLockType,
+					    ThresholdSegHeap<20,    // 20% waste
+							     65536, // at least 64K in any heap
+							     80,    // num size classes
+							     GeometricSizeClass<20>::size2class,
+							     GeometricSizeClass<20>::class2size,
+							     AdaptHeap<DLList, AddHeaderHeap<BigSuperblockType,
+											     SUPERBLOCK_SIZE,
+											     MmapSource > >,
+							     AddHeaderHeap<BigSuperblockType,
+									   SUPERBLOCK_SIZE,
+									   MmapSource > > > >
    {
    };
 #endif
