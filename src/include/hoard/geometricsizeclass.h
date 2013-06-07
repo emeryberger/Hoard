@@ -24,8 +24,8 @@ namespace Hoard {
 
     static int size2class (const size_t sz) {
       //      int index = 0;
-      int index = floor(log(sz) - log(Alignment))
-	/ ceil(log(1.0 + (float) MaxOverhead / 100.0));
+      int index = (int) (floor(log(sz) - log(Alignment))
+			 / ceil(log(1.0 + (double) MaxOverhead / 100.0)));
       //      int index = 0;
       while (sz > c2s(index)) {
 	index++;
@@ -52,7 +52,7 @@ namespace Hoard {
 	  return false;
 	}
       }
-      for (int cl = 0; cl < NUM_SIZES; cl++) {
+      for (int cl = 0; cl < NUM_SIZECLASSES; cl++) {
 	size_t sz = class2size (cl);
 	if (cl != size2class(sz)) {
 	  assert (cl == size2class(sz));
@@ -64,13 +64,13 @@ namespace Hoard {
 
   private:
 
-    enum { NUM_SIZES = 80 };
+    /// The total number of size classes.
+    enum { NUM_SIZECLASSES = 80 }; // EDB: Magic number for now; FIX ME.
 
     static unsigned long c2s (int cl) {
-      static size_t sizes[NUM_SIZES];
+      static size_t sizes[NUM_SIZECLASSES];
       static bool init = createTable (sizes);
-      //      static bool init2 = createTable (sizes);
-      //      init = true;
+      init = init;
       return sizes[cl];
     }
 
@@ -78,10 +78,10 @@ namespace Hoard {
     {
       const double base = (1.0 + (double) MaxOverhead / 100.0);
       size_t sz = Alignment;
-      for (int i = 0; i < NUM_SIZES; i++) {
+      for (int i = 0; i < NUM_SIZECLASSES; i++) {
 	sizes[i] = sz;
 	size_t newSz = sz;
-	newSz = floor (base * sz);
+	newSz = (size_t) (floor ((double) base * (double) sz));
 	newSz = newSz - (newSz % Alignment);
 	while ((double) newSz / (double) sz < base) {
 	  newSz += Alignment;
