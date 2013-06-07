@@ -59,7 +59,7 @@ main (int argc, char *argv[])
     pthread_attr_t attr;
     pthread_attr_init (&attr);
 #ifdef PTHREAD_SCOPE_SYSTEM
-    pthread_attr_setscope (&attr, PTHREAD_SCOPE_SYSTEM); /* bound behavior */
+    //    pthread_attr_setscope (&attr, PTHREAD_SCOPE_SYSTEM); /* bound behavior */
 #endif
     if (pthread_create (&(thread[i]), &attr, &run_test, (void *) NULL))
       printf ("failed.\n");
@@ -125,7 +125,8 @@ run_test (void * arg)
       adjusted.tv_sec--;
       adjusted.tv_usec += USECSPERSEC;
     }
-  printf ("Thread %d adjusted timing: %d.%06d seconds for %d requests" " of %d bytes.\n", pthread_self (), adjusted.tv_sec, adjusted.tv_usec, total_iterations, request_size);
+  unsigned int pt = (unsigned int) pthread_self() >> 12;
+  printf ("Thread %u adjusted timing: %d.%06d seconds for %d requests" " of %d bytes.\n", pt, adjusted.tv_sec, adjusted.tv_usec, total_iterations, request_size);
 
   return (NULL);
 }
