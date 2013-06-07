@@ -11,10 +11,8 @@ namespace Hoard {
   public:
 
     static int size2class (const size_t sz) {
-      static size_t sizes[NUM_SIZES];
-      static bool init = createTable (sizes);
       int index = 0;
-      while (sz > sizes[index]) {
+      while (sz > c2s(index)) {
 	index++;
       }
       return index;
@@ -27,9 +25,7 @@ namespace Hoard {
     }
 
     static size_t class2size (const int cl) {
-      static size_t sizes[NUM_SIZES];
-      static bool init = createTable (sizes);
-      return sizes[cl];
+      return c2s (cl);
       //      return Alignment * floor (pow (1.0 + (float) MaxOverhead / 100.0, cl));
     }
 
@@ -48,6 +44,12 @@ namespace Hoard {
 
     enum { NUM_SIZES = 80 };
 
+    static unsigned long c2s (int cl) {
+      static size_t sizes[NUM_SIZES];
+      static bool init = createTable (sizes);
+      return sizes[cl];
+    }
+
     static bool createTable (unsigned long * sizes)
     {
       const float base = (1.0 + (float) MaxOverhead / 100.0);
@@ -55,6 +57,12 @@ namespace Hoard {
       for (int i = 0; i < NUM_SIZES; i++) {
 	sizes[i] = sz;
 	size_t newSz = sz;
+	// (l(n) - l(s)) / l(b) >= 1
+	// l(n) - l(s) >= l(b)
+	// l(n) >= l(b) + l(s)
+	// n >= e(l(b) + l(s))
+	newSz = ceil(exp(log(base) + log(sz)));
+	newSz = newSz - (newSz % Alignment);
 	while ((log(newSz) - log(sz)) / log(base) < 1.0) {
 	  newSz += Alignment;
 	}
