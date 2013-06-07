@@ -55,9 +55,11 @@ namespace Hoard {
   template <class TYPE, class CHECK>
   class Check {
   public:
-    Check (TYPE * t)
 #ifndef NDEBUG
+    Check (TYPE * t)
       : _object (t)
+#else
+    Check (TYPE *)
 #endif
     {
 #ifndef NDEBUG
@@ -65,7 +67,7 @@ namespace Hoard {
 #endif
     }
     
-    ~Check (void) {
+    ~Check() {
 #ifndef NDEBUG
       CHECK::postcondition (_object);
 #endif
