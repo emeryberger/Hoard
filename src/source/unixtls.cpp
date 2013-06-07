@@ -44,8 +44,6 @@
                      + __GNUC_MINOR__ * 100 \
                      + __GNUC_PATCHLEVEL__)
 
-     //     !defined(__x86_64) &&		\
-
 #if ((GCC_VERSION >= 30300) && \
      !defined(__SVR4) && \
      !defined(__APPLE__)) \
