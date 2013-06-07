@@ -1,4 +1,4 @@
-DIRS := cache-scratch cache-thrash larson linux-scalability shbench threadtest
+DIRS := cache-scratch cache-thrash larson linux-scalability phong shbench threadtest
 
 all:
 	for dir in $(DIRS); do \
