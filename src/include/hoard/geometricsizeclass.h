@@ -3,6 +3,13 @@
 #ifndef HOARD_GEOMETRIC_SIZECLASS_H
 #define HOARD_GEOMETRIC_SIZECLASS_H
 
+#include <cmath>
+#include <cstdlib>
+#include <cassert>
+
+#include <iostream>
+
+
 namespace Hoard {
 
   template <int MaxOverhead = 20,  // percent
@@ -10,8 +17,16 @@ namespace Hoard {
   class GeometricSizeClass {
   public:
 
+    GeometricSizeClass()
+    {
+      assert (test());
+    }
+
     static int size2class (const size_t sz) {
-      int index = 0;
+      //      int index = 0;
+      int index = floor(log(sz) - log(Alignment))
+	/ ceil(log(1.0 + (float) MaxOverhead / 100.0));
+      //      int index = 0;
       while (sz > c2s(index)) {
 	index++;
       }
@@ -32,13 +47,17 @@ namespace Hoard {
     static bool test() {
       for (size_t sz = Alignment; sz < 1048576; sz += Alignment) {
 	int cl = size2class (sz);
-	if (sz > class2size(cl)) 
+	if (sz > class2size(cl)) {
+	  assert (sz <= class2size(cl));
 	  return false;
+	}
       }
       for (int cl = 0; cl < NUM_SIZES; cl++) {
 	size_t sz = class2size (cl);
-	if (cl != size2class(sz))
+	if (cl != size2class(sz)) {
+	  assert (cl == size2class(sz));
 	  return false;
+	}
       }
       return true;
     }
@@ -50,7 +69,8 @@ namespace Hoard {
     static unsigned long c2s (int cl) {
       static size_t sizes[NUM_SIZES];
       static bool init = createTable (sizes);
-      init = true;
+      //      static bool init2 = createTable (sizes);
+      //      init = true;
       return sizes[cl];
     }
 
@@ -61,13 +81,9 @@ namespace Hoard {
       for (int i = 0; i < NUM_SIZES; i++) {
 	sizes[i] = sz;
 	size_t newSz = sz;
-	// (l(n) - l(s)) / l(b) >= 1
-	// l(n) - l(s) >= l(b)
-	// l(n) >= l(b) + l(s)
-	// n >= e(l(b) + l(s))
-	newSz = (size_t) ceil(exp(log((base) + log((float) sz))));
+	newSz = floor (base * sz);
 	newSz = newSz - (newSz % Alignment);
-	while ((log((float) newSz) - log((float) sz)) / log(base) < 1.0) {
+	while ((double) newSz / (double) sz < base) {
 	  newSz += Alignment;
 	}
 	sz = newSz;
