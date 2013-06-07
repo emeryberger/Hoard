@@ -29,15 +29,18 @@ namespace Hoard {
       //      return Alignment * floor (pow (1.0 + (float) MaxOverhead / 100.0, cl));
     }
 
-    static void test() {
+    static bool test() {
       for (size_t sz = Alignment; sz < 1048576; sz += Alignment) {
 	int cl = size2class (sz);
-	assert (sz <= class2size(cl));
+	if (sz > class2size(cl)) 
+	  return false;
       }
       for (int cl = 0; cl < NUM_SIZES; cl++) {
 	size_t sz = class2size (cl);
-	assert (cl == size2class (sz));
+	if (cl != size2class(sz))
+	  return false;
       }
+      return true;
     }
 
   private:
@@ -47,7 +50,7 @@ namespace Hoard {
     static unsigned long c2s (int cl) {
       static size_t sizes[NUM_SIZES];
       static bool init = createTable (sizes);
-      init = init;
+      init = true;
       return sizes[cl];
     }
 
