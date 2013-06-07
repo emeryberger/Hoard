@@ -59,7 +59,7 @@ main (int argc, char *argv[])
     pthread_attr_t attr;
     pthread_attr_init (&attr);
 #ifdef PTHREAD_SCOPE_SYSTEM
-    //    pthread_attr_setscope (&attr, PTHREAD_SCOPE_SYSTEM); /* bound behavior */
+    pthread_attr_setscope (&attr, PTHREAD_SCOPE_SYSTEM); /* bound behavior */
 #endif
     if (pthread_create (&(thread[i]), &attr, &run_test, (void *) NULL))
       printf ("failed.\n");
