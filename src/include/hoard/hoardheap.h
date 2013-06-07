@@ -146,7 +146,7 @@ namespace Hoard {
 
   // The heap that manages large objects.
   class BigHeap :
-#if 1
+#if 0
     public ConformantHeap<HL::LockedHeap<TheLockType,
 					 AddHeaderHeap<BigSuperblockType,
 						       SUPERBLOCK_SIZE,
