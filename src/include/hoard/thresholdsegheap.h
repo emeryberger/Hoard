@@ -49,8 +49,9 @@ namespace Hoard {
       assert (_currLive >= sz);
       _currLive -= sz;
       SuperHeap::free (ptr);
-      if ((float) _maxLive / _currLive >
-	  (1.0 + (float) ThresholdOverMax / 100.0) * _maxLive) 
+      double maxFraction = (1.0 + (double) ThresholdOverMax / 100.0) * (double) _maxLive;
+      double currentFraction = (double) _maxLive / (double) _currLive;
+      if (currentFraction > maxFraction)
 	{
 	  SuperHeap::clear();
 	}
