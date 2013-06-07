@@ -5,7 +5,11 @@
 
 namespace Hoard {
 
-  template <int ThresholdOverMax, // % over max live in superheap.
+  // Allows superheap to hold at least ThresholdSlop but no more than
+  // ThresholdFraction% more memory than client currently holds.
+
+  template <int ThresholdFraction, // % over current allowed in superheap.
+	    int ThresholdSlop,     // constant amount allowed in superheap.
 	    int NumBins,
 	    int (*getSizeClass) (const size_t),
 	    size_t (*getClassMaxSize) (const int),
@@ -49,9 +53,9 @@ namespace Hoard {
       assert (_currLive >= sz);
       _currLive -= sz;
       SuperHeap::free (ptr);
-      double maxFraction = (1.0 + (double) ThresholdOverMax / 100.0) * (double) _maxLive;
+      double maxFraction = (1.0 + (double) ThresholdFraction / 100.0);
       double currentFraction = (double) _maxLive / (double) _currLive;
-      if (currentFraction > maxFraction)
+      if ((_currLive > ThresholdSlop) && (currentFraction > maxFraction))
 	{
 	  SuperHeap::clear();
 	}
