@@ -47,12 +47,13 @@ namespace Hoard {
     static unsigned long c2s (int cl) {
       static size_t sizes[NUM_SIZES];
       static bool init = createTable (sizes);
+      init = init;
       return sizes[cl];
     }
 
     static bool createTable (unsigned long * sizes)
     {
-      const float base = (1.0 + (float) MaxOverhead / 100.0);
+      const double base = (1.0 + (double) MaxOverhead / 100.0);
       size_t sz = Alignment;
       for (int i = 0; i < NUM_SIZES; i++) {
 	sizes[i] = sz;
@@ -61,9 +62,9 @@ namespace Hoard {
 	// l(n) - l(s) >= l(b)
 	// l(n) >= l(b) + l(s)
 	// n >= e(l(b) + l(s))
-	newSz = ceil(exp(log(base) + log(sz)));
+	newSz = (size_t) ceil(exp(log((base) + log((float) sz))));
 	newSz = newSz - (newSz % Alignment);
-	while ((log(newSz) - log(sz)) / log(base) < 1.0) {
+	while ((log((float) newSz) - log((float) sz)) / log(base) < 1.0) {
 	  newSz += Alignment;
 	}
 	sz = newSz;
