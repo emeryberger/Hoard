@@ -72,7 +72,7 @@ namespace Hoard {
       unsigned long tid_original = HL::CPUInfo::getThreadId();
       unsigned int tid = (unsigned int) (tid_original % HeapType::MaxThreads);
       
-      unsigned long i = 0;
+      int i = 0;
       while ((i < HeapType::MaxHeaps) && (HeapType::getInusemap(i)))
 	i++;
       if (i >= HeapType::MaxHeaps) {
