@@ -32,7 +32,8 @@ namespace Hoard {
 
     ThresholdSegHeap()
       : _currLive (0),
-	_maxLive (0)
+	_maxLive (0),
+	_maxFraction (1.0 + (double) ThresholdFraction / 100.0)
     {}
 
     void * malloc (size_t sz) {
@@ -53,9 +54,8 @@ namespace Hoard {
       assert (_currLive >= sz);
       _currLive -= sz;
       SuperHeap::free (ptr);
-      double maxFraction = (1.0 + (double) ThresholdFraction / 100.0);
-      double currentFraction = (double) _maxLive / (double) _currLive;
-      if ((_currLive > ThresholdSlop) && (currentFraction > maxFraction))
+      bool crossedThreshold = (double) _maxLive > _maxFraction * (double) _currLive;
+      if ((_currLive > ThresholdSlop) && crossedThreshold)
 	{
 	  // When we drop below the threshold, reset the max live and
 	  // clear the superheap.
@@ -71,6 +71,9 @@ namespace Hoard {
 
     /// The maximum amount of live memory held by a client of this heap.
     unsigned long _maxLive;
+
+    /// Maximum fraction calculation.
+    const double _maxFraction;
   };
 
 }
