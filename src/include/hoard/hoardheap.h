@@ -145,31 +145,30 @@ namespace Hoard {
   typedef HoardSuperblock<TheLockType, SUPERBLOCK_SIZE, BigHeap> BigSuperblockType;
 
   // The heap that manages large objects.
-  class BigHeap :
+  typedef 
 #if 0
     public ConformantHeap<HL::LockedHeap<TheLockType,
 					 AddHeaderHeap<BigSuperblockType,
 						       SUPERBLOCK_SIZE,
 						       MmapSource > > >
-  {
-  };
 #else
   // Experimental faster support for large objects.
-   public HL::ThreadHeap<64, HL::LockedHeap<TheLockType,
-					    ThresholdSegHeap<20,    // 20% waste
-							     65536, // at least 64K in any heap
-							     80,    // num size classes
-							     GeometricSizeClass<20>::size2class,
-							     GeometricSizeClass<20>::class2size,
-							     AdaptHeap<DLList, AddHeaderHeap<BigSuperblockType,
-											     SUPERBLOCK_SIZE,
-											     MmapSource > >,
-							     AddHeaderHeap<BigSuperblockType,
-									   SUPERBLOCK_SIZE,
-									   MmapSource > > > >
-   {
-   };
+  HL::ThreadHeap<64, HL::LockedHeap<TheLockType,
+				    ThresholdSegHeap<20,    // 20% waste
+						     65536, // at least 64K in any heap
+						     80,    // num size classes
+						     GeometricSizeClass<20>::size2class,
+						     GeometricSizeClass<20>::class2size,
+						     AdaptHeap<DLList, AddHeaderHeap<BigSuperblockType,
+										     SUPERBLOCK_SIZE,
+										     MmapSource > >,
+						     AddHeaderHeap<BigSuperblockType,
+								   SUPERBLOCK_SIZE,
+								   MmapSource > > > >
 #endif
+  bigHeapType;
+
+  class BigHeap : public bigHeapType {};
 
 
   enum { BigObjectSize = 
