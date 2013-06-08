@@ -57,6 +57,9 @@ namespace Hoard {
       double currentFraction = (double) _maxLive / (double) _currLive;
       if ((_currLive > ThresholdSlop) && (currentFraction > maxFraction))
 	{
+	  // When we drop below the threshold, reset the max live and
+	  // clear the superheap.
+	  _maxLive = _currLive;
 	  SuperHeap::clear();
 	}
     }
