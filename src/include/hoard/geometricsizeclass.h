@@ -9,6 +9,10 @@
 
 #include <iostream>
 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-variable"
+#endif
 
 namespace Hoard {
 
@@ -70,7 +74,6 @@ namespace Hoard {
     static unsigned long c2s (int cl) {
       static size_t sizes[NUM_SIZECLASSES];
       static bool init = createTable (sizes);
-      init = init;
       return sizes[cl];
     }
 
@@ -94,6 +97,10 @@ namespace Hoard {
   };
 
 }
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
 #endif
 
