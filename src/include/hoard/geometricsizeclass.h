@@ -16,6 +16,21 @@
 
 namespace Hoard {
 
+  template <int Base, int Value>
+  class ilog;
+
+  template <int Base>
+  class ilog<Base, 1> {
+  public:
+    enum { VALUE = 0 };
+  };
+
+  template <int Base, int Value>
+  class ilog {
+  public:
+    enum { VALUE = 1 + ilog<Base, (Value * 100) / Base>::VALUE };
+  };
+
   template <int MaxOverhead = 20,  // percent
 	    int Alignment = 16>
   class GeometricSizeClass {
@@ -27,25 +42,24 @@ namespace Hoard {
     }
 
     static int size2class (const size_t sz) {
-      //      int index = 0;
-      int index = (int) (floor(log(sz) - log(Alignment))
-			 / ceil(log(1.0 + (double) MaxOverhead / 100.0)));
-      //      int index = 0;
-      while (sz > c2s(index)) {
-	index++;
+      // Do a binary search to find the right size class.
+      int left  = 0;
+      int right = NUM_SIZECLASSES - 1;
+      while (left < right) {
+	int mid = (left + right)/2;
+	if (c2s(mid) < sz) {
+	  left = mid + 1;
+	} else {
+	  right = mid;
+	}
       }
-      return index;
-      // size = Alignment * (1 + MaxOverhead) ^ class
-      // log(size) = log (Alignment * (1 + MaxOverHead) ^ class)
-      //           = log (Alignment) + class * log (1 + MaxOverhead)
-      // => class = (log(size) - log(Alignment)) / log (1 + MaxOverhead)
-      //      return floor((log (sz) - log (Alignment))
-      //		  / log (1.0 + (float) MaxOverhead / 100.0));
+      assert (c2s(left) >= sz);
+      assert ((left == 0) || (c2s(left-1) < sz));
+      return left;
     }
 
     static size_t class2size (const int cl) {
       return c2s (cl);
-      //      return Alignment * floor (pow (1.0 + (float) MaxOverhead / 100.0, cl));
     }
 
     static bool test() {
@@ -69,7 +83,7 @@ namespace Hoard {
   private:
 
     /// The total number of size classes.
-    enum { NUM_SIZECLASSES = 80 }; // EDB: Magic number for now; FIX ME.
+    enum { NUM_SIZECLASSES = ilog<100+MaxOverhead, 1 << 24>::VALUE };
 
     static unsigned long c2s (int cl) {
       static size_t sizes[NUM_SIZECLASSES];
@@ -83,8 +97,7 @@ namespace Hoard {
       size_t sz = Alignment;
       for (int i = 0; i < NUM_SIZECLASSES; i++) {
 	sizes[i] = sz;
-	size_t newSz = sz;
-	newSz = (size_t) (floor ((double) base * (double) sz));
+	size_t newSz = (size_t) (floor ((double) base * (double) sz));
 	newSz = newSz - (newSz % Alignment);
 	while ((double) newSz / (double) sz < base) {
 	  newSz += Alignment;
