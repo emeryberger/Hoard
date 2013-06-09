@@ -51,8 +51,11 @@ namespace Hoard {
     void free (void * ptr) {
       // Update current live memory stats, then free the object.
       size_t sz = SuperHeap::getSize(ptr);
-      assert (_currLive >= sz);
-      _currLive -= sz;
+      if (_currLive < sz) {
+	_currLive = 0;
+      } else {
+	_currLive -= sz;
+      }
       SuperHeap::free (ptr);
       bool crossedThreshold = (double) _maxLive > _maxFraction * (double) _currLive;
       if ((_currLive > ThresholdSlop) && crossedThreshold)
