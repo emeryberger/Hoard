@@ -15,7 +15,7 @@ all:
 	@echo generic-gcc
 	@echo windows
 
-.PHONY: macos freebsd linux-gcc-x86 linux-gcc-x86-debug solaris-sunw-sparc solaris-sunw-x86 solaris-gcc-sparc generic-gcc linux-gcc-x86-64 windows clean
+.PHONY: macos freebsd linux-gcc-x86 linux-gcc-x86-debug solaris-sunw-sparc solaris-sunw-x86 solaris-gcc-sparc generic-gcc linux-gcc-x86-64 windows windows-debug clean
 
 #
 # Source files
@@ -84,14 +84,17 @@ SOLARIS_GCC_SPARC_COMPILE_DEBUG = g++ -nostartfiles -pipe -mcpu=ultrasparc -g -f
 GENERIC_GCC_COMPILE = g++ -I/usr/include/nptl -pipe -O3 -finline-limit=20000 -finline-functions  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
 
-windows: libhoard.dll
-
 WIN_DEFINES = /D "NDEBUG" /D "_WINDOWS" /D "_WINDLL" /D "_WINRT_DLL" /D "_UNICODE" /D "UNICODE"
-WIN_FLAGS   = /Zi /Ox /MD /nologo /W1 /WX- /Ox /Oi /Oy- /GL /Gm- /EHsc /MD /GS /Gy /Zc:wchar_t /Zc:forScope /Gd /errorReport:queue
+WIN_DEBUG_DEFINES = /D "_WINDOWS" /D "_WINDLL" /D "_WINRT_DLL" /D "_UNICODE" /D "UNICODE"
 
-libhoard.dll: $(DEPS)
+WIN_FLAGS   = /Zi /Ox /MD /nologo /W1 /WX- /Ox /Oi /Oy- /GL /Gm- /EHsc /MD /GS /Gy /Zc:wchar_t /Zc:forScope /Gd /errorReport:queue
+WIN_DEBUG_FLAGS   = /Zi /MD /nologo /W1 /WX- /GL /Gm- /EHsc /MD /GS /Gy /Zc:wchar_t /Zc:forScope /Gd /errorReport:queue
+
+windows: $(DEPS)
 	cl $(WIN_INCLUDES) $(WIN_DEFINES) $(WIN_FLAGS) "source\libhoard.cpp" "Heap-Layers\wrappers\winwrapper.cpp" "source\wintls.cpp" /link /DLL /subsystem:console /OUT:libhoard.dll
-#	cl $(WIN_INCLUDES) /Zi /nologo /W1 /WX- /Ox /Oi /Oy- /GL /D "_WINRT_DLL" /D "NDEBUG" /D "_WINDOWS" /D "_WINDLL" /D "_UNICODE" /D "UNICODE" /D "WINAPI_FAMILY=2" /Gm- /EHsc /MD /GS /Gy /fp:precise /Zc:wchar_t /Zc:forScope /Gd /errorReport:queue "source\libhoard.cpp" "Heap-Layers\wrappers\winwrapper.cpp" "source\wintls.cpp" /link /DLL /subsystem:console /OUT:libhoard.dll
+
+windows-debug: $(DEPS)
+	cl $(WIN_INCLUDES) $(WIN_DEBUG_DEFINES) $(WIN_DEBUG_FLAGS) "source\libhoard.cpp" "Heap-Layers\wrappers\winwrapper.cpp" "source\wintls.cpp" /link /DLL /subsystem:console /OUT:libhoard.dll
 
 macos:
 	$(MACOS_COMPILE)
