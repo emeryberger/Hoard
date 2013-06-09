@@ -153,7 +153,7 @@ namespace Hoard {
 						       MmapSource > > >
 #else
   // Experimental faster support for large objects.
-  HL::ThreadHeap<64, HL::LockedHeap<TheLockType,
+  HL::ThreadHeap<128, HL::LockedHeap<TheLockType,
 				    ThresholdSegHeap<20,    // 20% waste
 						     65536, // at least 64K in any heap
 						     80,    // num size classes
