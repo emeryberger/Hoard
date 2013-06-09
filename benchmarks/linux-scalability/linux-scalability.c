@@ -89,6 +89,8 @@ run_test (void * arg)
   register unsigned total_iterations = iteration_count;
   struct timeval start, end, null, elapsed, adjusted;
 
+  pthread_barrier_wait (&barrier);
+
 /*          * Time a null loop.  We'll subtract this from the final          * malloc loop results to get a more accurate value.          */ gettimeofday (&start, NULL);
 
   for (i = 0; i < total_iterations; i++)
