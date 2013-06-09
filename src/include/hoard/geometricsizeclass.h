@@ -87,12 +87,12 @@ namespace Hoard {
 
     static unsigned long c2s (int cl) {
       static size_t sizes[NUM_SIZECLASSES];
-      static bool init = createTable (sizes);
+      static bool init = createTable ((size_t *) sizes);
       init = init;
       return sizes[cl];
     }
 
-    static bool createTable (unsigned long * sizes)
+    static bool createTable (size_t * sizes)
     {
       const double base = (1.0 + (double) MaxOverhead / 100.0);
       size_t sz = Alignment;
