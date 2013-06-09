@@ -11,25 +11,28 @@
  */
 
 /*
- * June 9, 2013: Modified by Emery Berger to use barriers.
+ * June 9, 2013: Modified by Emery Berger to use barriers so all
+ * threads start at the same time; added statistics gathering.
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
 #include <unistd.h>
-
+#include <math.h>
 #include <pthread.h>
 
 #define USECSPERSEC 1000000
 #define pthread_attr_default NULL
 #define MAX_THREADS 50
 
+double * executionTime;
 void * run_test (void *);
 void *dummy (unsigned);
 
 static unsigned size = 512;
 static unsigned iteration_count = 1000000;
+static unsigned thread_count = 1;
 
 pthread_barrier_t barrier;
 
@@ -37,7 +40,6 @@ int
 main (int argc, char *argv[])
 {
   unsigned i;
-  unsigned thread_count = 1;
   pthread_t thread[MAX_THREADS];
 
   /*          * Parse our arguments          */
@@ -59,25 +61,47 @@ main (int argc, char *argv[])
       exit (1);
     }
 
+  executionTime = (double *) malloc (sizeof(double) * thread_count);
   pthread_barrier_init (&barrier, NULL, thread_count);
 
-/*          * Invoke the tests          */
+  /*          * Invoke the tests          */
   printf ("Starting test...\n");
-  for (i = 1; i <= thread_count; i++) {
+  for (i = 0; i < thread_count; i++) {
+    int * tid = (int *) malloc(sizeof(int));
+    *tid = i;
     pthread_attr_t attr;
     pthread_attr_init (&attr);
 #ifdef PTHREAD_SCOPE_SYSTEM
     pthread_attr_setscope (&attr, PTHREAD_SCOPE_SYSTEM); /* bound behavior */
 #endif
-    if (pthread_create (&(thread[i]), &attr, &run_test, (void *) NULL))
+    if (pthread_create (&(thread[i]), &attr, &run_test, tid))
       printf ("failed.\n");
   }
 
-/*          * Wait for tests to finish          */
+  /*          * Wait for tests to finish          */
 
-  for (i = 1; i <= thread_count; i++)
+  for (i = 0; i < thread_count; i++)
     pthread_join (thread[i], NULL);
 
+  /* EDB: moved to outer loop. */
+  /* Statistics gathering and reporting. */
+  double sum = 0.0;
+  double stddev = 0.0;
+  double average;
+  for (i = 0; i < thread_count; i++) {
+    sum += executionTime[i];
+  }
+  average = sum / thread_count;
+  for (i = 0; i < thread_count; i++) {
+    double diff = executionTime[i] - average;
+    stddev += diff * diff;
+  }
+  stddev = sqrt (stddev / (thread_count - 1));
+  if (thread_count > 1) {
+    printf ("Average execution time = %f seconds, standard deviation = %f.\n", average, stddev);
+  } else {
+    printf ("Average execution time = %f seconds.\n", average);
+  }
   exit (0);
 }
 
@@ -87,11 +111,15 @@ run_test (void * arg)
   register unsigned int i;
   register unsigned request_size = size;
   register unsigned total_iterations = iteration_count;
+  int tid = *((int *) arg);
   struct timeval start, end, null, elapsed, adjusted;
 
   pthread_barrier_wait (&barrier);
 
-/*          * Time a null loop.  We'll subtract this from the final          * malloc loop results to get a more accurate value.          */ gettimeofday (&start, NULL);
+  /* Time a null loop.  We'll subtract this from the final malloc loop
+     results to get a more accurate value. */
+
+  gettimeofday (&start, NULL);
 
   for (i = 0; i < total_iterations; i++)
     {
@@ -109,7 +137,7 @@ run_test (void * arg)
       null.tv_usec += USECSPERSEC;
     }
 
-  /*          * Run the real malloc test          */ 
+  /* Run the real malloc test */ 
   gettimeofday (&start, NULL);
 
   for (i = 0; i < total_iterations; i++)
@@ -138,10 +166,11 @@ run_test (void * arg)
       adjusted.tv_usec += USECSPERSEC;
     }
   pthread_barrier_wait (&barrier);
-  unsigned int pt = (unsigned int) pthread_self() >> 12;
-  printf ("Thread %u adjusted timing: %d.%06d seconds for %d requests" " of %d bytes.\n", pt, adjusted.tv_sec, adjusted.tv_usec, total_iterations, request_size);
+  unsigned int pt = tid;
+  executionTime[pt % thread_count] = adjusted.tv_sec + adjusted.tv_usec / 1000000.0;
+  //  printf ("Thread %u adjusted timing: %d.%06d seconds for %d requests" " of %d bytes.\n", pt, adjusted.tv_sec, adjusted.tv_usec, total_iterations, request_size);
 
-  return (NULL);
+  return NULL;
 }
 
 void *
