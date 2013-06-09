@@ -34,7 +34,10 @@ static unsigned size = 512;
 static unsigned iteration_count = 1000000;
 static unsigned thread_count = 1;
 
+#if !defined(__APPLE__)
 pthread_barrier_t barrier;
+#endif
+
 
 int 
 main (int argc, char *argv[])
@@ -62,7 +65,9 @@ main (int argc, char *argv[])
     }
 
   executionTime = (double *) malloc (sizeof(double) * thread_count);
+#if !defined(__APPLE__)
   pthread_barrier_init (&barrier, NULL, thread_count);
+#endif
 
   /*          * Invoke the tests          */
   printf ("Starting test...\n");
@@ -114,7 +119,9 @@ run_test (void * arg)
   int tid = *((int *) arg);
   struct timeval start, end, null, elapsed, adjusted;
 
+#if !defined(__APPLE__)
   pthread_barrier_wait (&barrier);
+#endif
 
   /* Time a null loop.  We'll subtract this from the final malloc loop
      results to get a more accurate value. */
@@ -165,7 +172,9 @@ run_test (void * arg)
       adjusted.tv_sec--;
       adjusted.tv_usec += USECSPERSEC;
     }
+#if !defined(__APPLE__)
   pthread_barrier_wait (&barrier);
+#endif
   unsigned int pt = tid;
   executionTime[pt % thread_count] = adjusted.tv_sec + adjusted.tv_usec / 1000000.0;
   //  printf ("Thread %u adjusted timing: %d.%06d seconds for %d requests" " of %d bytes.\n", pt, adjusted.tv_sec, adjusted.tv_usec, total_iterations, request_size);
