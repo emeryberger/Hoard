@@ -11,7 +11,7 @@
 
 #if defined(__clang__)
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-variable"
+#pragma clang diagnostic ignored "-Wself-assign"
 #endif
 
 namespace Hoard {
