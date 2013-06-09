@@ -10,6 +10,10 @@
  *
  */
 
+/*
+ * June 9, 2013: Modified by Emery Berger to use barriers.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
@@ -26,6 +30,8 @@ void *dummy (unsigned);
 
 static unsigned size = 512;
 static unsigned iteration_count = 1000000;
+
+pthread_barrier_t barrier;
 
 int 
 main (int argc, char *argv[])
@@ -53,6 +59,8 @@ main (int argc, char *argv[])
       exit (1);
     }
 
+  pthread_barrier_init (&barrier, NULL, thread_count);
+
 /*          * Invoke the tests          */
   printf ("Starting test...\n");
   for (i = 1; i <= thread_count; i++) {
@@ -66,6 +74,7 @@ main (int argc, char *argv[])
   }
 
 /*          * Wait for tests to finish          */
+
   for (i = 1; i <= thread_count; i++)
     pthread_join (thread[i], NULL);
 
@@ -98,7 +107,8 @@ run_test (void * arg)
       null.tv_usec += USECSPERSEC;
     }
 
-/*          * Run the real malloc test          */ gettimeofday (&start, NULL);
+  /*          * Run the real malloc test          */ 
+  gettimeofday (&start, NULL);
 
   for (i = 0; i < total_iterations; i++)
     {
@@ -117,7 +127,7 @@ run_test (void * arg)
       elapsed.tv_usec += USECSPERSEC;
     }
 
-/*          * Adjust elapsed time by null loop time          */
+  /*          * Adjust elapsed time by null loop time          */
   adjusted.tv_sec = elapsed.tv_sec - null.tv_sec;
   adjusted.tv_usec = elapsed.tv_usec - null.tv_usec;
   if (adjusted.tv_usec < 0)
@@ -125,6 +135,7 @@ run_test (void * arg)
       adjusted.tv_sec--;
       adjusted.tv_usec += USECSPERSEC;
     }
+  pthread_barrier_wait (&barrier);
   unsigned int pt = (unsigned int) pthread_self() >> 12;
   printf ("Thread %u adjusted timing: %d.%06d seconds for %d requests" " of %d bytes.\n", pt, adjusted.tv_sec, adjusted.tv_usec, total_iterations, request_size);
 
