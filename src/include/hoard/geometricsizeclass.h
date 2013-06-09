@@ -88,6 +88,7 @@ namespace Hoard {
     static unsigned long c2s (int cl) {
       static size_t sizes[NUM_SIZECLASSES];
       static bool init = createTable (sizes);
+      init = init;
       return sizes[cl];
     }
 
