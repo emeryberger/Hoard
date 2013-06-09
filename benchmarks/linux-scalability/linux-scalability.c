@@ -30,19 +30,18 @@ double * executionTime;
 void * run_test (void *);
 void *dummy (unsigned);
 
-static unsigned size = 512;
-static unsigned iteration_count = 1000000;
-static unsigned thread_count = 1;
+static unsigned long size = 512;
+static unsigned long iteration_count = 1000000;
+static unsigned int thread_count = 1;
 
-#if !defined(__APPLE__)
+#include "ptbarrier.h"
+
 pthread_barrier_t barrier;
-#endif
-
 
 int 
 main (int argc, char *argv[])
 {
-  unsigned i;
+  unsigned int i;
   pthread_t thread[MAX_THREADS];
 
   /*          * Parse our arguments          */
@@ -65,9 +64,7 @@ main (int argc, char *argv[])
     }
 
   executionTime = (double *) malloc (sizeof(double) * thread_count);
-#if !defined(__APPLE__)
   pthread_barrier_init (&barrier, NULL, thread_count);
-#endif
 
   /*          * Invoke the tests          */
   printf ("Starting test...\n");
@@ -114,15 +111,14 @@ void *
 run_test (void * arg)
 {
   register unsigned int i;
-  register unsigned request_size = size;
-  register unsigned total_iterations = iteration_count;
+  register unsigned long request_size = size;
+  register unsigned long total_iterations = iteration_count;
   int tid = *((int *) arg);
   struct timeval start, end, null, elapsed, adjusted;
 
-#if !defined(__APPLE__)
   pthread_barrier_wait (&barrier);
-#endif
 
+#if 0
   /* Time a null loop.  We'll subtract this from the final malloc loop
      results to get a more accurate value. */
 
@@ -143,6 +139,10 @@ run_test (void * arg)
       null.tv_sec--;
       null.tv_usec += USECSPERSEC;
     }
+#else
+  null.tv_sec = 0;
+  null.tv_usec = 0;
+#endif
 
   /* Run the real malloc test */ 
   gettimeofday (&start, NULL);
@@ -172,9 +172,7 @@ run_test (void * arg)
       adjusted.tv_sec--;
       adjusted.tv_usec += USECSPERSEC;
     }
-#if !defined(__APPLE__)
   pthread_barrier_wait (&barrier);
-#endif
   unsigned int pt = tid;
   executionTime[pt % thread_count] = adjusted.tv_sec + adjusted.tv_usec / 1000000.0;
   //  printf ("Thread %u adjusted timing: %d.%06d seconds for %d requests" " of %d bytes.\n", pt, adjusted.tv_sec, adjusted.tv_usec, total_iterations, request_size);
