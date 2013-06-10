@@ -57,6 +57,10 @@ namespace Hoard {
   class AlignedMmapInstance {
   public:
 
+    AlignedMmapInstance()
+      : MyMap (16381) // entries in the hash map.
+    {}
+
     enum { Alignment = Alignment_ };
 
     inline void * malloc (size_t sz) {
