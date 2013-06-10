@@ -139,35 +139,36 @@ namespace Hoard {
   typedef HoardSuperblock<TheLockType, SUPERBLOCK_SIZE, BigHeap> BigSuperblockType;
 
   // The heap that manages large objects.
-  typedef 
-#if 0
-    public ConformantHeap<HL::LockedHeap<TheLockType,
-					 AddHeaderHeap<BigSuperblockType,
-						       SUPERBLOCK_SIZE,
-						       MmapSource > > >
-#else
-  // Experimental faster support for large objects.
-  HL::ThreadHeap<128, HL::LockedHeap<TheLockType,
-				     ThresholdSegHeap<20,    // 20% waste
-						      65536, // at least 64K in any heap
-						      80,    // num size classes
-						      GeometricSizeClass<20>::size2class,
-						      GeometricSizeClass<20>::class2size,
-						      AdaptHeap<DLList, AddHeaderHeap<BigSuperblockType,
-										      SUPERBLOCK_SIZE,
-										      MmapSource > >,
-						      AddHeaderHeap<BigSuperblockType,
-								    SUPERBLOCK_SIZE,
-								    MmapSource > > > >
-#endif
-  bigHeapType;
 
-  class BigHeap : public bigHeapType {
-  public:
-    void * malloc (size_t sz) {
-      return bigHeapType::malloc (sz);
-    }
-  };
+#if 0
+  // Old version: slow and now deprecated. Returns every large object
+  // back to the system immediately.
+  typedef public ConformantHeap<HL::LockedHeap<TheLockType,
+					       AddHeaderHeap<BigSuperblockType,
+							     SUPERBLOCK_SIZE,
+							     MmapSource > > >
+  bigHeapType;
+#else
+  // Experimental faster support for large objects.  MUCH MUCH faster
+  // than the above (around 400x in some tests).  Keeps the amount of
+  // retained memory at no more than X% more than currently allocated.
+
+  typedef AddHeaderHeap<BigSuperblockType,
+			SUPERBLOCK_SIZE,
+			MmapSource> objectSource;
+
+  typedef HL::ThreadHeap<128, HL::LockedHeap<TheLockType,
+					     ThresholdSegHeap<20,    // 20% waste
+							      65536, // at least 64K in any heap
+							      80,    // num size classes
+							      GeometricSizeClass<20>::size2class,
+							      GeometricSizeClass<20>::class2size,
+							      AdaptHeap<DLList, objectSource>,
+							      objectSource> > >
+  bigHeapType;
+#endif
+
+  class BigHeap : public bigHeapType { };
 
 
   enum { BigObjectSize = 
