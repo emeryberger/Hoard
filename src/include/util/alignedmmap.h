@@ -49,6 +49,9 @@ namespace Hoard {
    * @author Emery Berger <http://www.cs.umass.edu/~emery>
    */
 
+  template <size_t Alignment,
+	    class LockType>
+  class AlignedMmap;
 
   template <size_t Alignment_>
   class AlignedMmapInstance {
@@ -85,11 +88,40 @@ namespace Hoard {
       // Try again.
       HL::MmapWrapper::unmap ((void *) ptr, sz);
 
+      return slowMap (sz);
+    }
+
+    inline void free (void * ptr) {
+
+      // Find the object. If we don't find it, we didn't allocate it.
+      // For now, just ignore such an invalid free...
+
+      size_t requestedSize = getSize (ptr);
+
+      if (requestedSize == 0) {
+	return;
+      }
+
+      HL::MmapWrapper::unmap (ptr, requestedSize);
+
+      // Finally, undo the mapping.
+      MyMap.erase (ptr);
+    }
+  
+    inline size_t getSize (void * ptr) {
+      return MyMap.get (ptr);
+    }
+
+
+  private:
+
+    void * slowMap (size_t sz) {
+
       // We have to align it ourselves. We get memory from
       // mmap, align a pointer in the space, and free the space before
       // and after the aligned segment.
 
-      ptr = reinterpret_cast<char *>(HL::MmapWrapper::map (sz + Alignment));
+      void * ptr = reinterpret_cast<char *>(HL::MmapWrapper::map (sz + Alignment));
 
       if (ptr == NULL) {
 	return NULL;
@@ -115,30 +147,6 @@ namespace Hoard {
       MyMap.set (newptr, sz);
       return newptr;
     }
-
-    inline void free (void * ptr) {
-
-      // Find the object. If we don't find it, we didn't allocate it.
-      // For now, just ignore such an invalid free...
-
-      size_t requestedSize = MyMap.get (ptr);
-
-      if (requestedSize == 0) {
-	return;
-      }
-
-      HL::MmapWrapper::unmap (ptr, requestedSize);
-
-      // Finally, undo the mapping.
-      MyMap.erase (ptr);
-    }
-  
-    inline size_t getSize (void * ptr) {
-      return MyMap.get (ptr);
-    }
-
-
-  private:
 
     // Manage information in a map that uses a custom heap for
     // allocation.
