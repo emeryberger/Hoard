@@ -66,6 +66,7 @@ namespace Hoard {
 	  SuperHeap::clear();
 	  // We won't clear again until we reach maxlive again.
 	  _cleared = true;
+	  _maxLive = _currLive;
 	}
     }
 
