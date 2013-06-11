@@ -141,34 +141,49 @@ namespace Hoard {
   // The heap that manages large objects.
 
 #if 0
+
   // Old version: slow and now deprecated. Returns every large object
   // back to the system immediately.
-  typedef public ConformantHeap<HL::LockedHeap<TheLockType,
-					       AddHeaderHeap<BigSuperblockType,
-							     SUPERBLOCK_SIZE,
-							     MmapSource > > >
+  typedef ConformantHeap<HL::LockedHeap<TheLockType,
+					AddHeaderHeap<BigSuperblockType,
+						      SUPERBLOCK_SIZE,
+						      MmapSource > > >
   bigHeapType;
+
 #else
+
   // Experimental faster support for large objects.  MUCH MUCH faster
   // than the above (around 400x in some tests).  Keeps the amount of
   // retained memory at no more than X% more than currently allocated.
 
-  typedef AddHeaderHeap<BigSuperblockType,
-			SUPERBLOCK_SIZE,
-			MmapSource> objectSource;
+  class objectSource : public AddHeaderHeap<BigSuperblockType,
+					    SUPERBLOCK_SIZE,
+					    MmapSource> {};
 
-  typedef HL::ThreadHeap<128, HL::LockedHeap<TheLockType,
-					     ThresholdSegHeap<20,    // 20% waste
-							      65536, // at least 64K in any heap
-							      80,    // num size classes
-							      GeometricSizeClass<20>::size2class,
-							      GeometricSizeClass<20>::class2size,
-							      AdaptHeap<DLList, objectSource>,
-							      objectSource> > >
+  typedef HL::ThreadHeap<64, HL::LockedHeap<TheLockType,
+					    ThresholdSegHeap<20,    // 20% waste
+							     65536, // at least 64K in any heap
+							     80,    // num size classes
+							     GeometricSizeClass<20>::size2class,
+							     GeometricSizeClass<20>::class2size,
+							     AdaptHeap<DLList, objectSource>,
+							     objectSource> > >
   bigHeapType;
 #endif
 
-  class BigHeap : public bigHeapType { };
+  class BigHeap : public bigHeapType {
+  public:
+    void free (void * ptr) {
+#if 0
+      if (bigHeapType::getSize(ptr) > 8000) {
+	char buf[255];
+	sprintf (buf, "B = %u\n", bigHeapType::getSize(ptr));
+	fprintf (stderr, buf);
+      }
+#endif
+      bigHeapType::free (ptr);
+    }
+  };
 
 
   enum { BigObjectSize = 
