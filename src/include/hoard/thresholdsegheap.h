@@ -33,7 +33,8 @@ namespace Hoard {
     ThresholdSegHeap()
       : _currLive (0),
 	_maxLive (0),
-	_maxFraction (1.0 + (double) ThresholdFraction / 100.0)
+	_maxFraction (1.0 + (double) ThresholdFraction / 100.0),
+	_cleared (false)
     {}
 
     void * malloc (size_t sz) {
@@ -42,8 +43,9 @@ namespace Hoard {
       // it all.
       void * ptr = SuperHeap::malloc (sz);
       _currLive += SuperHeap::getSize (ptr);
-      if (_currLive > _maxLive) {
+      if (_currLive >= _maxLive) {
 	_maxLive = _currLive;
+	_cleared = false;
       }
       return ptr;
     }
@@ -58,12 +60,12 @@ namespace Hoard {
       }
       SuperHeap::free (ptr);
       bool crossedThreshold = (double) _maxLive > _maxFraction * (double) _currLive;
-      if ((_currLive > ThresholdSlop) && crossedThreshold)
+      if ((_currLive > ThresholdSlop) && crossedThreshold && !_cleared)
 	{
-	  // When we drop below the threshold, reset the max live and
-	  // clear the superheap.
-	  _maxLive = _currLive;
+	  // When we drop below the threshold, clear the superheap.
 	  SuperHeap::clear();
+	  // We won't clear again until we reach maxlive again.
+	  _cleared = true;
 	}
     }
 
@@ -77,6 +79,9 @@ namespace Hoard {
 
     /// Maximum fraction calculation.
     const double _maxFraction;
+
+    /// Have we already cleared out the superheap?
+    bool _cleared;
   };
 
 }
