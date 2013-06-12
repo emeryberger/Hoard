@@ -63,11 +63,11 @@ LINUX_GCC_x86_64_COMPILE_STATIC = g++ -g -W -Wconversion -Wall -m64 -I/usr/inclu
 
 LINUX_GCC_x86_COMPILE_DEBUG = g++ -m32 -O0 -fPIC -fno-inline -I/usr/include/nptl  -g -pipe $(INCLUDES) -D_REENTRANT=1  -shared $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
-SOLARIS_SUNW_SPARC_COMPILE_32_DEBUG = CC -dalign -xbuiltin=%all -fast -mt -g -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) Heap-Layers/arch-specific/sparc-interchange.il -o libhoard_32.so -lthread -ldl -lCrun
+SOLARIS_SUNW_SPARC_COMPILE_32_DEBUG = CC -dalign -xbuiltin=%all -fast -mt -g -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) Heap-Layers/wrappers/arch-specific/sparc-interchange.il -o libhoard_32.so -lthread -ldl -lCrun
 
-SOLARIS_SUNW_SPARC_COMPILE_32 = CC -dalign -xbuiltin=%all -fast -xO5 -DNDEBUG -mt -g -xtarget=ultra2 -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) Heap-Layers/arch-specific/sparc-interchange.il -o libhoard_32.so -lthread -ldl -lCrun 
+SOLARIS_SUNW_SPARC_COMPILE_32 = CC -dalign -xbuiltin=%all -fast -xO5 -DNDEBUG -mt -g -xtarget=ultra2 -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) Heap-Layers/wrappers/arch-specific/sparc-interchange.il -o libhoard_32.so -lthread -ldl -lCrun 
 
-SOLARIS_SUNW_SPARC_COMPILE_64 = CC -xcode=pic13 -m64 -mt -fast -dalign -xbuiltin=%all -xO5 -xtarget=ultra2 -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) Heap-Layers/arch-specific/sparc-interchange.il -o libhoard_64.so -lthread -ldl -lCrun
+SOLARIS_SUNW_SPARC_COMPILE_64 = CC -xcode=pic13 -m64 -mt -fast -dalign -xbuiltin=%all -xO5 -xtarget=ultra2 -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) Heap-Layers/wrappers/arch-specific/sparc-interchange.il -o libhoard_64.so -lthread -ldl -lCrun
 
 SOLARIS_SUNW_x86_COMPILE_32 = CC -fns -fsimple=2 -ftrap=%none -xbuiltin=%all -mt -xO5 -fast -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) Heap-Layers/util/x86-interchange.il -o libhoard_32.so -lthread -ldl -lCrun
 
