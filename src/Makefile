@@ -75,11 +75,11 @@ SOLARIS_SUNW_x86_COMPILE_32_DEBUG = CC -mt -g -xildoff -xthreadvar=dynamic -L/us
 
 SOLARIS_SUNW_x86_COMPILE_64 = CC -xarch=amd64 -fns -fsimple=2 -ftrap=%none -xbuiltin=%all -xO5 -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) Heap-Layers/util/x86_64-interchange.il -o libhoard_64.so -lthread -ldl -lCrun
 
-SOLARIS_GCC_SPARC_COMPILE_32 = g++ -nostartfiles -pipe -DNDEBUG -mcpu=ultrasparc -m32 -O3 -finline-limit=20000 -fPIC -fkeep-inline-functions -finline-functions -ffast-math $(INCLUDES) -D_REENTRANT=1 -shared $(GNU_SRC) -lthread -lpthread -ldl -o libhoard_32.so
+SOLARIS_GCC_SPARC_COMPILE_32 = g++ -nostartfiles -pipe -DNDEBUG -mcpu=ultrasparc -m32 -O3 -finline-limit=20000 -fPIC -fkeep-inline-functions -finline-functions -ffast-math $(INCLUDES) -D_REENTRANT=1 -shared $(SUNW_SRC) -lthread -lpthread -ldl -o libhoard_32.so
 
-SOLARIS_GCC_SPARC_COMPILE_64 = g++ -nostartfiles -pipe -DNDEBUG -mcpu=ultrasparc -m64 -O3 -finline-limit=20000 -fPIC -fkeep-inline-functions -finline-functions -ffast-math $(INCLUDES) -D_REENTRANT=1 -shared $(GNU_SRC) -lthread -lpthread -ldl -o libhoard_64.so
+SOLARIS_GCC_SPARC_COMPILE_64 = g++ -nostartfiles -pipe -DNDEBUG -mcpu=ultrasparc -m64 -O3 -finline-limit=20000 -fPIC -fkeep-inline-functions -finline-functions -ffast-math $(INCLUDES) -D_REENTRANT=1 -shared $(SUNW_SRC) -lthread -lpthread -ldl -o libhoard_64.so
 
-SOLARIS_GCC_SPARC_COMPILE_DEBUG = g++ -nostartfiles -pipe -mcpu=ultrasparc -g -fPIC $(INCLUDES) -D_REENTRANT=1 -shared $(GNU_SRC) -lthread -lpthread -ldl -o libhoard.so
+SOLARIS_GCC_SPARC_COMPILE_DEBUG = g++ -nostartfiles -pipe -mcpu=ultrasparc -g -fPIC $(INCLUDES) -D_REENTRANT=1 -shared $(SUNW_SRC) -lthread -lpthread -ldl -o libhoard.so
 
 GENERIC_GCC_COMPILE = g++ -I/usr/include/nptl -pipe -O3 -finline-limit=20000 -finline-functions  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
