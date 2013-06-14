@@ -34,14 +34,16 @@ namespace Hoard {
       // Once the amount of cached memory in the superheap exceeds the
       // desired threshold over max live requested by the client, dump
       // it all.
-      int sizeClass = getSizeClass (sz);
+      const int sizeClass = getSizeClass (sz);
+      const size_t maxSz = getClassMaxSize (sizeClass);
       if (sizeClass >= NumBins) {
-	return BigHeap::malloc (sz);
+	return BigHeap::malloc (maxSz);
       } else {
-	void * ptr = _heap[sizeClass].malloc (sz);
+	void * ptr = _heap[sizeClass].malloc (maxSz);
 	if (ptr == NULL) {
-	  return BigHeap::malloc (sz);
+	  return BigHeap::malloc (maxSz);
 	}
+	assert (getSize(ptr) <= maxSz);
 	_currLive += getSize (ptr);
 	if (_currLive >= _maxLive) {
 	  _maxLive = _currLive;
