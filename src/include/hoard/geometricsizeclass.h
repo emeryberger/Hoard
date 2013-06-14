@@ -99,7 +99,7 @@ namespace Hoard {
       for (int i = 0; i < NUM_SIZECLASSES; i++) {
 	sizes[i] = sz;
 	size_t newSz = (size_t) (floor ((double) base * (double) sz));
-	newSz = newSz - (newSz % Alignment);
+	newSz = newSz - (HL::Modulo<Alignment>::mod (newSz));
 	while ((double) newSz / (double) sz < base) {
 	  newSz += Alignment;
 	}
