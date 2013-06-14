@@ -15,19 +15,8 @@ namespace Hoard {
 	    size_t (*getClassMaxSize) (const int),
 	    class LittleHeap,
 	    class BigHeap>
-  class ThresholdSegHeap :
-    public StrictSegHeap<NumBins,
-			 getSizeClass,
-			 getClassMaxSize,
-			 LittleHeap,
-			 BigHeap>
+  class ThresholdSegHeap : public BigHeap
   {
-  private:
-    typedef StrictSegHeap<NumBins,
-			  getSizeClass,
-			  getClassMaxSize,
-			  LittleHeap,
-			  BigHeap> SuperHeap;
   public:
 
     ThresholdSegHeap()
@@ -37,33 +26,52 @@ namespace Hoard {
 	_cleared (false)
     {}
 
+    size_t getSize (void * ptr) {
+      return BigHeap::getSize(ptr);
+    }
+
     void * malloc (size_t sz) {
       // Once the amount of cached memory in the superheap exceeds the
       // desired threshold over max live requested by the client, dump
       // it all.
-      void * ptr = SuperHeap::malloc (sz);
-      _currLive += SuperHeap::getSize (ptr);
-      if (_currLive >= _maxLive) {
-	_maxLive = _currLive;
-	_cleared = false;
+      int sizeClass = getSizeClass (sz);
+      if (sizeClass >= NumBins) {
+	return BigHeap::malloc (sz);
+      } else {
+	void * ptr = _heap[sizeClass].malloc (sz);
+	if (ptr == NULL) {
+	  return BigHeap::malloc (sz);
+	}
+	_currLive += getSize (ptr);
+	if (_currLive >= _maxLive) {
+	  _maxLive = _currLive;
+	  _cleared = false;
+	}
+	return ptr;
       }
-      return ptr;
     }
 
     void free (void * ptr) {
       // Update current live memory stats, then free the object.
-      size_t sz = SuperHeap::getSize(ptr);
+      size_t sz = getSize(ptr);
+      int cl = getSizeClass (sz);
+      if (cl >= NumBins) {
+	BigHeap::free (ptr);
+	return;
+      }
       if (_currLive < sz) {
 	_currLive = 0;
       } else {
 	_currLive -= sz;
       }
-      SuperHeap::free (ptr);
+      _heap[cl].free (ptr);
       bool crossedThreshold = (double) _maxLive > _maxFraction * (double) _currLive;
       if ((_currLive > ThresholdSlop) && crossedThreshold && !_cleared)
 	{
-	  // When we drop below the threshold, clear the superheap.
-	  SuperHeap::clear();
+	  // When we drop below the threshold, clear the heap.
+	  for (int i = 0; i < NumBins; i++) {
+	    _heap[i].clear();
+	  }
 	  // We won't clear again until we reach maxlive again.
 	  _cleared = true;
 	  _maxLive = _currLive;
@@ -83,6 +91,8 @@ namespace Hoard {
 
     /// Have we already cleared out the superheap?
     bool _cleared;
+
+    LittleHeap _heap[NumBins];
   };
 
 }
