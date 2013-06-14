@@ -51,6 +51,10 @@ namespace Hoard {
 
     enum { Alignment = gcd<SuperHeap::Alignment, sizeof(typename SuperblockType::Header)>::value };
 
+    void clear() {
+      theHeap.clear();
+    }
+
     MALLOC_FUNCTION INLINE void * malloc (size_t sz) {
 
       // Allocate extra space for the header,
