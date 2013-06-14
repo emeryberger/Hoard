@@ -63,6 +63,10 @@ namespace Hoard {
 
     enum { Alignment = Alignment_ };
 
+    void clear() {
+      // NOP: this heap never holds any memory.
+    }
+
     inline void * malloc (size_t sz) {
 
       // Round up sz to the nearest page.
