@@ -47,6 +47,9 @@ namespace Hoard {
     inline size_t getSize (void * ptr) {
       return (*this)().getSize (ptr);
     }
+    inline void clear() {
+      (*this)().clear();
+    }
   };
 
 }
