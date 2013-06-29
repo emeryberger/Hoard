@@ -63,6 +63,9 @@ main (int argc, char *argv[])
       exit (1);
     }
 
+  printf ("Object size: %d, Iterations: %d, Threads: %d\n",
+	  size, iteration_count, thread_count);
+
   executionTime = (double *) malloc (sizeof(double) * thread_count);
   pthread_barrier_init (&barrier, NULL, thread_count);
 
