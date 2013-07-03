@@ -13,6 +13,7 @@ namespace Hoard {
 	    int NumBins,
 	    int (*getSizeClass) (const size_t),
 	    size_t (*getClassMaxSize) (const int),
+	    size_t MaxObjectSize,
 	    class LittleHeap,
 	    class BigHeap>
   class ThresholdSegHeap : public BigHeap
@@ -31,6 +32,9 @@ namespace Hoard {
     }
 
     void * malloc (size_t sz) {
+      if (sz >= MaxObjectSize) {
+	return BigHeap::malloc (sz);
+      }
       // Once the amount of cached memory in the superheap exceeds the
       // desired threshold over max live requested by the client, dump
       // it all.
@@ -56,6 +60,10 @@ namespace Hoard {
     void free (void * ptr) {
       // Update current live memory stats, then free the object.
       size_t sz = getSize(ptr);
+      if (sz >= MaxObjectSize) {
+	BigHeap::free (ptr);
+	return;
+      }
       int cl = getSizeClass (sz);
       if (cl >= NumBins) {
 	BigHeap::free (ptr);
