@@ -166,25 +166,13 @@ namespace Hoard {
 							     80,      // num size classes
 							     GeometricSizeClass<20>::size2class,
 							     GeometricSizeClass<20>::class2size,
+							     GeometricSizeClass<20>::MaxObjectSize,
 							     AdaptHeap<DLList, objectSource>,
 							     objectSource> > >
   bigHeapType;
 #endif
 
-  class BigHeap : public bigHeapType {
-  public:
-    void free (void * ptr) {
-#if 0
-      if (bigHeapType::getSize(ptr) > 8000) {
-	char buf[255];
-	sprintf (buf, "B = %u\n", bigHeapType::getSize(ptr));
-	fprintf (stderr, buf);
-      }
-#endif
-      bigHeapType::free (ptr);
-    }
-  };
-
+  class BigHeap : public bigHeapType {};
 
   enum { BigObjectSize = 
 	 HL::bins<SmallSuperblockType::Header, SUPERBLOCK_SIZE>::BIG_OBJECT };
