@@ -105,7 +105,7 @@ extern "C" {
       
     case DLL_PROCESS_ATTACH:
       {
-	fprintf (stderr, "Using the Hoard scalable memory manager (http://www.hoard.org).\n");
+	//	fprintf (stderr, "Using the Hoard scalable memory manager (http://www.hoard.org).\n");
 	InitializeWinWrapper();
       }
       break;

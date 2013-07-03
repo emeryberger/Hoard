@@ -65,7 +65,7 @@ static bool initTSD (void) {
     // Ensure that the key is initialized -- once.
     pthread_once (&key_once, make_heap_key);
     initializedTSD = true;
-    fprintf (stderr, "Using the Hoard scalable memory manager (http://www.hoard.org).\n");
+    //    fprintf (stderr, "Using the Hoard scalable memory manager (http://www.hoard.org).\n");
   }
   return true;
 }
