@@ -38,26 +38,6 @@
 
 
 #include "fred.h"
-
-
-#if defined(__cplusplus)
-extern "C" {
-#endif
-extern void * hoardmalloc(size_t);
-extern void hoardfree (void*);
-extern void * hoardcalloc(size_t, size_t);
-extern void * hoardrealloc(void *,size_t);
-#if defined(__cplusplus)
-}
-#endif
-
-#if defined(USE_HOARD)
-#define malloc(x) hoardmalloc(x)
-#define free(p) hoardfree(p)
-#define calloc(s,n) hoardcalloc(s,n)
-#define realloc(p,s) hoardrealloc(p,s)
-#endif
-
 #include "timer.h"
 
 int niterations = 50;	// Default number of iterations.
