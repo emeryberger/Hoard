@@ -2,7 +2,7 @@ include ../Makefile.inc
 
 TARGET = threadtest
 
-$(TARGET):
+$(TARGET): threadtest.cpp
 	$(CXX) $(CXXFLAGS) threadtest.cpp -o $(TARGET) -lpthread
 
 clean:
