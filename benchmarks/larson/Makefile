@@ -2,7 +2,7 @@ include ../Makefile.inc
 
 TARGET = larson
 
-$(TARGET):
+$(TARGET): larson.cpp
 	$(CXX) $(CXXFLAGS) larson.cpp -o $(TARGET) -lpthread
 
 clean:
