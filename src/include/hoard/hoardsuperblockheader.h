@@ -270,8 +270,6 @@ namespace Hoard {
     FreeSLList _freeList;
   };
 
-#if 1
-  
   // A helper class that pads the header to the desired alignment.
 
   template <class LockType,
@@ -283,7 +281,7 @@ namespace Hoard {
     HoardSuperblockHeader (size_t sz, size_t bufferSize)
       : HoardSuperblockHeaderHelper<LockType,SuperblockSize,HeapType> (sz, bufferSize, (char *) (this + 1))
     {
-      sassert<((sizeof(*this) % Parent::Alignment) == 0)> verifySize;
+      sassert<((sizeof(HoardSuperblockHeader) % Parent::Alignment) == 0)> verifySize;
       verifySize = verifySize;
     }
 
@@ -293,8 +291,6 @@ namespace Hoard {
 
     char _dummy[Parent::Alignment - (sizeof(Parent) % Parent::Alignment)];
   };
-
-#endif
 
 }
 
