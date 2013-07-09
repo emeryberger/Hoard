@@ -31,10 +31,7 @@
 #include <cstdlib>
 
 #include "hoardconstants.h"
-
 #include "heaplayers.h"
-// #include "guard.h"
-// #include "cpuinfo.h"
 
 namespace Hoard {
 
@@ -76,8 +73,8 @@ namespace Hoard {
       while ((i < HeapType::MaxHeaps) && (HeapType::getInusemap(i)))
 	i++;
       if (i >= HeapType::MaxHeaps) {
-	// Every heap is in use: pick heap one.
-	i = 0;
+	// Every heap is in use: pick a random heap.
+	i = lrand48() % HeapType::MaxHeaps;
       }
 
       HeapType::setInusemap (i, 1);
