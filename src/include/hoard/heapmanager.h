@@ -74,7 +74,12 @@ namespace Hoard {
 	i++;
       if (i >= HeapType::MaxHeaps) {
 	// Every heap is in use: pick a random heap.
-	i = lrand48() % HeapType::MaxHeaps;
+#if defined(_WIN32)
+	int randomNumber = rand();
+#else
+	int randomNumber = lrand48();
+#endif
+	i = randomNumber % HeapType::MaxHeaps;
       }
 
       HeapType::setInusemap (i, 1);
