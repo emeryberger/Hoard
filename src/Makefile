@@ -86,7 +86,7 @@ GENERIC_GCC_COMPILE = g++ -I/usr/include/nptl -pipe -g -O3 -finline-limit=20000 
 WIN_DEFINES = /D "NDEBUG" /D "_WINDOWS" /D "_WINDLL" /D "_WINRT_DLL" /D "_UNICODE" /D "UNICODE"
 WIN_DEBUG_DEFINES = /D "_WINDOWS" /D "_WINDLL" /D "_WINRT_DLL" /D "_UNICODE" /D "UNICODE"
 
-WIN_FLAGS   = /Zi /Ox /MD /nologo /W1 /WX- /Ox /Oi /Oy- /GL /Gm- /EHsc /MD /GS /Gy /Zc:wchar_t /Zc:forScope /Gd /errorReport:queue
+WIN_FLAGS         = /Zi /Ox /MD /nologo /W1 /WX- /Ox /Oi /Oy- /GL /Gm- /EHsc /MD /GS /Gy /Zc:wchar_t /Zc:forScope /Gd /errorReport:queue
 WIN_DEBUG_FLAGS   = /Zi /MD /nologo /W1 /WX- /GL /Gm- /EHsc /MD /GS /Gy /Zc:wchar_t /Zc:forScope /Gd /errorReport:queue
 
 windows: $(DEPS)
