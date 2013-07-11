@@ -91,9 +91,11 @@ WIN_DEBUG_FLAGS   = /Zi /MD /nologo /W1 /WX- /GL /Gm- /EHsc /MD /GS /Gy /Zc:wcha
 
 windows: $(DEPS)
 	cl $(WIN_INCLUDES) $(WIN_DEFINES) $(WIN_FLAGS) "source\libhoard.cpp" "Heap-Layers\wrappers\winwrapper.cpp" "source\wintls.cpp" /link /DLL /subsystem:console /OUT:libhoard.dll
+	cl $(WIN_INCLUDES) $(WIN_DEFINES) $(WIN_FLAGS) /c "source\uselibhoard.cpp" 
 
 windows-debug: $(DEPS)
 	cl $(WIN_INCLUDES) $(WIN_DEBUG_DEFINES) $(WIN_DEBUG_FLAGS) "source\libhoard.cpp" "Heap-Layers\wrappers\winwrapper.cpp" "source\wintls.cpp" /link /DLL /subsystem:console /OUT:libhoard.dll
+	cl $(WIN_INCLUDES) $(WIN_DEBUG_DEFINES) $(WIN_DEBUG_FLAGS) /c "source\uselibhoard.cpp" 
 
 macos:
 	$(MACOS_COMPILE)
