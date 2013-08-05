@@ -51,17 +51,17 @@ MACOS_COMPILE = clang++ -arch i386 -arch x86_64 -pipe -g -O3 -Wall -DNDEBUG $(IN
 
 MACOS_COMPILE_DEBUG = clang++ -arch i386 -arch x86_64 -pipe -g -O0 -Wall $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -dynamiclib $(MACOS_SRC) -o libhoard.dylib -ldl -lpthread
 
-LINUX_GCC_x86_COMPILE = g++ -m32 -I/usr/include/nptl -ffast-math -g -malign-double -pipe -march=pentium4 -O3 -finline-limit=20000 -finline-functions  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared  $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
+LINUX_GCC_x86_COMPILE = g++ $(CPPFLAGS) -I/usr/include/nptl -ffast-math -g -malign-double -pipe -finline-limit=20000 -finline-functions  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared  $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
-LINUX_GCC_x86_64_COMPILE = g++ -g -W -Wconversion -Wall -m64 -I/usr/include/nptl -pipe -fPIC -O3 -finline-limit=20000 -finline-functions  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared   $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
+LINUX_GCC_x86_64_COMPILE = g++ $(CPPFLAGS) -g -W -Wconversion -Wall -I/usr/include/nptl -pipe -fPIC -finline-limit=20000 -finline-functions  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared   $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
-LINUX_GCC_x86_64_COMPILE_DEBUG = g++ -W -Wconversion -Wall -march=nocona -m64 -I/usr/include/nptl -pipe -fPIC -O0 -g $(INCLUDES) -D_REENTRANT=1 -shared   $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
+LINUX_GCC_x86_64_COMPILE_DEBUG = g++ $(CPPFLAGS) -g -W -Wconversion -Wall -I/usr/include/nptl -pipe -fPIC $(INCLUDES) -D_REENTRANT=1 -shared $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
-LINUX_GCC_x86_COMPILE_STATIC = g++ -g -m32 -I/usr/include/nptl -static -pipe -march=pentium4 -O3 -finline-limit=20000 -finline-functions  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1  -c $(GNU_SRC) ; ar cr libhoard.a libhoard.o
+LINUX_GCC_x86_COMPILE_STATIC = g++ $(CPPFLAGS) -g -I/usr/include/nptl -static -pipe -finline-limit=20000 -finline-functions  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1  -c $(GNU_SRC) ; ar cr libhoard.a libhoard.o
 
-LINUX_GCC_x86_64_COMPILE_STATIC = g++ -g -W -Wconversion -Wall -m64 -I/usr/include/nptl -static -pipe -fPIC -O3 -finline-limit=20000 -finline-functions  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared -c $(GNU_SRC) -Bsymbolic ; ar cr libhoard.a libhoard.o
+LINUX_GCC_x86_64_COMPILE_STATIC = g++ $(CPPFLAGS) -g -W -Wconversion -Wall -I/usr/include/nptl -static -pipe -fPIC -finline-limit=20000 -finline-functions  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared -c $(GNU_SRC) -Bsymbolic ; ar cr libhoard.a libhoard.o
 
-LINUX_GCC_x86_COMPILE_DEBUG = g++ -m32 -O0 -fPIC -fno-inline -I/usr/include/nptl  -g -pipe $(INCLUDES) -D_REENTRANT=1  -shared $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
+LINUX_GCC_x86_COMPILE_DEBUG = g++ $(CPPFLAGS) -fPIC -fno-inline -I/usr/include/nptl  -g -pipe $(INCLUDES) -D_REENTRANT=1  -shared $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
 SOLARIS_SUNW_SPARC_COMPILE_32_DEBUG = CC -dalign -xbuiltin=%all -fast -mt -g -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) Heap-Layers/wrappers/arch-specific/sparc-interchange.il -o libhoard_32.so -lthread -ldl -lCrun
 
