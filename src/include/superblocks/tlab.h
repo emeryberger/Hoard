@@ -107,7 +107,7 @@ namespace Hoard {
 
     inline void free (void * ptr) {
       if (!ptr) {
-        	return;
+	return;
       }
       const SuperblockType * s = getSuperblock (ptr);
       // If this isn't a valid superblock, just return.
@@ -120,10 +120,10 @@ namespace Hoard {
       	if ((sz <= LargestObject) && (sz + _localHeapBytes <= LocalHeapThreshold)) {
       	  // Free small objects locally, unless we are out of space.
 
-      	  assert (getSize(ptr) >= sizeof(HL::DLList::Entry *));
+      	  assert (getSize(ptr) >= sizeof(HL::SLList::Entry *));
       	  unsigned int c = getSizeClass (sz);
 
-      	  _localHeap(c).insert ((HL::DLList::Entry *) ptr);
+      	  _localHeap(c).insert ((HL::SLList::Entry *) ptr);
       	  _localHeapBytes += getClassSize(c); // sz;
       	  
       	} else {
@@ -143,7 +143,7 @@ namespace Hoard {
       while ((_localHeapBytes > 0) && (i >= 0)) {
       	const size_t sz = getClassSize (i);
       	while (!_localHeap(i).isEmpty()) {
-      	  HL::DLList::Entry * e = _localHeap(i).get();
+      	  HL::SLList::Entry * e = _localHeap(i).get();
       	  _parentHeap->free (e);
       	  _localHeapBytes -= sz;
       	}
@@ -169,7 +169,7 @@ namespace Hoard {
     size_t _localHeapBytes;
 
     /// The local heap itself.
-    Array<NumBins, HL::DLList> _localHeap;
+    Array<NumBins, HL::SLList> _localHeap;
 
   };
 
