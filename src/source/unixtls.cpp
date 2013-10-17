@@ -60,8 +60,13 @@ extern HoardHeapType * getMainHoardHeap (void);
 
 // Thread-specific buffers and pointers to hold the TLAB.
 
-static __thread double tlabBuffer[sizeof(TheCustomHeapType) / sizeof(double) + 1];
-static __thread TheCustomHeapType * theTLAB = NULL;
+// Optimization to accelerate thread-local access. This precludes the
+// use of Hoard in a dlopen module, but is MUCH faster.
+
+#define INITIAL_EXEC_ATTR __attribute__((tls_model ("initial-exec")))
+
+static __thread double tlabBuffer[sizeof(TheCustomHeapType) / sizeof(double) + 1] INITIAL_EXEC_ATTR;
+static __thread TheCustomHeapType * theTLAB INITIAL_EXEC_ATTR = NULL;
 
 // Initialize the TLAB (must only be called once).
 
