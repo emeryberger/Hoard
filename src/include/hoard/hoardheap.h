@@ -76,7 +76,6 @@ typedef HL::MacLockType TheLockType;
 typedef HL::SpinLockType TheLockType;
 #else
 typedef HL::SpinLockType TheLockType;
-// typedef HL::PosixLockType TheLockType;
 #endif
 
 #if defined(__clang__)
@@ -182,7 +181,11 @@ namespace Hoard {
   //
   class PerThreadHoardHeap :
     public RedirectFree<LockMallocHeap<SmallHeap>,
-			SmallSuperblockType> {};
+			SmallSuperblockType> {
+  private:
+    // Avoid false sharing.
+    char _dummy[64];
+  };
   
 
   template <int N, int NH>
