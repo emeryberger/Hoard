@@ -147,6 +147,11 @@ TheCustomHeapType * getCustomHeap (void) {
 
 #endif
 
+void makeCustomHeap() {
+  volatile void * ptr = (void *) getCustomHeap();
+}
+
+
 //
 // Intercept thread creation and destruction to flush the TLABs.
 //
@@ -194,7 +199,8 @@ extern "C" {
     result = (*f)(arg);
     exitRoutine();
     
-    getCustomHeap()->free (a);
+    //    getCustomHeap()->free (a);
+    printf ("FUCUCASUCSD\n");
     return result;
   }
   
@@ -261,7 +267,7 @@ extern "C" int thr_create (void * stack_base,
 
 extern "C" void thr_exit (void *value_ptr) {
 
-#if defined(linux) || defined(__APPLE__)
+#if defined(__linux__) || defined(__APPLE__)
   char fname[] = "thr_exit";
 #else
   char fname[] = "_thr_exit";
@@ -288,7 +294,7 @@ extern "C" void thr_exit (void *value_ptr) {
 
 extern "C" void pthread_exit (void *value_ptr) {
 
-#if defined(linux) || defined(__APPLE__)
+#if defined(__linux__) || defined(__APPLE__)
   char fname[] = "pthread_exit";
 #else
   char fname[] = "_pthread_exit";
@@ -319,11 +325,12 @@ extern "C" int pthread_create (pthread_t *thread,
   throw ()
 #endif
 {
+  printf ("YEAH BITCH.\n");
   // Force initialization of the TLAB before our first thread is created.
   volatile static TheCustomHeapType * t = getCustomHeap();
   t = t;
 
-#if defined(linux) || defined(__APPLE__)
+#if defined(__linux__) || defined(__APPLE__)
   char fname[] = "pthread_create";
 #else
   char fname[] = "_pthread_create";

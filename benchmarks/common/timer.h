@@ -51,7 +51,7 @@
 #include <sys/time.h>
 #endif
 
-#if defined(linux) && defined(__GNUG__) && defined(__i386__)
+#if defined(__linux__) && defined(__GNUG__) && defined(__i386__)
 
 #include <stdio.h>
 #include <limits.h>
