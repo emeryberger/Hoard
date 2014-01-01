@@ -77,7 +77,7 @@ namespace Hoard {
 #if defined(_WIN32)
 	int randomNumber = rand();
 #else
-	int randomNumber = lrand48();
+	int randomNumber = (int) lrand48();
 #endif
 	i = randomNumber % HeapType::MaxHeaps;
       }
