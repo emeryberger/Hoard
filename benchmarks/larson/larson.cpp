@@ -176,7 +176,7 @@ void operator delete(void *pUserData )
 /* Test driver for memory allocators           */
 /* Author: Paul Larson, palarson@microsoft.com */
 #define MAX_THREADS     100
-#define MAX_BLOCKS  1000000
+#define MAX_BLOCKS  2000000
 
 int volatile  stopflag=FALSE ;       
 
@@ -199,10 +199,10 @@ typedef struct thr_data {
   int    *blksize ;
   int     asize ;
 
-  int    cAllocs ;
-  int    cFrees ;
+  unsigned long    cAllocs ;
+  unsigned long    cFrees ;
   int    cThreads ;
-  int    cBytesAlloced ;
+  unsigned long    cBytesAlloced ;
 
   volatile int finished ;
   struct lran2_st rgen ;
@@ -458,8 +458,8 @@ void runthreads(long sleep_cnt, int min_threads, int max_threads, int chperthrea
   thread_data *pdea;
   int           nperthread ;
   int           sum_threads ;
-  int           sum_allocs ;
-  int           sum_frees ;
+  unsigned long  sum_allocs ;
+  unsigned long  sum_frees ;
   double        duration ;
 #ifdef __WIN32__
 	_LARGE_INTEGER ticks_per_sec, start_cnt, end_cnt;
