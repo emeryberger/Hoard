@@ -288,7 +288,7 @@ int main (int argc, char *argv[])
     seed = atoi(argv[6]);
     max_threads = atoi(argv[7]);
     min_threads = max_threads;
-    printf ("sleep = %d, min = %d, max = %d, per thread = %d, num rounds = %d, seed = %d, max_threads = %d, min_threads = %d\n",
+    printf ("sleep = %ld, min = %d, max = %d, per thread = %d, num rounds = %d, seed = %d, max_threads = %d, min_threads = %d\n",
 	    sleep_cnt, min_size, max_size, chperthread, num_rounds, seed, max_threads, min_threads);
     goto DoneWithInput;
   }
