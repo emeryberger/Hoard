@@ -1,14 +1,10 @@
-#if !defined(__APPLE__)
-#error "This file is intended for use with MacOS systems only."
-#endif
-
 /*
   The Hoard Multiprocessor Memory Allocator
   www.hoard.org
 
   Author: Emery Berger, http://www.cs.umass.edu/~emery
  
-  Copyright (c) 1998-2012 Emery Berger
+  Copyright (c) 1998-2014 Emery Berger
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -26,16 +22,18 @@
 
 */
 
-#include "heaplayers.h"
+#if !defined(__APPLE__)
+#error "This file is intended for use with MacOS systems only."
+#endif
 
-// #include "macinterpose.h"
-#include "hoardtlab.h"
-
-using namespace Hoard;
-
-extern HoardHeapType * getMainHoardHeap (void);
-
+#include <dlfcn.h>
 #include <pthread.h>
+#include <utility>
+
+#include "Heap-Layers/heaplayers.h"
+#include "hoard/hoardtlab.h"
+
+extern Hoard::HoardHeapType * getMainHoardHeap();
 
 static pthread_key_t theHeapKey;
 static pthread_once_t key_once = PTHREAD_ONCE_INIT;
@@ -43,54 +41,50 @@ static pthread_once_t key_once = PTHREAD_ONCE_INIT;
 // Called when the thread goes away.  This function clears out the
 // TLAB and then reclaims the memory allocated to hold it.
 
-static void deleteThatHeap (void * p) {
-  TheCustomHeapType * heap = (TheCustomHeapType *) p;
-  heap->clear();
-  getMainHoardHeap()->free ((void *) heap);
-  
+static void deleteThatHeap(void * p) {
+  reinterpret_cast<TheCustomHeapType *>(p)->clear();
+  getMainHoardHeap()->free(p);
+
   // Relinquish the assigned heap.
   getMainHoardHeap()->releaseHeap();
 }
 
-static void make_heap_key (void)
-{
-  if (pthread_key_create (&theHeapKey, deleteThatHeap) != 0) {
+static void make_heap_key() {
+  if (pthread_key_create(&theHeapKey, deleteThatHeap) != 0) {
     // This should never happen.
   }
 }
 
-static bool initTSD (void) {
+static bool initTSD() {
   static bool initializedTSD = false;
   if (!initializedTSD) {
     // Ensure that the key is initialized -- once.
-    pthread_once (&key_once, make_heap_key);
+    pthread_once(&key_once, make_heap_key);
     initializedTSD = true;
-    //    fprintf (stderr, "Using the Hoard scalable memory manager (http://www.hoard.org).\n");
   }
   return true;
 }
 
-static TheCustomHeapType * initializeCustomHeap (void)
-{
+static TheCustomHeapType * initializeCustomHeap() {
   TheCustomHeapType * heap =
-    (TheCustomHeapType *) pthread_getspecific (theHeapKey);
+    reinterpret_cast<TheCustomHeapType *>(pthread_getspecific(theHeapKey));
   if (heap == NULL) {
     // Defensive programming in case this is called twice.
     // Allocate a per-thread heap.
     size_t sz = sizeof(TheCustomHeapType);
-    void * mh = getMainHoardHeap()->malloc(sz);
-    heap = new ((char *) mh) TheCustomHeapType (getMainHoardHeap());
+    char * mh = reinterpret_cast<char *>(getMainHoardHeap()->malloc(sz));
+    heap = new (mh) TheCustomHeapType(getMainHoardHeap());
     // Store it in the appropriate thread-local area.
-    pthread_setspecific (theHeapKey, (void *) heap);
+    pthread_setspecific(theHeapKey, heap);
   }
   return heap;
 }
 
-TheCustomHeapType * getCustomHeap (void) {
+TheCustomHeapType * getCustomHeap() {
   initTSD();
   // Allocate a per-thread heap.
   TheCustomHeapType * heap =
-    (TheCustomHeapType *) pthread_getspecific (theHeapKey);
+    reinterpret_cast<TheCustomHeapType *>(pthread_getspecific(theHeapKey));
   if (heap == NULL)  {
     heap = initializeCustomHeap();
   }
@@ -104,14 +98,11 @@ TheCustomHeapType * getCustomHeap (void) {
 
 
 extern "C" {
-
-  typedef void * (*threadFunctionType) (void *);
-
-
+  typedef void * (*threadFunctionType)(void * arg);
 }
 
 // A special routine we call on thread exits to free up some resources.
-static void exitRoutine (void) {
+static void exitRoutine() {
   TheCustomHeapType * heap = getCustomHeap();
 
   // Clear the TLAB's buffer.
@@ -122,28 +113,29 @@ static void exitRoutine (void) {
 }
 
 extern "C" {
-
-  static inline void * startMeUp (void * a)
-  {
+  static inline void * startMeUp(void * a) {
+    // Make sure that the custom heap has been initialized,
+    // then find an unused process heap for this thread, if possible.
     getCustomHeap();
     getMainHoardHeap()->findUnusedHeap();
+
+    // Extract the pair elements (function, argument).
     pair<threadFunctionType, void *> * z
-      = (pair<threadFunctionType, void *> *) a;
-    
-    threadFunctionType f = z->first;
+      = reinterpret_cast<pair<threadFunctionType, void *> *>(a);
+
+    threadFunctionType fun = z->first;
     void * arg = z->second;
 
-    void * result = NULL;
-    result = (*f)(arg);
+    // Execute the function.
+    void * result = (*fun)(arg);
+
+    // We're done: free up resources.
     exitRoutine();
-    
-    getCustomHeap()->free (a);
+    getCustomHeap()->free(a);
     return result;
   }
-  
 }
 
-#include <dlfcn.h>
 
 extern volatile bool anyThreadCreated;
 
@@ -154,29 +146,26 @@ extern volatile bool anyThreadCreated;
 // free up the TLAB.
 
 
-extern "C" void xxpthread_exit (void *value_ptr) {
-
+extern "C" void xxpthread_exit(void * value_ptr) {
   // Do necessary clean-up of the TLAB and get out.
   exitRoutine();
-  pthread_exit (value_ptr);
-
+  pthread_exit(value_ptr);
 }
 
-extern "C" int xxpthread_create (pthread_t *thread,
-				 const pthread_attr_t *attr,
-				 void * (*start_routine) (void *),
-				 void * arg)
-{
+extern "C" int xxpthread_create(pthread_t *thread,
+                                const pthread_attr_t *attr,
+                                void * (*start_routine)(void *),
+                                void * arg) {
   // Force initialization of the TLAB before our first thread is created.
   static TheCustomHeapType * t = getCustomHeap();
 
   anyThreadCreated = true;
 
   pair<threadFunctionType, void *> * args =
-    new (t->malloc (sizeof(pair<threadFunctionType, void *>)))
-    pair<threadFunctionType, void *> (start_routine, arg);
+    new (t->malloc(sizeof(pair<threadFunctionType, void *>)))
+    pair<threadFunctionType, void *>(start_routine, arg);
 
-  int result = pthread_create (thread, attr, startMeUp, args);
+  int result = pthread_create(thread, attr, startMeUp, args);
   return result;
 }
 
