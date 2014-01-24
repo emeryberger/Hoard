@@ -103,10 +103,10 @@ namespace Hoard {
 
 #if defined(__LP64__) || defined(_LP64) || defined(_WIN64) || defined(__x86_64__)
     // The maximum size of an object, in 64-bit land.
-    enum { MaxObjectSize = (1 << 31) };
+    enum { MaxObjectSize = (1UL << 31) };
 #else
     // The maximum size of an object for 32-bit architectures.
-    enum { MaxObjectSize = (1 << 25) };
+    enum { MaxObjectSize = (1UL << 25) };
 #endif
 
   private:
