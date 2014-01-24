@@ -77,7 +77,7 @@ namespace Hoard {
     }
 
     /// Get the current superblock and remove it.
-    SuperblockType * get (void) {
+    SuperblockType * get() {
       if (_current) {
 	SuperblockType * s = _current;
 	_current = NULL;
