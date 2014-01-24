@@ -48,14 +48,14 @@ namespace Hoard {
 
     typedef SuperblockType_ SuperblockType;
 
-    EmptyClass (void)
+    EmptyClass()
     {
       for (int i = 0; i <= EmptinessClasses + 1; i++) {
 	_available(i) = 0;
       }
     }
 
-    void dumpStats (void) {
+    void dumpStats() {
       for (int i = 0; i <= EmptinessClasses + 1; i++) {
 	SuperblockType * s = _available(i);
 	if (s) {
@@ -68,8 +68,7 @@ namespace Hoard {
       }
     }
 
-
-    SuperblockType * getEmpty (void) {
+    SuperblockType * getEmpty() {
       Check<EmptyClass, MyChecker> check (this);
       SuperblockType * s = _available(0);
       if (s && 
@@ -86,7 +85,7 @@ namespace Hoard {
       return 0;
     }
 
-    SuperblockType * get (void) {
+    SuperblockType * get() {
       Check<EmptyClass, MyChecker> check (this);
       // Return as empty a superblock as possible
       // by iterating from the emptiest to the fullest available class.
@@ -247,9 +246,9 @@ namespace Hoard {
 #endif
     };
 
-    void sanityCheckPre (void) { sanityCheck(); }
+    void sanityCheckPre() { sanityCheck(); }
 
-    void sanityCheck (void) {
+    void sanityCheck() {
       for (int i = 0; i <= EmptinessClasses + 1; i++) {
 	SuperblockType * s = _available(i);
 	while (s) {
