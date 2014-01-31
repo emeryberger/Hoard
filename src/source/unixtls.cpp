@@ -155,7 +155,6 @@ TheCustomHeapType * getCustomHeap() {
 // Intercept thread creation and destruction to flush the TLABs.
 //
 
-
 extern "C" {
   typedef void * (*threadFunctionType)(void * arg);
 
@@ -304,12 +303,11 @@ extern "C" void pthread_exit (void *value_ptr) {
   exit(0);
 }
 
-
 extern "C" int pthread_create (pthread_t *thread,
                                const pthread_attr_t *attr,
                                void * (*start_routine)(void *),
                                void * arg)
-#if !defined(__SUNPRO_CC) && !defined(__APPLE__)
+#if !defined(__SUNPRO_CC) && !defined(__APPLE__) && !defined(__FreeBSD__)
   throw ()
 #endif
 {
@@ -322,8 +320,6 @@ extern "C" int pthread_create (pthread_t *thread,
 #else
   char fname[] = "_pthread_create";
 #endif
-
-  //  printf ("creating new thread.\n");
 
   // A pointer to the library version of pthread_create.
   static pthread_create_function real_pthread_create =

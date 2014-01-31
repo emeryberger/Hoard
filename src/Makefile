@@ -47,7 +47,7 @@ WIN_INCLUDES = /I. /Iinclude /Iinclude/util /Iinclude/hoard /Iinclude/superblock
 # Compile commands for individual targets.
 #
 
-FREEBSD_COMPILE = g++ -g $(CPPFLAGS) -DNDEBUG  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared $(UNIX_SRC) -Bsymbolic -o libhoard.so -pthread -fPIC
+FREEBSD_COMPILE = clang++ -std=c++11 -g $(CPPFLAGS) -DNDEBUG  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared $(UNIX_SRC) -Bsymbolic -o libhoard.so -pthread -fPIC
 
 MACOS_COMPILE = clang++ -std=c++11 -fno-builtin-malloc -ftemplate-depth=1024 -arch i386 -arch x86_64 -pipe -g $(CPPFLAGS) -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -dynamiclib -D'CUSTOM_PREFIX(x)=xx\#\#x' $(MACOS_SRC) -o libhoard.dylib -ldl -lpthread 
 

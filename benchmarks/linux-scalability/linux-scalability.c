@@ -31,7 +31,7 @@ void * run_test (void *);
 void *dummy (unsigned);
 
 static unsigned long size = 512;
-static unsigned long iteration_count = 1000000;
+static uint64_t iteration_count = 1000000;
 static unsigned int thread_count = 1;
 
 #include "ptbarrier.h"
@@ -52,7 +52,7 @@ main (int argc, char *argv[])
       if (thread_count > MAX_THREADS)
 	thread_count = MAX_THREADS;
     case 3:			/* size and iteration count were specified; others default */
-      iteration_count = atoi (argv[2]);
+      iteration_count = atoll (argv[2]);
     case 2:			/* size was specified; others default */
       size = atoi (argv[1]);
 
@@ -63,7 +63,7 @@ main (int argc, char *argv[])
       exit (1);
     }
 
-  printf ("Object size: %d, Iterations: %d, Threads: %d\n",
+  printf ("Object size: %d, Iterations: %lu, Threads: %d\n",
 	  size, iteration_count, thread_count);
 
   executionTime = (double *) malloc (sizeof(double) * thread_count);
@@ -115,7 +115,7 @@ run_test (void * arg)
 {
   register unsigned int i;
   register unsigned long request_size = size;
-  register unsigned long total_iterations = iteration_count;
+  register uint64_t total_iterations = iteration_count;
   int tid = *((int *) arg);
   struct timeval start, end, null, elapsed, adjusted;
 
