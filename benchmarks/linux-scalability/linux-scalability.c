@@ -150,13 +150,19 @@ run_test (void * arg)
   /* Run the real malloc test */ 
   gettimeofday (&start, NULL);
 
-  for (i = 0; i < total_iterations; i++)
-    {
-      register void *buf;
-
-      buf = malloc (request_size);
-      free (buf);
-    }
+  {
+    void ** buf = (void **) malloc(sizeof(void *) * total_iterations);
+    
+    for (i = 0; i < total_iterations; i++)
+      {
+	buf[i] = malloc (request_size);
+      }
+    
+    for (i = 0; i < total_iterations; i++)
+      {
+	free (buf[i]);
+      }
+  }
 
   gettimeofday (&end, NULL);
   elapsed.tv_sec = end.tv_sec - start.tv_sec;
