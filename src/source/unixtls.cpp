@@ -31,10 +31,19 @@
  * pthread_create and pthread_exit.
  */
 
-#if ((GCC_VERSION >= 30300) && \
-     !defined(__SVR4) && \
-     !defined(__APPLE__)) \
-    || defined(__SUNPRO_CC)
+// For now, we only use thread-local variables (__thread) for certain
+// compilers and systems.
+
+// Compute the version of gcc we're compiling with (if any).
+#define GCC_VERSION (__GNUC__ * 10000	    \
+                     + __GNUC_MINOR__ * 100 \
+                     + __GNUC_PATCHLEVEL__)
+
+#if (((defined(GCC_VERSION) && (GCC_VERSION >= 30300)) &&	\
+      !defined(__SVR4) &&					\
+      !defined(__APPLE__))					\
+     || defined(__SUNPRO_CC)					\
+     || defined(__FreeBSD__))
 #define USE_THREAD_KEYWORD 1
 #endif
 
@@ -49,14 +58,6 @@
 #include <new>
 #include <utility>
 
-// For now, we only use thread-local variables (__thread)
-//   (a) for Linux x86-32 platforms with gcc version > 3.3.0, and
-//   (b) when compiling with the SunPro compilers.
-
-// Compute the version of gcc we're compiling with (if any).
-#define GCC_VERSION (__GNUC__ * 10000 \
-                     + __GNUC_MINOR__ * 100 \
-                     + __GNUC_PATCHLEVEL__)
 
 #include "hoard/hoardtlab.h"
 
@@ -77,12 +78,19 @@ static __thread TheCustomHeapType * theTLAB INITIAL_EXEC_ATTR = NULL;
 
 // Initialize the TLAB (must only be called once).
 
+static TheCustomHeapType * initializeCustomHeap() __attribute__((constructor));
+
 static TheCustomHeapType * initializeCustomHeap() {
   new (reinterpret_cast<char *>(&tlabBuffer)) TheCustomHeapType(getMainHoardHeap());
-  return (theTLAB = reinterpret_cast<TheCustomHeapType *>(&tlabBuffer));
+  theTLAB = reinterpret_cast<TheCustomHeapType *>(&tlabBuffer);
+  return theTLAB;
 }
 
 // Get the TLAB.
+
+bool isCustomHeapInitialized() {
+  return (theTLAB != NULL);
+}
 
 TheCustomHeapType * getCustomHeap() {
   // The pointer to the TLAB itself.
@@ -91,7 +99,9 @@ TheCustomHeapType * getCustomHeap() {
 }
 
 
+
 #else // !defined(USE_THREAD_KEYWORD)
+
 
 
 static pthread_key_t theHeapKey;
@@ -107,6 +117,7 @@ static void deleteThatHeap(void * p) {
 
   // Relinquish the assigned heap.
   getMainHoardHeap()->releaseHeap();
+  //  pthread_setspecific(theHeapKey, NULL);
 }
 
 static void make_heap_key() {
@@ -117,13 +128,18 @@ static void make_heap_key() {
 
 static void initTSD() __attribute__((constructor));
 
+static bool initializedTSD = false;
+
 static void initTSD() {
-  static bool initializedTSD = false;
   if (!initializedTSD) {
     // Ensure that the key is initialized -- once.
     pthread_once(&key_once, make_heap_key);
     initializedTSD = true;
   }
+}
+
+bool isCustomHeapInitialized() {
+  return initializedTSD;
 }
 
 static TheCustomHeapType * initializeCustomHeap() {
@@ -173,11 +189,16 @@ extern "C" {
 static void exitRoutine() {
   TheCustomHeapType * heap = getCustomHeap();
 
-  // Clear the TLAB's buffer.
-  heap->clear();
-
   // Relinquish the assigned heap.
   getMainHoardHeap()->releaseHeap();
+
+  // Clear the heap (via its destructor).
+  heap->~TheCustomHeapType();
+
+#if !defined(USE_THREAD_KEYWORD)
+  // Reclaim the memory associated with the heap (thread-specific data).
+  pthread_key_delete (theHeapKey);
+#endif
 }
 
 extern "C" {
@@ -192,7 +213,11 @@ extern "C" {
 
     void * result = NULL;
     result = (*f)(arg);
+
+    delete z;
+
     exitRoutine();
+
     return result;
   }
 }
@@ -269,6 +294,7 @@ extern "C" void thr_exit (void * value_ptr) {
     reinterpret_cast<thr_exit_function>(dlsym (RTLD_NEXT, fname));
 
   // Do necessary clean-up of the TLAB and get out.
+
   exitRoutine();
   (*real_thr_exit)(value_ptr);
 }
