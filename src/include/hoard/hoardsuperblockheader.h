@@ -84,7 +84,7 @@ namespace Hoard {
       clear();
     }
 
-    inline void * malloc (void) {
+    inline void * malloc() {
       assert (isValid());
       void * ptr = reapAlloc();
       assert ((ptr == NULL) || ((size_t) ptr % Alignment == 0));
@@ -109,7 +109,7 @@ namespace Hoard {
       }
     }
 
-    void clear (void) {
+    void clear() {
       assert (isValid());
       // Clear out the freelist.
       _freeList.clear();
@@ -151,19 +151,19 @@ namespace Hoard {
       return newSize;
     }
 
-    size_t getObjectSize (void) const {
+    size_t getObjectSize() const {
       return _objectSize;
     }
 
-    unsigned int getTotalObjects (void) const {
+    unsigned int getTotalObjects() const {
       return _totalObjects;
     }
 
-    unsigned int getObjectsFree (void) const {
+    unsigned int getObjectsFree() const {
       return _objectsFree;
     }
 
-    HeapType * getOwner (void) const {
+    HeapType * getOwner() const {
       return _owner;
     }
 
@@ -171,15 +171,15 @@ namespace Hoard {
       _owner = o;
     }
 
-    bool isValid (void) const {
+    bool isValid() const {
       return (_magicNumber == (MAGIC_NUMBER ^ (size_t) this));
     }
 
-    HoardSuperblock<LockType, SuperblockSize, HeapType> * getNext (void) const {
+    HoardSuperblock<LockType, SuperblockSize, HeapType> * getNext() const {
       return _next;
     }
 
-    HoardSuperblock<LockType, SuperblockSize, HeapType> * getPrev (void) const {
+    HoardSuperblock<LockType, SuperblockSize, HeapType> * getPrev() const {
       return _prev;
     }
 
@@ -191,17 +191,17 @@ namespace Hoard {
       _prev = p;
     }
 
-    void lock (void) {
+    void lock() {
       _theLock.lock();
     }
 
-    void unlock (void) {
+    void unlock() {
       _theLock.unlock();
     }
 
   private:
 
-    MALLOC_FUNCTION INLINE void * reapAlloc (void) {
+    MALLOC_FUNCTION INLINE void * reapAlloc() {
       assert (isValid());
       assert (_position);
       // Reap mode.
@@ -217,7 +217,7 @@ namespace Hoard {
       }
     }
 
-    MALLOC_FUNCTION INLINE void * freeListAlloc (void) {
+    MALLOC_FUNCTION INLINE void * freeListAlloc() {
       assert (isValid());
       // Freelist mode.
       char * ptr = reinterpret_cast<char *>(_freeList.get());
