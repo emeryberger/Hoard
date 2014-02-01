@@ -71,7 +71,7 @@ namespace Hoard {
       verifyCanHoldTwoPointers = verifyCanHoldTwoPointers;
     }
 
-    ~ThreadLocalAllocationBuffer (void) {
+    ~ThreadLocalAllocationBuffer() {
       clear();
     }
 
@@ -137,7 +137,7 @@ namespace Hoard {
       }
     }
 
-    void clear (void) {
+    void clear() {
       // Free every object to the 'parent' heap.
       int i = NumBins - 1;
       while ((_localHeapBytes > 0) && (i >= 0)) {
