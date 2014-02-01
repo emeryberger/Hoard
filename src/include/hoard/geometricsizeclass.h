@@ -31,7 +31,6 @@
 #include <cmath>
 #include <cstdlib>
 #include <cassert>
-#include <iostream>
 
 #if defined(__clang__)
 #pragma clang diagnostic push
