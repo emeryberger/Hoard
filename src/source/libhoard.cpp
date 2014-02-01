@@ -109,11 +109,26 @@ HoardHeapType * getMainHoardHeap (void) {
 
 TheCustomHeapType * getCustomHeap();
 
+enum { MAX_LOCAL_BUFFER_SIZE = 256 * 131072 };
+static char initBuffer[MAX_LOCAL_BUFFER_SIZE];
+static char * initBufferPtr = initBuffer;
+
+extern bool isCustomHeapInitialized();
+
 extern "C" {
 
   void * xxmalloc (size_t sz) {
-    TheCustomHeapType * h = getCustomHeap();
-    void * ptr = h->malloc (sz);
+    if (!isCustomHeapInitialized()) {
+      // We still haven't initialized the heap. Satisfy this memory
+      // request from the local buffer.
+      void * ptr = initBufferPtr;
+      initBufferPtr += sz;
+      if (initBufferPtr > initBuffer + MAX_LOCAL_BUFFER_SIZE) {
+	abort();
+      }
+      return ptr;
+    }
+    void * ptr = getCustomHeap()->malloc (sz);
     return ptr;
   }
 
