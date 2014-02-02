@@ -66,24 +66,16 @@ static TheCustomHeapType * initializeCustomHeap (void)
   return heap;
 }
 
+bool isCustomHeapInitialized() {
+  return (threadLocalHeap != NULL);
+}
+
 TheCustomHeapType * getCustomHeap() {
   if (threadLocalHeap != NULL)
     return threadLocalHeap;
   initializeCustomHeap();
   return threadLocalHeap;
 }
-#if 0
-{
-  TheCustomHeapType * heap;
-  heap = (TheCustomHeapType *) threadLocalHeap;
-  // heap = (TheCustomHeapType *) TlsGetValue (LocalTLABIndex);
-  if (heap == NULL)  {
-    heap = initializeCustomHeap();
-  }
-  return heap;
-}
-#endif
-
 
 extern "C" void InitializeWinWrapper();
 extern "C" void FinalizeWinWrapper();
