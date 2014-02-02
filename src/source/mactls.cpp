@@ -55,14 +55,19 @@ static void make_heap_key() {
   }
 }
 
+static bool initializedTSD = false;
+
 static bool initTSD() {
-  static bool initializedTSD = false;
   if (!initializedTSD) {
     // Ensure that the key is initialized -- once.
     pthread_once(&key_once, make_heap_key);
     initializedTSD = true;
   }
   return true;
+}
+
+bool isCustomHeapInitialized() {
+  return initializedTSD;
 }
 
 static TheCustomHeapType * initializeCustomHeap() {
