@@ -5,13 +5,15 @@ __if downloading from GitHub, make sure to use `--recursive`, as in:__
 [The Hoard Memory Allocator](http://www.hoard.org)
 --------------------------
 
-Copyright (C) 1998-2012 by [Emery Berger](http://www.cs.umass.edu/~emery)
+Copyright (C) 1998-2014 by [Emery Berger](http://www.cs.umass.edu/~emery)
 
 The Hoard memory allocator is a fast, scalable, and memory-efficient
-memory allocator for Linux, Solaris, Mac OS X, and Windows. Hoard is a
-drop-in replacement for malloc that can dramatically improve
-application performance, especially for multithreaded programs running
-on multiprocessors and multicore CPUs. No source code changes
+memory allocator for Linux, Solaris, Mac OS X, Windows, and
+more.
+
+Hoard is a drop-in replacement for malloc that can dramatically
+improve application performance, especially for multithreaded programs
+running on multiprocessors and multicore CPUs. No source code changes
 necessary: just link it in or set one environment variable (see
 [Building Hoard](#building-hoard-unixmac), below).
 
@@ -55,10 +57,6 @@ computational fluid dynamics toolkit, and the SafeSquid web proxy.
 Hoard is now a standard compiler option for the Standard Performance
 Evaluation Corporation's CPU2006 benchmark suite for the Intel and
 Open64 compilers.
-
-Hoard is also included with some Linux distributions, including
-Mandriva and Debian.
-
 
 Licensing
 ---------
