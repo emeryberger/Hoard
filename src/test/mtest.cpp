@@ -4,10 +4,6 @@
  * This program is provided `as is', there is no warranty.
  */
 
-#if defined(USE_HOARD)
-#pragma comment(lib, "libhoard.lib") 
-#endif 
-
 #if !defined(__STDC__)
 #define __STDC__ 1
 #endif
@@ -22,7 +18,7 @@
 #include <sys/resource.h>
 #endif
 
-#if !defined(__APPLE__)
+#if !defined(__APPLE__) && !defined(__FreeBSD__)
 #include <malloc.h>
 #endif
 
@@ -220,7 +216,7 @@ bin_alloc(m) struct bin *m;
         total_size -= m->size;
         r = RANDOM(1024);
         if(r < PROB_MEMALIGN) {
-#if !defined(_WIN32) && !defined(__APPLE__)
+#if !defined(_WIN32) && !defined(__APPLE__) && !defined(__FreeBSD__)
                 if(m->size > 0) free(m->ptr);
                 m->size = random_size(size);
                 m->ptr = (unsigned char *)memalign(4 << RANDOM(8), m->size);
