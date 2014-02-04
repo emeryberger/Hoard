@@ -21,6 +21,7 @@
 #include <unistd.h>
 #include <math.h>
 #include <pthread.h>
+#include <stdint.h>
 
 #define USECSPERSEC 1000000
 #define pthread_attr_default NULL
