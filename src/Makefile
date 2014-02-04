@@ -6,6 +6,7 @@ CPPFLAGS = -O3
 all:
 	@echo To build Hoard, specify the desired build target:
 	@echo -------------------------------------------------
+	@echo debian
 	@echo freebsd
 	@echo linux-gcc-x86
 	@echo linux-gcc-x86-64
@@ -17,7 +18,7 @@ all:
 	@echo generic-gcc
 	@echo windows
 
-.PHONY: macos freebsd linux-gcc-x86 linux-gcc-x86-debug solaris-sunw-sparc solaris-sunw-x86 solaris-gcc-sparc generic-gcc linux-gcc-x86-64 windows windows-debug clean
+.PHONY: macos debian freebsd linux-gcc-x86 linux-gcc-x86-debug solaris-sunw-sparc solaris-sunw-x86 solaris-gcc-sparc generic-gcc linux-gcc-x86-64 windows windows-debug clean
 
 #
 # Source files
@@ -48,6 +49,8 @@ WIN_INCLUDES = /I. /Iinclude /Iinclude/util /Iinclude/hoard /Iinclude/superblock
 #
 
 FREEBSD_COMPILE = clang++ -std=c++11 -g $(CPPFLAGS) -fPIC -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared $(SUNW_SRC) -Bsymbolic -o libhoard.so -lpthread
+
+DEBIAN_COMPILE = g++-4.8 -std=c++11 -g -O3 -fPIC -DNDEBUG -I. -Iinclude -Iinclude/util -Iinclude/hoard -Iinclude/superblocks -IHeap-Layers -D_REENTRANT=1 -shared source/libhoard.cpp source/unixtls.cpp Heap-Layers/wrappers/wrapper.cpp -Bsymbolic -o libhoard.so -lpthread -lstdc++ -ldl
 
 MACOS_COMPILE = clang++ -std=c++11 -fno-builtin-malloc -ftemplate-depth=1024 -arch i386 -arch x86_64 -pipe -g $(CPPFLAGS) -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -dynamiclib -D'CUSTOM_PREFIX(x)=xx\#\#x' $(MACOS_SRC) -o libhoard.dylib -ldl -lpthread 
 
@@ -107,6 +110,9 @@ macos-debug:
 
 freebsd:
 	$(FREEBSD_COMPILE)
+
+debian:
+	$(DEBIAN_COMPILE)
 
 generic-gcc:
 	$(GENERIC_GCC_COMPILE)
