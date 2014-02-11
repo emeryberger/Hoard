@@ -1,6 +1,3 @@
-__if downloading from GitHub, make sure to use `--recursive`, as in:__
-    `git clone --recursive https://github.com/emeryberger/Hoard`
-
 
 [The Hoard Memory Allocator](http://www.hoard.org)
 --------------------------
@@ -8,8 +5,8 @@ __if downloading from GitHub, make sure to use `--recursive`, as in:__
 Copyright (C) 1998-2014 by [Emery Berger](http://www.cs.umass.edu/~emery)
 
 The Hoard memory allocator is a fast, scalable, and memory-efficient
-memory allocator for Linux, Solaris, Mac OS X, Windows, and
-more.
+memory allocator that works on a range of platforms,
+including Linux, Solaris, Mac OS X, and Windows.
 
 Hoard is a drop-in replacement for malloc that can dramatically
 improve application performance, especially for multithreaded programs
@@ -107,38 +104,30 @@ deallocate memory from the allocator, the allocator will serialize
 them. Programs making intensive use of the allocator actually slow
 down as the number of processors increases. Your program may be
 allocation-intensive without you realizing it, for instance, if your
-program makes many calls to the C++ Standard Template Library (STL).
+program makes many calls to the C++ Standard Template Library (STL). Hoard eliminates this bottleneck.
 
 ### False Sharing ###
 
-The allocator can cause other problems for multithreaded code. It can
-lead to false sharing in your application: threads on different CPUs
+System-provided memory allocators can cause insidious problems for multithreaded code. They can
+lead to a phenomenon known as "false sharing": threads on different CPUs
 can end up with memory in the same cache line, or chunk of
 memory. Accessing these falsely-shared cache lines is hundreds of
-times slower than accessing unshared cache lines.
+times slower than accessing unshared cache lines. Hoard is designed to prevent false sharing.
 
 ### Blowup ###
 
 Multithreaded programs can also lead the allocator to blowup memory
 consumption. This effect can multiply the amount of memory needed to
 run your application by the number of CPUs on your machine: four CPUs
-could mean that you need four times as much memory. Hoard is a fast
-allocator that solves all of these problems.
+could mean that you need four times as much memory. Hoard is guaranteed (provably!) to bound memory consumption.
 
-Technical Information
----------------------
-
-For technical details of a previous version of Hoard, read [Hoard: A
-Scalable Memory Allocator for Multithreaded Applications](http://dl.acm.org/citation.cfm?id=379232),
-by Emery D. Berger, Kathryn S. McKinley, Robert D. Blumofe, and Paul
-R. Wilson. The Ninth International Conference on Architectural Support
-for Programming Languages and Operating Systems
-(ASPLOS-IX). Cambridge, MA, November 2000.
 
 Building Hoard (Unix/Mac)
 -------------------------
 
-**NOTE: Make sure to invoke git as follows: `git clone --recursive https://github.com/emeryberger/Hoard.git`**
+**NOTE: Make sure to invoke git as follows:**
+
+	% git clone --recursive https://github.com/emeryberger/Hoard.git
 
 To build Hoard on non-Windows platforms, change into the `src/`
 directory and run `make` followed by the appropriate target. If you
@@ -192,4 +181,13 @@ The directory `benchmarks/` contains a number of benchmarks used to
 evaluate and tune Hoard.
 
 
+Technical Information
+---------------------
+
+Hoard has changed quite a bit over the years, but for technical details of the first version of Hoard, read [Hoard: A
+Scalable Memory Allocator for Multithreaded Applications](http://dl.acm.org/citation.cfm?id=379232),
+by Emery D. Berger, Kathryn S. McKinley, Robert D. Blumofe, and Paul
+R. Wilson. The Ninth International Conference on Architectural Support
+for Programming Languages and Operating Systems
+(ASPLOS-IX). Cambridge, MA, November 2000.
 
