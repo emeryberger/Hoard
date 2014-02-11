@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <link href='https://fonts.googleapis.com/css?family=Chivo:900' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen" />
+    <link rel="stylesheet" type="text/css" href="stylesheets/pygment_trac.css" media="screen" />
+    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print" />
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <title>Hoard by emeryberger</title>
+  </head>
+
+  <body>
+    <div id="container">
+      <div class="inner">
+
+        <header>
+          <h1>Hoard</h1>
+          <h2>The Hoard Memory Allocator: A Fast, Scalable, and Memory-efficient Malloc for Linux, Windows, Mac, and Solaris.</h2>
+        </header>
+
+        <section id="downloads" class="clearfix">
+          <a href="https://github.com/emeryberger/Hoard/zipball/master" id="download-zip" class="button"><span>Download .zip</span></a>
+          <a href="https://github.com/emeryberger/Hoard/tarball/master" id="download-tar-gz" class="button"><span>Download .tar.gz</span></a>
+          <a href="https://github.com/emeryberger/Hoard" id="view-on-github" class="button"><span>View on GitHub</span></a>
+        </section>
+
+        <hr>
+
+        <section id="main_content">
+          <p><strong>if downloading from GitHub, make sure to use <code>--recursive</code>, as in:</strong>
+    <code>git clone --recursive https://github.com/emeryberger/Hoard</code></p>
+
+<h2>
+<a name="the-hoard-memory-allocator" class="anchor" href="#the-hoard-memory-allocator"><span class="octicon octicon-link"></span></a><a href="http://www.hoard.org">The Hoard Memory Allocator</a>
+</h2>
+
+<p>Copyright (C) 1998-2014 by <a href="http://www.cs.umass.edu/%7Eemery">Emery Berger</a></p>
+
+<p>The Hoard memory allocator is a fast, scalable, and memory-efficient
+memory allocator for Linux, Solaris, Mac OS X, Windows, and
+more.</p>
+
+<p>Hoard is a drop-in replacement for malloc that can dramatically
+improve application performance, especially for multithreaded programs
+running on multiprocessors and multicore CPUs. No source code changes
+necessary: just link it in or set one environment variable (see
+<a href="#building-hoard-unixmac">Building Hoard</a>, below).</p>
+
+<h2>
+<a name="press" class="anchor" href="#press"><span class="octicon octicon-link"></span></a>Press</h2>
+
+<ul>
+<li>
+<p>"If you'll be running on multiprocessor machines, ... use Emery
+Berger's excellent Hoard multiprocessor memory management code. It's a
+drop-in replacement for the C and C++ memory routines and is very fast
+on multiprocessor machines."</p>
+
+<ul>
+<li><a href="http://www.microsoft.com/mspress/books/5822.aspx">Debugging Applications for Microsoft .NET and Microsoft Windows, Microsoft Press</a></li>
+</ul>
+</li>
+<li>
+<p>"(To improve scalability), consider an open source alternative such as
+the Hoard Memory Manager..."</p>
+
+<ul>
+<li><a href="http://www.amazon.com/Windows-Programming-Addison-Wesley-Microsoft-Technology/dp/0321657748/">Windows System Programming, Addison-Wesley</a></li>
+</ul>
+</li>
+<li>
+<p>"Hoard dramatically improves program performance through its more
+efficient use of memory. Moreover, Hoard has provably bounded memory
+blowup and low synchronization costs."</p>
+
+<ul>
+<li><a href="http://www.amazon.com/Principles-Parallel-Programming-Calvin-Lin/dp/0321487907/">Principles of Parallel Programming, Addison-Wesley</a></li>
+</ul>
+</li>
+</ul><h2>
+<a name="users" class="anchor" href="#users"><span class="octicon octicon-link"></span></a>Users</h2>
+
+<p>Companies using Hoard in their products and servers include AOL,
+British Telecom, Blue Vector, Business Objects (formerly Crystal
+Decisions), Cisco, Credit Suisse, Entrust, InfoVista, Kamakura,
+Novell, Oktal SE, OpenText, OpenWave Systems (for their Typhoon and
+Twister servers), Pervasive Software, Plath GmbH, Quest Software,
+Reuters, Royal Bank of Canada, SAP, Sonus Networks, Tata
+Communications, and Verite Group.</p>
+
+<p>Open source projects using Hoard include the Asterisk Open Source
+Telephony Project, Bayonne GNU telephony server, the Cilk parallel
+programming language, the GNU Common C++ system, the OpenFOAM
+computational fluid dynamics toolkit, and the SafeSquid web proxy.</p>
+
+<p>Hoard is now a standard compiler option for the Standard Performance
+Evaluation Corporation's CPU2006 benchmark suite for the Intel and
+Open64 compilers.</p>
+
+<h2>
+<a name="licensing" class="anchor" href="#licensing"><span class="octicon octicon-link"></span></a>Licensing</h2>
+
+<p>Hoard is distributed under the GPL (v2.0), and can also be licensed
+for commercial use.</p>
+
+<p>Because of the restrictions imposed by the GPL license (you must make
+your code open-source), commercial users of Hoard can purchase non-GPL
+licenses through the University of Texas at Austin. Please consult the
+<a href="http://www.cs.umass.edu/%7Eemery/hoard/Hoard%20Pricing%202-05-2009.pdf">current Hoard pricing
+information</a>
+(updated 2/5/2009), which lists a number of options for purchasing
+licenses, as well as <a href="http://www.cs.umass.edu/%7Eemery/hoard/SLA%20Terms%20and%20Conditions%209.22.2006.pdf">software license terms and
+conditions</a>,
+and the <a href="http://www.cs.umass.edu/%7Eemery/hoard/SLA%20Short%20Form%209-26-2006.pdf">software license
+agreement</a>:
+note that the <a href="http://www.otc.utexas.edu/IndustryForms.jsp">main UT-Austin licensing
+page</a> always contains the
+most up-to-date documents.</p>
+
+<p>To obtain a license, please contact Jitendra Jain directly
+(<a href="mailto:jjain@otc.utexas.edu">jjain@otc.utexas.edu</a>) and copy Emery Berger (<a href="mailto:emery@cs.umass.edu">emery@cs.umass.edu</a>).</p>
+
+<p>Jitendra Jain's full contact information follows:</p>
+
+<p>Jitendra Jain<br>
+The University of Texas at Austin<br>
+Office of Technology Commercialization<br>
+MCC Building, Suite 1.9A<br>
+3925 West Braker Lane<br>
+Austin, Texas 78759<br>
+(512) 471-9055, (512) 475-6894 (fax)  </p>
+
+<h2>
+<a name="why-hoard" class="anchor" href="#why-hoard"><span class="octicon octicon-link"></span></a>Why Hoard?</h2>
+
+<p>There are a number of problems with existing memory allocators that
+make Hoard a better choice.</p>
+
+<h3>
+<a name="contention" class="anchor" href="#contention"><span class="octicon octicon-link"></span></a>Contention</h3>
+
+<p>Multithreaded programs often do not scale because the heap is a
+bottleneck. When multiple threads simultaneously allocate or
+deallocate memory from the allocator, the allocator will serialize
+them. Programs making intensive use of the allocator actually slow
+down as the number of processors increases. Your program may be
+allocation-intensive without you realizing it, for instance, if your
+program makes many calls to the C++ Standard Template Library (STL).</p>
+
+<h3>
+<a name="false-sharing" class="anchor" href="#false-sharing"><span class="octicon octicon-link"></span></a>False Sharing</h3>
+
+<p>The allocator can cause other problems for multithreaded code. It can
+lead to false sharing in your application: threads on different CPUs
+can end up with memory in the same cache line, or chunk of
+memory. Accessing these falsely-shared cache lines is hundreds of
+times slower than accessing unshared cache lines.</p>
+
+<h3>
+<a name="blowup" class="anchor" href="#blowup"><span class="octicon octicon-link"></span></a>Blowup</h3>
+
+<p>Multithreaded programs can also lead the allocator to blowup memory
+consumption. This effect can multiply the amount of memory needed to
+run your application by the number of CPUs on your machine: four CPUs
+could mean that you need four times as much memory. Hoard is a fast
+allocator that solves all of these problems.</p>
+
+<h2>
+<a name="technical-information" class="anchor" href="#technical-information"><span class="octicon octicon-link"></span></a>Technical Information</h2>
+
+<p>For technical details of a previous version of Hoard, read <a href="http://dl.acm.org/citation.cfm?id=379232">Hoard: A
+Scalable Memory Allocator for Multithreaded Applications</a>,
+by Emery D. Berger, Kathryn S. McKinley, Robert D. Blumofe, and Paul
+R. Wilson. The Ninth International Conference on Architectural Support
+for Programming Languages and Operating Systems
+(ASPLOS-IX). Cambridge, MA, November 2000.</p>
+
+<h2>
+<a name="building-hoard-unixmac" class="anchor" href="#building-hoard-unixmac"><span class="octicon octicon-link"></span></a>Building Hoard (Unix/Mac)</h2>
+
+<p><strong>NOTE: Make sure to invoke git as follows: <code>git clone --recursive https://github.com/emeryberger/Hoard.git</code></strong></p>
+
+<p>To build Hoard on non-Windows platforms, change into the <code>src/</code>
+directory and run <code>make</code> followed by the appropriate target. If you
+type <code>make</code>, it will present a list of available targets. These
+include <code>linux-gcc-x86</code>, <code>solaris-sunw-sparc</code>, <code>macos</code>, <code>windows</code>, and
+more.</p>
+
+<pre><code>% make linux-gcc-x86-64
+</code></pre>
+
+<p>You can then use Hoard by linking it with your executable, or
+by setting the <code>LD_PRELOAD</code> environment variable, as in</p>
+
+<pre><code>% export LD_PRELOAD=/path/to/libhoard.so
+</code></pre>
+
+<p>in Solaris:</p>
+
+<pre><code>% make solaris-sunw-sparc
+% export LD_PRELOAD="/path/to/libhoard_32.so:/usr/lib/libCrun.so.1"
+</code></pre>
+
+<p>(32-bit version)</p>
+
+<pre><code>% export LD_PRELOAD="/path/to/libhoard_64.so:/usr/lib/64/libCrun.so.1"
+</code></pre>
+
+<p>(64-bit version)</p>
+
+<p>or, in Mac OS X:</p>
+
+<pre><code>% make macos
+% export DYLD_INSERT_LIBRARIES=/path/to/libhoard.dylib
+</code></pre>
+
+<h2>
+<a name="building-hoard-windows" class="anchor" href="#building-hoard-windows"><span class="octicon octicon-link"></span></a>Building Hoard (Windows)</h2>
+
+<p>Change into the <code>src</code> directory and build the Windows version:</p>
+
+<pre><code>C:\hoard\src&gt; nmake windows
+</code></pre>
+
+<p>To use Hoard, link your executable with <code>source\uselibhoard.cpp</code> and <code>libhoard.lib</code>.
+You <em>must</em> use the <code>/MD</code> flag.</p>
+
+<p>Example:</p>
+
+<pre><code>C:\hoard\src&gt; cl /Ox /MD yourapp.cpp source\uselibhoard.cpp libhoard.lib
+</code></pre>
+
+<p>To run <code>yourapp.exe</code>, you will need to have <code>libhoard.dll</code> in your path.</p>
+
+<h2>
+<a name="benchmarks" class="anchor" href="#benchmarks"><span class="octicon octicon-link"></span></a>Benchmarks</h2>
+
+<p>The directory <code>benchmarks/</code> contains a number of benchmarks used to
+evaluate and tune Hoard.</p>
+        </section>
+
+        <footer>
+          Hoard is maintained by <a href="https://github.com/emeryberger">emeryberger</a><br>
+          This page was generated by <a href="http://pages.github.com">GitHub Pages</a>. Tactile theme by <a href="https://twitter.com/jasonlong">Jason Long</a>.
+        </footer>
+
+        
+      </div>
+    </div>
+  </body>
+</html>
