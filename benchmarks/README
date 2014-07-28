@@ -55,8 +55,10 @@ system.
   and then transfers some objects (randomly selected) to other threads
   to be freed.
 
-  Parameters: (from standard input) <seconds> <min-obj-size> <max-obj-size> <min-threads> <max-threads> <objects> <iterations> <rng seed>
-  Suggested parameters: 10 7 8 P P 1000 10000
+  Parameters: (from the command line)
+  <seconds> <min-obj-size> <max-obj-size> <objects> <iterations> <rng seed> <num-threads>
+
+  Suggested parameters: ./larson 10 7 8 1000 10000 1 P
 
 * shbench:
 
