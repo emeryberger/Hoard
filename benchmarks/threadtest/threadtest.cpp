@@ -31,14 +31,17 @@
 #endif
 
 #include <iostream>
+#include <thread>
+#include <chrono>
+
+using namespace std;
+using namespace std::chrono;
 
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 
-#include "fred.h"
-#include "timer.h"
 
 int niterations = 50;	// Default number of iterations.
 int nobjects = 30000;  // Default number of objects.
@@ -59,7 +62,7 @@ public:
 };
 
 
-extern "C" void * worker (void *)
+void worker ()
 {
   int i, j;
   Foo ** a;
@@ -67,7 +70,6 @@ extern "C" void * worker (void *)
 
   for (j = 0; j < niterations; j++) {
 
-    // printf ("%d\n", j);
     for (i = 0; i < (nobjects / nthreads); i ++) {
       a[i] = new Foo[size];
       for (volatile int d = 0; d < work; d++) {
@@ -93,18 +95,11 @@ extern "C" void * worker (void *)
   }
 
   delete [] a;
-
-  return NULL;
 }
-
-#if defined(__sgi)
-#include <ulocks.h>
-#endif
 
 int main (int argc, char * argv[])
 {
-  HL::Fred * threads;
-  //pthread_t * threads;
+  thread ** threads;
   
   if (argc >= 2) {
     nthreads = atoi(argv[1]);
@@ -128,26 +123,24 @@ int main (int argc, char * argv[])
 
   printf ("Running threadtest for %d threads, %d iterations, %d objects, %d work and %d size...\n", nthreads, niterations, nobjects, work, size);
 
-  threads = new HL::Fred[nthreads];
-  // threads = new hoardThreadType[nthreads];
-  //  hoardSetConcurrency (nthreads);
+  threads = new thread*[nthreads];
 
-  HL::Timer t;
-  //Timer t;
-
-  t.start ();
+  high_resolution_clock t;
+  auto start = t.now();
 
   int i;
   for (i = 0; i < nthreads; i++) {
-    threads[i].create (worker, NULL);
+    threads[i] = new thread(worker);
   }
 
   for (i = 0; i < nthreads; i++) {
-    threads[i].join();
+    threads[i]->join();
   }
-  t.stop ();
 
-  printf( "Time elapsed = %f\n", (double) t);
+  auto stop = t.now();
+  auto elapsed = duration_cast<duration<double>>(stop - start);
+
+  cout << "Time elapsed = " << elapsed.count() << endl;
 
   delete [] threads;
 
