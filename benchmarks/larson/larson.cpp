@@ -1,11 +1,3 @@
-#if defined(USE_HOARD) && defined(_WIN32)
-#pragma comment(lib, "libhoard.lib")
-#endif
-
-#if defined(USE_RX) && defined(_WIN32)
-#pragma comment(lib, "librx.lib")
-#endif
-
 #include <assert.h>
 #include <stdio.h>
 
@@ -26,30 +18,6 @@
 #ifndef __SVR4
 //extern "C" int pthread_setconcurrency (int) throw();
 #include <pthread.h>
-#endif
-
-#if defined(__SVR4)
-//#include <sys/types.h>
-//#include <procfs.h>
-#endif
-
-#if defined(__cplusplus)
-extern "C" {
-#endif
-extern void * hoardmalloc(size_t);
-extern void hoardfree (void*);
-extern void * hoardcalloc(size_t, size_t);
-extern void * hoardrealloc(void *,size_t);
-#if defined(__cplusplus)
-}
-#endif
-
-#if defined(USE_HOARD)
-#define malloc(x) hoardmalloc(x)
-#define free(p) hoardfree(p)
-#define calloc(s,n) hoardcalloc(s,n)
-#define realloc(p,s) hoardrealloc(p,s)
-
 #endif
 
 
@@ -268,8 +236,6 @@ int main (int argc, char *argv[])
  }
 #endif
 
-  //  char * dummy = new char[42];
-     //ReferenceLibHoard();
 #if defined(_MT) || defined(_REENTRANT)
   int          min_threads, max_threads ;
   int          num_rounds ;
@@ -348,24 +314,7 @@ int main (int argc, char *argv[])
   _cputs("Hit any key to exit...") ;	(void)_getch() ;
 #endif
 
-#if 0 // defined(__SVR4)
- {
-   psinfo_t ps;
-   int pid = getpid();
-   char fname[255];
-   sprintf (fname, "/proc/%d/psinfo", pid);
-   // sprintf (fname, "/proc/self/ps");
-   FILE * f = fopen (fname, "rb");
-   printf ("opening %s\n", fname);
-   if (f) {
-     fread (&ps, sizeof(ps), 1, f);
-     printf ("resident set size = %dK\n", ps.pr_rssize);
-     fclose (f);
-   }
- }
-#endif
-
-  return(0) ;
+  return 0;
 
 } /* main */
 
