@@ -96,10 +96,11 @@ bool isCustomHeapInitialized() {
 
 TheCustomHeapType * getCustomHeap() {
   // The pointer to the TLAB itself.
-  if (theTLAB == NULL) {
-    theTLAB = initializeCustomHeap();
+  TheCustomHeapType * tlab = theTLAB;
+  if (tlab == NULL) {
+    tlab = theTLAB = initializeCustomHeap();
   }
-  return theTLAB;
+  return tlab;
 }
 
 
