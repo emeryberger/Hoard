@@ -162,6 +162,9 @@ namespace Hoard {
     ThreadLocalAllocationBuffer (const ThreadLocalAllocationBuffer&);
     ThreadLocalAllocationBuffer& operator=(const ThreadLocalAllocationBuffer&);
 
+    /// Padding to prevent false sharing and ensure alignment.
+    double _pad[128 / sizeof(double)];
+
     /// This heap's 'parent' (where to go for more memory).
     ParentHeap * _parentHeap;
 
@@ -170,7 +173,6 @@ namespace Hoard {
 
     /// The local heap itself.
     Array<NumBins, HL::SLList> _localHeap;
-
   };
 
 }
