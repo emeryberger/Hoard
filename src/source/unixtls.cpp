@@ -81,8 +81,10 @@ static __thread TheCustomHeapType * theTLAB INITIAL_EXEC_ATTR = NULL;
 static TheCustomHeapType * initializeCustomHeap() __attribute__((constructor));
 
 static TheCustomHeapType * initializeCustomHeap() {
-  new (reinterpret_cast<char *>(&tlabBuffer)) TheCustomHeapType(getMainHoardHeap());
-  theTLAB = reinterpret_cast<TheCustomHeapType *>(&tlabBuffer);
+  if (theTLAB == NULL) {
+    new (reinterpret_cast<char *>(&tlabBuffer)) TheCustomHeapType(getMainHoardHeap());
+    theTLAB = reinterpret_cast<TheCustomHeapType *>(&tlabBuffer);
+  }
   return theTLAB;
 }
 
@@ -94,7 +96,7 @@ bool isCustomHeapInitialized() {
 
 TheCustomHeapType * getCustomHeap() {
   // The pointer to the TLAB itself.
-  theTLAB = (theTLAB ? theTLAB : initializeCustomHeap());
+  //  theTLAB = (theTLAB ? theTLAB : initializeCustomHeap());
   return theTLAB;
 }
 
@@ -187,7 +189,7 @@ extern "C" {
 
 // A special routine we call on thread exit to free up some resources.
 static void exitRoutine() {
-  TheCustomHeapType * heap = getCustomHeap();
+  TheCustomHeapType * heap = initializeCustomHeap();
 
   // Relinquish the assigned heap.
   getMainHoardHeap()->releaseHeap();
@@ -203,7 +205,7 @@ static void exitRoutine() {
 
 extern "C" {
   static inline void * startMeUp(void * a) {
-    getCustomHeap();
+    initializeCustomHeap();
     getMainHoardHeap()->findUnusedHeap();
     pair<threadFunctionType, void *> * z
       = (pair<threadFunctionType, void *> *) a;
@@ -253,7 +255,7 @@ extern "C" int thr_create (void * stack_base,
                            long flags,
                            thread_t * new_tid) {
   // Force initialization of the TLAB before our first thread is created.
-  static volatile TheCustomHeapType * t = getCustomHeap();
+  static volatile TheCustomHeapType * t = initializeCustomHeap();
   t = t;
 
   char fname[] = "_thr_create";
@@ -338,7 +340,7 @@ extern "C" int pthread_create (pthread_t *thread,
 #endif
 {
   // Force initialization of the TLAB before our first thread is created.
-  static volatile TheCustomHeapType * t = getCustomHeap();
+  static volatile TheCustomHeapType * t = initializeCustomHeap();
   t = t;
 
 #if defined(__linux__) || defined(__APPLE__)
