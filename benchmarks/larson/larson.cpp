@@ -403,7 +403,7 @@ void runloops(long sleep_cnt, int num_chunks )
 //#ifdef _MT
 void runthreads(long sleep_cnt, int min_threads, int max_threads, int chperthread, int num_rounds)
 {
-  thread_data  de_area[MAX_THREADS] ;
+  thread_data *de_area = new thread_data[max_threads] ;
   thread_data *pdea;
   int           nperthread ;
   int           sum_threads ;
@@ -534,6 +534,7 @@ void runthreads(long sleep_cnt, int min_threads, int max_threads, int chperthrea
       printf ("Done sleeping...\n");
 
     }
+  delete [] de_area;
 }
 
 
