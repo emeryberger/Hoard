@@ -144,7 +144,7 @@ void operator delete(void *pUserData )
 /* Test driver for memory allocators           */
 /* Author: Paul Larson, palarson@microsoft.com */
 #define MAX_THREADS     100
-#define MAX_BLOCKS  2000000
+#define MAX_BLOCKS  20000000
 
 int volatile  stopflag=FALSE ;       
 
@@ -186,8 +186,8 @@ static void lran2_init(struct lran2_st* d, long seed) ;
 static long lran2(struct lran2_st* d) ;
 ULONG CountReservedSpace() ;
  
-char *          blkp[MAX_BLOCKS] ;
-int             blksize[MAX_BLOCKS] ;
+char **          blkp = new char *[MAX_BLOCKS] ;
+int *           blksize = new int[MAX_BLOCKS] ;
 long            seqlock=0 ;
 struct lran2_st rgen ;
 int             min_size=10, max_size=500 ;
