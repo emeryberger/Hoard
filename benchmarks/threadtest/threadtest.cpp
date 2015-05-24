@@ -47,7 +47,7 @@ int niterations = 50;	// Default number of iterations.
 int nobjects = 30000;  // Default number of objects.
 int nthreads = 1;	// Default number of threads.
 int work = 0;		// Default number of loop iterations.
-int size = 1;
+int objSize = 1;
 
 
 class Foo {
@@ -71,7 +71,8 @@ void worker ()
   for (j = 0; j < niterations; j++) {
 
     for (i = 0; i < (nobjects / nthreads); i ++) {
-      a[i] = new Foo[size];
+      a[i] = new Foo[objSize];
+#if 1
       for (volatile int d = 0; d < work; d++) {
 	volatile int f = 1;
 	f = f + f;
@@ -79,11 +80,13 @@ void worker ()
 	f = f + f;
 	f = f * f;
       }
+#endif
       assert (a[i]);
     }
     
     for (i = 0; i < (nobjects / nthreads); i ++) {
       delete[] a[i];
+#if 1
       for (volatile int d = 0; d < work; d++) {
 	volatile int f = 1;
 	f = f + f;
@@ -91,6 +94,7 @@ void worker ()
 	f = f + f;
 	f = f * f;
       }
+#endif
     }
   }
 
@@ -118,10 +122,10 @@ int main (int argc, char * argv[])
   }
 
   if (argc >= 6) {
-    size = atoi(argv[5]);
+    objSize = atoi(argv[5]);
   }
 
-  printf ("Running threadtest for %d threads, %d iterations, %d objects, %d work and %d size...\n", nthreads, niterations, nobjects, work, size);
+  printf ("Running threadtest for %d threads, %d iterations, %d objects, %d work and %d objSize...\n", nthreads, niterations, nobjects, work, objSize);
 
   threads = new thread*[nthreads];
 
