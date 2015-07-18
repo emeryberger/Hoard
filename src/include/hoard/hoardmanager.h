@@ -106,8 +106,8 @@ namespace Hoard {
 
       // Check to see whether this superblock puts us over.
       Statistics& stats = _stats(binIndex);
-      int a = stats.getAllocated() + s->getTotalObjects();
-      int u = stats.getInUse() + (s->getTotalObjects() - s->getObjectsFree());
+      unsigned int a = stats.getAllocated() + s->getTotalObjects();
+      unsigned int u = stats.getInUse() + (s->getTotalObjects() - s->getObjectsFree());
 
       if (thresholdFunctionClass::function (u, a, sz)) {
 	// We've crossed the threshold function,
