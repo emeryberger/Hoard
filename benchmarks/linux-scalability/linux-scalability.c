@@ -64,7 +64,7 @@ main (int argc, char *argv[])
       exit (1);
     }
 
-  printf ("Object size: %d, Iterations: %lu, Threads: %d\n",
+  printf ("Object size: %lu, Iterations: %lu, Threads: %d\n",
 	  size, iteration_count, thread_count);
 
   executionTime = (double *) malloc (sizeof(double) * thread_count);
