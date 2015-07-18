@@ -1,7 +1,7 @@
 # Commands to compile Hoard for various targets.
 # Run make (with no arguments) to see the complete target list.
 
-CPPFLAGS = -O3
+CPPFLAGS = -O3 -Wall -Wextra -Wshadow -Wconversion
 
 all:
 	@echo To build Hoard, specify the desired build target:
@@ -58,7 +58,9 @@ MACOS_COMPILE_DEBUG = clang++ -std=c++11 -fno-builtin-malloc -ftemplate-depth=10
 
 LINUX_GCC_x86_COMPILE = g++ -std=c++11 -m32 $(CPPFLAGS) -I/usr/include/nptl -ffast-math -g -fno-builtin-malloc -malign-double -pipe -finline-limit=20000 -finline-functions  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared  $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
-LINUX_GCC_x86_64_COMPILE = g++ -std=c++11 $(CPPFLAGS) -g -W -Wconversion -Wall -I/usr/include/nptl -fno-builtin-malloc -pipe -fPIC -finline-limit=20000 -finline-functions  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared   $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
+LINUX_GCC_x86_64_COMPILE = $(CPP) -std=c++11 $(CPPFLAGS) -g -W -Wconversion -Wall -I/usr/include/nptl -fno-builtin-malloc -pipe -fPIC -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared   $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
+
+# LINUX_GCC_x86_64_COMPILE = $(CPP) -std=c++11 $(CPPFLAGS) -g -W -Wconversion -Wall -I/usr/include/nptl -fno-builtin-malloc -pipe -fPIC -finline-limit=20000 -finline-functions -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared   $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
 LINUX_GCC_x86_64_COMPILE_DEBUG = g++ -std=c++11 $(CPPFLAGS) -g -W -Wconversion -Wall -I/usr/include/nptl -fno-builtin-malloc -pipe -fPIC $(INCLUDES) -D_REENTRANT=1 -shared $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
