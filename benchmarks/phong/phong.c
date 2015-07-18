@@ -64,7 +64,9 @@ void* allocate(void* arg)
 			continue;
 
 		/* get an interval to check for free and realloc */
-		if((p = RANDOM()%k) > (q = RANDOM()%k) )
+		p = RANDOM() % k;
+		q = RANDOM() % k;
+		if(p > q)
 			{ c = p; p = q; q = c; }
 
 		for(; p <= q; ++p)
