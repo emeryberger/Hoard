@@ -18,7 +18,7 @@ addons:
 
 script:
   - cd benchmarks && make
-  - if [ $TRAVIS_OS_NAME == linux ]; then cd ../src && make linux; fi
+  - if [ $TRAVIS_OS_NAME == linux ]; then cd ../src && make linux-gcc-x86-64; fi
   - if [ $TRAVIS_OS_NAME == osx ]; then cd ../src && make macos; fi
 
 os:
