@@ -1,8 +1,14 @@
 sudo: false
+
 language: cpp
+
 compiler:
   - clang
   - gcc
+
+os:
+  - linux
+  - osx
 
 install:
   - if [ "$CXX" = "g++" ]; then export CXX="g++-4.8" CC="gcc-4.8"; fi
@@ -20,8 +26,4 @@ script:
   - cd benchmarks && make
   - if [ $TRAVIS_OS_NAME == linux ]; then cd ../src && make linux-gcc-x86-64; fi
   - if [ $TRAVIS_OS_NAME == osx ]; then cd ../src && make macos; fi
-
-os:
-  - linux
-  - osx
 
