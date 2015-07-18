@@ -113,16 +113,16 @@ int main (int argc, char * argv[])
     exit(1);
   }
 
-  HL::Fred threads[nthreads];
+  HL::Fred * threads = new HL::Fred[nthreads];
   HL::Fred::setConcurrency (HL::CPUInfo::getNumProcessors());
-
+    
   int i;
-
+  
   HL::Timer t;
   t.start();
-
-  workerArg w[nthreads];
-
+  
+  workerArg * w = new workerArg[nthreads];
+    
   for (i = 0; i < nthreads; i++) {
     w[i] = workerArg (objSize, repetitions / nthreads, iterations);
     threads[i].create (&worker, (void *) &w[i]);
@@ -131,6 +131,9 @@ int main (int argc, char * argv[])
     threads[i].join();
   }
   t.stop();
+
+  delete [] threads;
+  delete [] w;
 
   cout << "Time elapsed = " << (double) t << " seconds." << endl;
 }
