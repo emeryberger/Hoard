@@ -1,5 +1,5 @@
-CC  := gcc
-CXX := g++
+CC  := $(CC)
+CXX := $(CPP)
 
-CCFLAGS  := -O3 -DNDEBUG -I../common
-CXXFLAGS := -O3 -DNDEBUG -I../common
+CCFLAGS  := -g -O3 -DNDEBUG -I../common
+CXXFLAGS := -g -O3 -DNDEBUG -I../common
