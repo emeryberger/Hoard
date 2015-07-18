@@ -1,0 +1,8 @@
+language: cpp
+
+install:
+
+script:
+- cd benchmarks && make
+- cd src && make linux
+
