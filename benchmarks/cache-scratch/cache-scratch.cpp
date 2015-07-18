@@ -116,7 +116,7 @@ int main (int argc, char * argv[])
   HL::Fred * threads = new HL::Fred[nthreads];
   HL::Fred::setConcurrency (HL::CPUInfo::getNumProcessors());
 
-  workerArg w[nthreads];
+  workerArg * w = new workerArg[nthreads];
 
   int i;
 
@@ -140,6 +140,7 @@ int main (int argc, char * argv[])
 
   delete [] threads;
   delete [] objs;
+  delete [] w;
 
   printf ("Time elapsed = %f seconds.\n", (double) t);
   return 0;
