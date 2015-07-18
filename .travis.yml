@@ -1,8 +1,27 @@
+sudo: false
 language: cpp
+compiler:
+  - clang
+  - gcc
 
 install:
+  - if [ "$CXX" = "g++" ]; then export CXX="g++-4.8" CC="gcc-4.8"; fi
+
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    packages:
+    - gcc-4.8
+    - g++-4.8
+    - clang
 
 script:
-- cd benchmarks && make
-- cd src && make linux
+  - cd benchmarks && make
+  - if [ $TRAVIS_OS_NAME == linux ]; then cd src && make linux; fi
+  - if [ $TRAVIS_OS_NAME == osx ]; then cd src && make macos; fi
+
+os:
+  - linux
+  - osx
 
