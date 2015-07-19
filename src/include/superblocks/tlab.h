@@ -45,8 +45,8 @@
 namespace Hoard {
 
   template <int NumBins,
-	    unsigned int (*getSizeClass) (size_t),
-	    size_t (*getClassSize) (unsigned int),
+	    int (*getSizeClass) (size_t),
+	    size_t (*getClassSize) (int),
 	    unsigned int LargestObject,
 	    unsigned int LocalHeapThreshold,
 	    class SuperblockType,
