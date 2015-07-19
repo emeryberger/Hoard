@@ -46,7 +46,7 @@ namespace Hoard {
 
   template <int NumBins,
 	    unsigned int (*getSizeClass) (size_t),
-	    size_t (*getClassSize) (const unsigned int),
+	    size_t (*getClassSize) (unsigned int),
 	    unsigned int LargestObject,
 	    unsigned int LocalHeapThreshold,
 	    class SuperblockType,
@@ -87,7 +87,7 @@ namespace Hoard {
       // and deduct that amount from the local heap bytes counter.
       if (sz <= LargestObject) {
       	unsigned int c = getSizeClass (sz);
-      	void * ptr = _localHeap(c).get();
+      	auto * ptr = _localHeap(c).get();
       	if (ptr) {
       	  assert (_localHeapBytes >= sz);
       	  _localHeapBytes -= getClassSize (c); // sz; 
@@ -99,7 +99,7 @@ namespace Hoard {
 
       // No more local memory (for this size, at least).
       // Now get the memory from our parent.
-      void * ptr = _parentHeap->malloc (sz);
+      auto * ptr = _parentHeap->malloc (sz);
       assert ((size_t) ptr % Alignment == 0);
       return ptr;
     }
@@ -109,19 +109,19 @@ namespace Hoard {
       if (!ptr) {
 	return;
       }
-      const SuperblockType * s = getSuperblock (ptr);
+      auto * s = getSuperblock (ptr);
       // If this isn't a valid superblock, just return.
 
       if (s->isValidSuperblock()) {
 
       	ptr = s->normalize (ptr);
-      	const size_t sz = s->getObjectSize ();
+      	auto sz = s->getObjectSize ();
 
       	if ((sz <= LargestObject) && (sz + _localHeapBytes <= LocalHeapThreshold)) {
       	  // Free small objects locally, unless we are out of space.
 
       	  assert (getSize(ptr) >= sizeof(HL::SLList::Entry *));
-      	  unsigned int c = getSizeClass (sz);
+      	  auto c = getSizeClass (sz);
 
       	  _localHeap(c).insert ((HL::SLList::Entry *) ptr);
       	  _localHeapBytes += getClassSize(c); // sz;
@@ -141,9 +141,9 @@ namespace Hoard {
       // Free every object to the 'parent' heap.
       int i = NumBins - 1;
       while ((_localHeapBytes > 0) && (i >= 0)) {
-      	const size_t sz = getClassSize (i);
+      	auto sz = getClassSize (i);
       	while (!_localHeap(i).isEmpty()) {
-      	  HL::SLList::Entry * e = _localHeap(i).get();
+      	  auto * e = _localHeap(i).get();
       	  _parentHeap->free (e);
       	  _localHeapBytes -= sz;
       	}
