@@ -61,7 +61,7 @@ namespace Hoard {
       HeapType::setTidMap (HL::CPUInfo::getThreadId() % Hoard::MaxThreads, 0);
     }
 
-    unsigned long findUnusedHeap() {
+    int findUnusedHeap() {
 
       HL::Guard<LockType> g (heapLock);
       
