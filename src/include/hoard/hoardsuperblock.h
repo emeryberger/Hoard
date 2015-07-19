@@ -68,7 +68,7 @@ namespace Hoard {
     }
 
 
-    INLINE size_t getObjectSize (void) const {
+    INLINE size_t getObjectSize() const {
       if (_header.isValid()) {
 	return _header.getObjectSize();
       } else {
@@ -95,42 +95,42 @@ namespace Hoard {
       }
     }
     
-    void clear (void) {
+    void clear() {
       if (_header.isValid())
 	_header.clear();
     }
     
     // ----- below here are non-conventional heap methods ----- //
     
-    INLINE bool isValidSuperblock (void) const {
+    INLINE bool isValidSuperblock() const {
       auto b = _header.isValid();
       return b;
     }
     
-    INLINE int getTotalObjects (void) const {
+    INLINE unsigned int getTotalObjects() const {
       assert (_header.isValid());
       return _header.getTotalObjects();
     }
     
     /// Return the number of free objects in this superblock.
-    INLINE int getObjectsFree (void) const {
+    INLINE unsigned int getObjectsFree() const {
       assert (_header.isValid());
       assert (_header.getObjectsFree() >= 0);
       assert (_header.getObjectsFree() <= _header.getTotalObjects());
       return _header.getObjectsFree();
     }
     
-    inline void lock (void) {
+    inline void lock() {
       assert (_header.isValid());
       _header.lock();
     }
     
-    inline void unlock (void) {
+    inline void unlock() {
       assert (_header.isValid());
       _header.unlock();
     }
     
-    inline HeapType * getOwner (void) const {
+    inline HeapType * getOwner() const {
       assert (_header.isValid());
       return _header.getOwner();
     }
@@ -141,12 +141,12 @@ namespace Hoard {
       _header.setOwner (o);
     }
     
-    inline HoardSuperblock * getNext (void) const {
+    inline HoardSuperblock * getNext() const {
       assert (_header.isValid());
       return _header.getNext();
     }
 
-    inline HoardSuperblock * getPrev (void) const {
+    inline HoardSuperblock * getPrev() const {
       assert (_header.isValid());
       return _header.getPrev();
     }
