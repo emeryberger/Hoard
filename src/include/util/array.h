@@ -41,7 +41,7 @@ namespace Hoard {
       return _item[index];
     }
 
-    inline const T& operator()(unsigned long index) const {
+    inline const T& operator()(int index) const {
       assert (index < N);
       return _item[index];
     }

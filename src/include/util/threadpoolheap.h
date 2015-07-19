@@ -53,7 +53,7 @@ namespace Hoard {
     
     enum { MaxHeaps = NumHeaps };
     
-    ThreadPoolHeap (void)
+    ThreadPoolHeap()
     {
       // Note: The tidmap values should be set externally.
       int j = 0;
@@ -77,7 +77,7 @@ namespace Hoard {
       getHeap().free (ptr);
     }
     
-    inline void clear (void) {
+    inline void clear() {
       getHeap().clear();
     }
     
