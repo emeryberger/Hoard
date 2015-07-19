@@ -221,7 +221,7 @@ namespace Hoard {
       if (total == free) {
 	return 0;
       } else {
-	return 1 + (EmptinessClasses * (total - free)) / total;
+	return 1 + (int) ((EmptinessClasses * (total - free)) / total);
       }
     }
 
