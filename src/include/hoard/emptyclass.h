@@ -50,14 +50,14 @@ namespace Hoard {
 
     EmptyClass()
     {
-      for (int i = 0; i <= EmptinessClasses + 1; i++) {
+      for (auto i = 0; i <= EmptinessClasses + 1; i++) {
 	_available(i) = 0;
       }
     }
 
     void dumpStats() {
       for (int i = 0; i <= EmptinessClasses + 1; i++) {
-	SuperblockType * s = _available(i);
+	auto * s = _available(i);
 	if (s) {
 	  //	fprintf (stderr, "EmptyClass: emptiness class = %d\n", i);
 	  while (s) {
@@ -70,7 +70,7 @@ namespace Hoard {
 
     SuperblockType * getEmpty() {
       Check<EmptyClass, MyChecker> check (this);
-      SuperblockType * s = _available(0);
+      auto * s = _available(0);
       if (s && 
 	  (s->getObjectsFree() == s->getTotalObjects())) {
 	// Got an empty one. Remove it.
@@ -89,8 +89,8 @@ namespace Hoard {
       Check<EmptyClass, MyChecker> check (this);
       // Return as empty a superblock as possible
       // by iterating from the emptiest to the fullest available class.
-      for (int n = 0; n < EmptinessClasses + 1; n++) {
-	SuperblockType * s = _available(n);
+      for (auto n = 0; n < EmptinessClasses + 1; n++) {
+	auto * s = _available(n);
 	while (s) {
 	  assert (s->isValidSuperblock());
 	  // Got one. Remove it.
@@ -104,7 +104,7 @@ namespace Hoard {
 #ifndef NDEBUG
 	  // Verify that this superblock is *gone* from the lists.
 	  for (int z = 0; z < EmptinessClasses + 1; z++) {
-	    SuperblockType * p = _available(z);
+	    auto * p = _available(z);
 	    while (p) {
 	      assert (p != s);
 	      p = p->getNext();
@@ -114,7 +114,7 @@ namespace Hoard {
 
 	  // Ensure that we return a superblock that is as free as
 	  // possible.
-	  int cl = getFullness (s);
+	  auto cl = getFullness (s);
 	  if (cl > n) {
 	    put (s);
 	    SuperblockType * sNew = _available(n);
@@ -134,7 +134,7 @@ namespace Hoard {
 #ifndef NDEBUG
       // Check to verify that this superblock is not already on one of the lists.
       for (int n = 0; n <= EmptinessClasses + 1; n++) {
-	SuperblockType * p = _available(n);
+	auto * p = _available(n);
 	while (p) {
 	  if (p == s) {
 	    abort();
@@ -145,7 +145,7 @@ namespace Hoard {
 #endif
 
       // Put on the appropriate available list.
-      int cl = getFullness (s);
+      auto cl = getFullness (s);
 
       //    printf ("put %x, cl = %d\n", s, cl);
       s->setPrev (0);
@@ -158,13 +158,13 @@ namespace Hoard {
 
     INLINE MALLOC_FUNCTION void * malloc (size_t sz) {
       // Malloc from the fullest superblock first.
-      for (int i = EmptinessClasses; i >= 0; i--) {
+      for (auto i = EmptinessClasses; i >= 0; i--) {
 	SuperblockType * s = _available(i);
 	// printf ("i\n");
 	if (s) {
-	  int oldCl = getFullness (s);
+	  auto oldCl = getFullness (s);
 	  void * ptr = s->malloc (sz);
-	  int newCl = getFullness (s);
+	  auto newCl = getFullness (s);
 	  if (ptr) {
 	    if (oldCl != newCl) {
 	      transfer (s, oldCl, newCl);
@@ -179,10 +179,10 @@ namespace Hoard {
 
     INLINE void free (void * ptr) {
       Check<EmptyClass, MyChecker> check (this);
-      SuperblockType * s = getSuperblock (ptr);
-      int oldCl = getFullness (s);
+      auto * s = getSuperblock (ptr);
+      auto oldCl = getFullness (s);
       s->free (ptr);
-      int newCl = getFullness (s);
+      auto newCl = getFullness (s);
 
       if (oldCl != newCl) {
 	// Transfer.
@@ -199,8 +199,8 @@ namespace Hoard {
 
     void transfer (SuperblockType * s, int oldCl, int newCl)
     {
-      SuperblockType * prev = s->getPrev();
-      SuperblockType * next = s->getNext();
+      auto * prev = s->getPrev();
+      auto * next = s->getNext();
       if (prev) { prev->setNext (next); }
       if (next) { next->setPrev (prev); }
       if (s == _available(oldCl)) {
@@ -216,8 +216,8 @@ namespace Hoard {
     static INLINE int getFullness (SuperblockType * s) {
       // Completely full = EmptinessClasses + 1
       // Completely empty (all available) = 0
-      int total = s->getTotalObjects();
-      int free = s->getObjectsFree();
+      auto total = s->getTotalObjects();
+      auto free = s->getObjectsFree();
       if (total == free) {
 	return 0;
       } else {
