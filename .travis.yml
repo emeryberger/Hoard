@@ -23,7 +23,7 @@ addons:
     - clang
 
 script:
-  - cd benchmarks && make
-  - if [ $TRAVIS_OS_NAME == linux ]; then cd ../src && make linux-gcc-x86-64; fi
+  - cd benchmarks && make && ./larson/larson 10 7 8 10000 1000 1 4 4
+  - if [ $TRAVIS_OS_NAME == linux ]; then cd ../src && make linux-gcc-x86-64 && export LD_PRELOAD=$PWD/libhoard.so && ../benchmarks/larson/larson 10 7 8 10000 1000 1 4 4 && unsetenv LD_PRELOAD ; fi
   - if [ $TRAVIS_OS_NAME == osx ]; then cd ../src && make macos; fi
 
