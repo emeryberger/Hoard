@@ -32,7 +32,7 @@
 namespace Hoard {
   
   /// The maximum amount of memory that each TLAB may hold, in bytes.
-  enum { MAX_MEMORY_PER_TLAB = 2 * 1024 * 1024 }; // 2MB
+  enum { MAX_MEMORY_PER_TLAB = 2 * 1024 * 1024UL }; // 2MB
   
   /// The maximum number of threads supported (sort of).
   enum { MaxThreads = 2048 };
@@ -42,7 +42,7 @@ namespace Hoard {
   
   /// Size, in bytes, of the largest object we will cache on a
   /// thread-local allocation buffer.
-  enum { LargestSmallObject = 256 };
+  enum { LargestSmallObject = 256UL };
     
 }
 

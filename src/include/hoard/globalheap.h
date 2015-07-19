@@ -41,7 +41,7 @@ namespace Hoard {
   
     class bogusThresholdFunctionClass {
     public:
-      static inline bool function (int, int, size_t) {
+      static inline bool function (unsigned int, unsigned int, size_t) {
 	// We *never* cross the threshold for the global heap, since
 	// it is the "top."
 	return false;
