@@ -36,7 +36,7 @@ namespace Hoard {
   class Array {
   public:
 
-    inline T& operator()(unsigned long index) {
+    inline T& operator()(int index) {
       assert (index < N);
       return _item[index];
     }

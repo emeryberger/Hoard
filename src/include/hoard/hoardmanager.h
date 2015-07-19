@@ -81,7 +81,7 @@ namespace Hoard {
     {
       Check<HoardManager, sanityCheck> check (this);
       const int binIndex = binType::getSizeClass(sz);
-      size_t realSize = binType::getClassSize (binIndex);
+      size_t realSize = (size_t) binType::getClassSize (binIndex);
       assert (realSize >= sz);
 
       // Iterate until we succeed in allocating memory.
