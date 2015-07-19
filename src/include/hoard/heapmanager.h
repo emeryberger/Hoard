@@ -95,7 +95,7 @@ namespace Hoard {
       // Statically ensure that the number of threads is a power of two.
       enum { VerifyPowerOfTwo = 1 / ((HeapType::MaxThreads & ~(HeapType::MaxThreads-1))) };
       
-      auto tid = HL::CPUInfo::getThreadId() & (HeapType::MaxThreads - 1);
+      auto tid = (int) (HL::CPUInfo::getThreadId() & (HeapType::MaxThreads - 1));
       auto heapIndex = HeapType::getTidMap (tid);
       
       HeapType::setInusemap (heapIndex, 0);
