@@ -299,7 +299,7 @@ namespace Hoard {
     }
 
     /// Get one object of a particular size.
-    MALLOC_FUNCTION INLINE void * getObject (unsigned int binIndex,
+    MALLOC_FUNCTION INLINE void * getObject (int binIndex,
 					     size_t sz) {
       Check<HoardManager, sanityCheck> check (this);
       void * ptr = _otherBins(binIndex).malloc (sz);
