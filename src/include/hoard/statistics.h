@@ -37,8 +37,8 @@ namespace Hoard {
 	_allocated (0)
     {}
     
-    inline unsigned int getInUse (void) const 	{ return _inUse; }
-    inline unsigned int getAllocated (void) const { return _allocated; }
+    inline unsigned int getInUse() const 	{ return _inUse; }
+    inline unsigned int getAllocated() const    { return _allocated; }
     inline void setInUse (unsigned int u) 	{ _inUse = u; }
     inline void setAllocated (unsigned int a) 	{ _allocated = a; }
   
