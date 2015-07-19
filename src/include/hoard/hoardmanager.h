@@ -66,11 +66,11 @@ namespace Hoard {
   {
   public:
 
-    HoardManager (void)
+    HoardManager()
       : _magic (MAGIC_NUMBER)
     {}
 
-    virtual ~HoardManager (void) {}
+    virtual ~HoardManager() {}
 
     typedef SuperblockType_ SuperblockType;
 
@@ -80,8 +80,8 @@ namespace Hoard {
     MALLOC_FUNCTION INLINE void * malloc (size_t sz)
     {
       Check<HoardManager, sanityCheck> check (this);
-      const int binIndex = binType::getSizeClass(sz);
-      size_t realSize = (size_t) binType::getClassSize (binIndex);
+      auto binIndex = binType::getSizeClass(sz);
+      auto realSize = binType::getClassSize (binIndex);
       assert (realSize >= sz);
 
       // Iterate until we succeed in allocating memory.
@@ -102,12 +102,12 @@ namespace Hoard {
       assert (s->getOwner() != this);
       Check<HoardManager, sanityCheck> check (this);
 
-      const int binIndex = binType::getSizeClass(sz);
+      const auto binIndex = binType::getSizeClass(sz);
 
       // Check to see whether this superblock puts us over.
-      Statistics& stats = _stats(binIndex);
-      unsigned int a = stats.getAllocated() + s->getTotalObjects();
-      unsigned int u = stats.getInUse() + (s->getTotalObjects() - s->getObjectsFree());
+      auto& stats = _stats(binIndex);
+      auto a = stats.getAllocated() + s->getTotalObjects();
+      auto u = stats.getInUse() + (s->getTotalObjects() - s->getObjectsFree());
 
       if (thresholdFunctionClass::function (u, a, sz)) {
 	// We've crossed the threshold function,
@@ -123,8 +123,8 @@ namespace Hoard {
     NO_INLINE SuperblockType * get (size_t sz, HeapType * dest) {
       HL::Guard<LockType> l (_theLock);
       Check<HoardManager, sanityCheck> check (this);
-      const int binIndex = binType::getSizeClass (sz);
-      SuperblockType * s = _otherBins(binIndex).get();
+      const auto binIndex = binType::getSizeClass (sz);
+      auto * s = _otherBins(binIndex).get();
       if (s) {
 	assert (s->isValidSuperblock());
       
@@ -150,19 +150,18 @@ namespace Hoard {
       // normalized at this point.
       assert (s->normalize (ptr) == ptr);
 
-      const size_t sz = s->getObjectSize ();
-      const int binIndex = binType::getSizeClass (sz);
+      size_t sz = s->getObjectSize ();
+      auto binIndex = (int) binType::getSizeClass (sz);
 
       // Free the object.
       _otherBins(binIndex).free (ptr);
 
 
       // Update statistics.
-      Statistics& stats = _stats(binIndex);
-      int u = stats.getInUse();
-      const int a = stats.getAllocated();
-      if (u > 0)
-	u--;
+      auto& stats = _stats(binIndex);
+      auto u = stats.getInUse();
+      auto a = stats.getAllocated();
+      u--;
       stats.setInUse (u);
 
       // Free up a superblock if we've crossed the emptiness threshold.
@@ -174,11 +173,11 @@ namespace Hoard {
       }
     }
 
-    INLINE void lock (void) {
+    INLINE void lock() {
       _theLock.lock();
     }
 
-    INLINE void unlock (void) {
+    INLINE void unlock() {
       _theLock.unlock();
     }
 
@@ -196,7 +195,7 @@ namespace Hoard {
     /// A magic number used for debugging.
     const unsigned long _magic;
 
-    inline int isValid (void) const {
+    inline int isValid() const {
       return (_magic == MAGIC_NUMBER);
     }
 
@@ -223,9 +222,9 @@ namespace Hoard {
       assert (sb);
       if (sb) {
 
-	const size_t sz = binType::getClassSize (binIndex);
-	Statistics& stats = _stats(binIndex);
-	int totalObjects = sb->getTotalObjects();
+	auto sz = binType::getClassSize (binIndex);
+	auto& stats = _stats(binIndex);
+	auto totalObjects = sb->getTotalObjects();
 	stats.setInUse (u - (totalObjects - sb->getObjectsFree()));
 	stats.setAllocated (a - totalObjects);
 
@@ -246,7 +245,7 @@ namespace Hoard {
 
       Check<HoardManager, sanityCheck> check (this);
 
-      const int binIndex = binType::getSizeClass(sz);
+      const auto binIndex = binType::getSizeClass(sz);
 
       // Now put it on this heap.
       s->setOwner (reinterpret_cast<HeapType *>(this));
@@ -261,37 +260,35 @@ namespace Hoard {
     }
 
     void addStatsSuperblock (SuperblockType * s, int binIndex) {
-      Statistics& stats = _stats(binIndex);
-    
-      int a = stats.getAllocated();
-      int u = stats.getInUse();
-      int totalObjects = s->getTotalObjects();
+      auto& stats = _stats(binIndex);
+      auto a = stats.getAllocated();
+      auto u = stats.getInUse();
+      auto totalObjects = s->getTotalObjects();
       stats.setInUse (u + (totalObjects - s->getObjectsFree()));
       stats.setAllocated (a + totalObjects);
     }
 
 
     void decStatsSuperblock (SuperblockType * s, int binIndex) {
-      Statistics& stats = _stats(binIndex);
-    
-      int a = stats.getAllocated();
-      int u = stats.getInUse();
-      int totalObjects = s->getTotalObjects();
+      auto& stats = _stats(binIndex);
+      auto a = stats.getAllocated();
+      auto u = stats.getInUse();
+      auto totalObjects = s->getTotalObjects();
       stats.setInUse (u - (totalObjects - s->getObjectsFree()));
       stats.setAllocated (a - totalObjects);
     }
 
     MALLOC_FUNCTION NO_INLINE void * slowPathMalloc (size_t sz) {
-      const int binIndex = binType::getSizeClass (sz);
-      size_t realSize = binType::getClassSize (binIndex);
+      auto binIndex = binType::getSizeClass (sz);
+      auto realSize = binType::getClassSize (binIndex);
       assert (realSize >= sz);
       for (;;) {
-	Check<HoardManager, sanityCheck> check (this);
-	void * ptr = getObject (binIndex, realSize);
+	Check<HoardManager, sanityCheck> check1 (this);
+	auto * ptr = getObject (binIndex, realSize);
 	if (ptr) {
 	  return ptr;
 	} else {
-	  Check<HoardManager, sanityCheck> check (this);
+	  Check<HoardManager, sanityCheck> check2 (this);
 	  // Return null if we can't allocate another superblock.
 	  if (!getAnotherSuperblock (realSize)) {
 	    //	  fprintf (stderr, "HoardManager::malloc - no memory.\n");
@@ -307,7 +304,7 @@ namespace Hoard {
       void * ptr = _otherBins(binIndex).malloc (sz);
       if (ptr) {
 	// We got one. Update stats.
-	int u = _stats(binIndex).getInUse();
+	auto u = _stats(binIndex).getInUse();
 	_stats(binIndex).setInUse (u+1);
       }
       return ptr;
@@ -325,6 +322,7 @@ namespace Hoard {
       }
     private:
       inline static void checkInvariant (HoardManager * h) {
+	h;
 	assert (h->isValid());
       }
     };
@@ -335,11 +333,9 @@ namespace Hoard {
 
       // NB: This function should be on the slow path.
 
-      SuperblockType * sb = NULL;
-
       // Try the parent heap.
       // NOTE: We change the superblock type here!
-      sb = reinterpret_cast<SuperblockType *>(_ph.get (sz, reinterpret_cast<ParentHeap *>(this)));
+      auto * sb = reinterpret_cast<SuperblockType *>(_ph.get (sz, reinterpret_cast<ParentHeap *>(this)));
 
       if (sb) {
 	if (!sb->isValidSuperblock()) {

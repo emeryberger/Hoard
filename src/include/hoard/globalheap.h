@@ -66,7 +66,7 @@ namespace Hoard {
     }
 
     SuperblockType * get (size_t sz, void * dest) {
-      SuperblockType * s = 
+      auto * s = 
 	reinterpret_cast<SuperblockType *>
 	(_theHeap->get (sz, reinterpret_cast<SuperHeap *>(dest)));
       if (s) {
@@ -81,7 +81,7 @@ namespace Hoard {
 
     inline static SuperHeap * getHeap (void) {
       static double theHeapBuf[sizeof(SuperHeap) / sizeof(double) + 1];
-      static SuperHeap * theHeap = new (&theHeapBuf[0]) SuperHeap;
+      static auto * theHeap = new (&theHeapBuf[0]) SuperHeap;
       return theHeap;
     }
 

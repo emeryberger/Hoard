@@ -78,7 +78,7 @@ namespace Hoard {
 
     MALLOC_FUNCTION INLINE void * malloc (size_t) {
       assert (_header.isValid());
-      void * ptr = _header.malloc();
+      auto * ptr = _header.malloc();
       if (ptr) {
 	assert (inRange (ptr));
 	assert ((size_t) ptr % HeapType::Alignment == 0);
@@ -103,7 +103,7 @@ namespace Hoard {
     // ----- below here are non-conventional heap methods ----- //
     
     INLINE bool isValidSuperblock (void) const {
-      bool b = _header.isValid();
+      auto b = _header.isValid();
       return b;
     }
     
@@ -165,13 +165,13 @@ namespace Hoard {
     
     INLINE bool inRange (void * ptr) const {
       // Returns true iff the pointer is valid.
-      const size_t ptrValue = (size_t) ptr;
+      auto ptrValue = (size_t) ptr;
       return ((ptrValue >= (size_t) _buf) &&
 	      (ptrValue <= (size_t) &_buf[BufferSize]));
     }
     
     INLINE void * normalize (void * ptr) const {
-      void * ptr2 = _header.normalize (ptr);
+      auto * ptr2 = _header.normalize (ptr);
       assert (inRange (ptr));
       assert (inRange (ptr2));
       return ptr2;

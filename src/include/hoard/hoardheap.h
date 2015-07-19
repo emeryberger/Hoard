@@ -102,14 +102,17 @@ namespace Hoard {
 
   class hoardThresholdFunctionClass {
   public:
-    inline static bool function (int u, int a, size_t objSize) {
+    inline static bool function (unsigned int u,
+				 unsigned int a,
+				 size_t objSize)
+    {
       /*
 	Returns 1 iff we've crossed the emptiness threshold:
 	
 	U < A - 2S   &&   U < EMPTINESS_CLASSES-1/EMPTINESS_CLASSES * A
 	
       */
-      bool r = ((EMPTINESS_CLASSES * u) < ((EMPTINESS_CLASSES-1) * a)) && ((u < a - (2 * SUPERBLOCK_SIZE) / (int) objSize));
+      auto r = ((EMPTINESS_CLASSES * u) < ((EMPTINESS_CLASSES-1) * a)) && ((u < a - (2 * SUPERBLOCK_SIZE) / (int) objSize));
       return r;
     }
   };
@@ -183,6 +186,9 @@ namespace Hoard {
     public RedirectFree<LockMallocHeap<SmallHeap>,
 			SmallSuperblockType> {
   private:
+    void nothing() {
+      _dummy[0] = _dummy[0];
+    }
     // Avoid false sharing.
     char _dummy[64];
   };

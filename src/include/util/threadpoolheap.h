@@ -64,7 +64,7 @@ namespace Hoard {
     }
     
     inline PerThreadHeap& getHeap (void) {
-      int tid = HL::CPUInfo::getThreadId();
+      unsigned int tid = HL::CPUInfo::getThreadId();
       int heapno = _tidMap(tid & NumThreadsMask);
       return _heap(heapno);
     }

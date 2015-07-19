@@ -122,7 +122,7 @@ namespace Hoard {
     /// @brief Returns the actual start of the object.
     INLINE void * normalize (void * ptr) const {
       assert (isValid());
-      size_t offset = (size_t) ptr - (size_t) _start;
+      auto offset = (size_t) ptr - (size_t) _start;
       void * p;
 
       // Optimization note: the modulo operation (%) is *really* slow on
@@ -141,7 +141,7 @@ namespace Hoard {
 
     size_t getSize (void * ptr) const {
       assert (isValid());
-      size_t offset = (size_t) ptr - (size_t) _start;
+      auto offset = (size_t) ptr - (size_t) _start;
       size_t newSize;
       if (_objectSizeIsPowerOfTwo) {
 	newSize = _objectSize - (offset & (_objectSize - 1));
@@ -206,7 +206,7 @@ namespace Hoard {
       assert (_position);
       // Reap mode.
       if (_reapableObjects > 0) {
-	char * ptr = _position;
+	auto * ptr = _position;
 	_position = ptr + _objectSize;
 	_reapableObjects--;
 	_objectsFree--;
@@ -220,7 +220,7 @@ namespace Hoard {
     MALLOC_FUNCTION INLINE void * freeListAlloc() {
       assert (isValid());
       // Freelist mode.
-      char * ptr = reinterpret_cast<char *>(_freeList.get());
+      auto * ptr = reinterpret_cast<char *>(_freeList.get());
       if (ptr) {
 	assert (_objectsFree >= 1);
 	_objectsFree--;

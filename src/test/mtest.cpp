@@ -216,12 +216,22 @@ bin_alloc(m) struct bin *m;
         total_size -= m->size;
         r = RANDOM(1024);
         if(r < PROB_MEMALIGN) {
-#if !defined(_WIN32) && !defined(__APPLE__) && !defined(__FreeBSD__)
+#if !defined(_WIN32) // && !defined(__APPLE__) && !defined(__FreeBSD__)
                 if(m->size > 0) free(m->ptr);
                 m->size = random_size(size);
-                m->ptr = (unsigned char *)memalign(4 << RANDOM(8), m->size);
-        if(!m->ptr) {
-                printf("memalign: out of memory!\n");
+                // m->ptr = (unsigned char *)memalign(4 << RANDOM(8), m->size);
+				m->ptr = 0;
+				size_t alignment = 4 << RANDOM(16);
+				void * p = 0;
+                int r = posix_memalign(&p, alignment, m->size);
+				if (!r) {
+				  perror("MEMALIGN WAT");
+				}
+				m->ptr = (unsigned char *) p;
+        if(!r) {
+		  printf("memalign: out of memory!\n");
+		  printf("size = %lu\n", m->size);
+		  printf("alignment = %lu\n", alignment);
                 exit(1);
         }
 #endif

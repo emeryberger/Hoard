@@ -42,42 +42,41 @@ namespace Hoard {
 
     enum { Alignment = HeapType::Alignment };
 
-    HeapManager (void)
+    HeapManager()
     {
       HL::Guard<LockType> g (heapLock);
       
       /// Initialize all heap maps (nothing yet assigned).
-      int i;
-      for (i = 0; i < HeapType::MaxThreads; i++) {
+      for (auto i = 0; i < HeapType::MaxThreads; i++) {
 	HeapType::setTidMap (i, 0);
       }
-      for (i = 0; i < HeapType::MaxHeaps; i++) {
+      for (auto i = 0; i < HeapType::MaxHeaps; i++) {
 	HeapType::setInusemap (i, 0);
       }
     }
 
     /// Set this thread's heap id to 0.
-    void chooseZero (void) {
+    void chooseZero() {
       HL::Guard<LockType> g (heapLock);
-      HeapType::setTidMap ((int) HL::CPUInfo::getThreadId() % Hoard::MaxThreads, 0);
+      HeapType::setTidMap (HL::CPUInfo::getThreadId() % Hoard::MaxThreads, 0);
     }
 
-    unsigned long findUnusedHeap (void) {
+    unsigned long findUnusedHeap() {
 
       HL::Guard<LockType> g (heapLock);
       
-      unsigned long tid_original = HL::CPUInfo::getThreadId();
-      unsigned int tid = (unsigned int) (tid_original % HeapType::MaxThreads);
+      auto tid_original = HL::CPUInfo::getThreadId();
+      auto tid = tid_original % HeapType::MaxThreads;
       
-      unsigned long i = 0;
+      int i = 0;
       while ((i < HeapType::MaxHeaps) && (HeapType::getInusemap(i)))
 	i++;
       if (i >= HeapType::MaxHeaps) {
 	// Every heap is in use: pick a random heap.
 #if defined(_WIN32)
-	int randomNumber = rand();
+	auto randomNumber = rand();
 #else
-	int randomNumber = (int) lrand48();
+	auto randomNumber = (int) lrand48();
 #endif
 	i = randomNumber % HeapType::MaxHeaps;
       }
@@ -88,7 +87,7 @@ namespace Hoard {
       return i;
     }
 
-    void releaseHeap (void) {
+    void releaseHeap() {
       // Decrement the ref-count on the current heap.
       
       HL::Guard<LockType> g (heapLock);
@@ -96,8 +95,8 @@ namespace Hoard {
       // Statically ensure that the number of threads is a power of two.
       enum { VerifyPowerOfTwo = 1 / ((HeapType::MaxThreads & ~(HeapType::MaxThreads-1))) };
       
-      int tid = HL::CPUInfo::getThreadId() & (HeapType::MaxThreads - 1);
-      int heapIndex = HeapType::getTidMap (tid);
+      auto tid = HL::CPUInfo::getThreadId() & (HeapType::MaxThreads - 1);
+      auto heapIndex = HeapType::getTidMap (tid);
       
       HeapType::setInusemap (heapIndex, 0);
       
