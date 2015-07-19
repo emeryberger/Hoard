@@ -209,7 +209,7 @@ namespace Hoard {
     /// How many bins do we need to maintain?
     enum { NumBins = binType::NUM_BINS };
 
-    NO_INLINE void slowPathFree (int binIndex, int u, int a) {
+    NO_INLINE void slowPathFree (int binIndex, unsigned int u, unsigned int a) {
       // We've crossed the threshold.
       // Remove a superblock and give it to the 'parent heap.'
       Check<HoardManager, sanityCheck> check (this);
