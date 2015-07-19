@@ -82,7 +82,7 @@ namespace Hoard {
       }
 
       HeapType::setInusemap (i, 1);
-      HeapType::setTidMap (tid, i);
+      HeapType::setTidMap ((int) tid, i);
       
       return i;
     }

@@ -47,8 +47,8 @@ namespace Hoard {
   template <int NumBins,
 	    int (*getSizeClass) (size_t),
 	    size_t (*getClassSize) (int),
-	    unsigned int LargestObject,
-	    unsigned int LocalHeapThreshold,
+	    size_t LargestObject,
+	    size_t LocalHeapThreshold,
 	    class SuperblockType,
 	    unsigned int SuperblockSize,
 	    class ParentHeap>
@@ -86,7 +86,7 @@ namespace Hoard {
       // Get memory from the local heap,
       // and deduct that amount from the local heap bytes counter.
       if (sz <= LargestObject) {
-      	unsigned int c = getSizeClass (sz);
+      	auto c = getSizeClass (sz);
       	auto * ptr = _localHeap(c).get();
       	if (ptr) {
       	  assert (_localHeapBytes >= sz);
