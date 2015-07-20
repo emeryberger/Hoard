@@ -31,6 +31,11 @@
  * pthread_create and pthread_exit.
  */
 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-variable"
+#endif
+
 // For now, we only use thread-local variables (__thread) for certain
 // compilers and systems.
 
@@ -368,6 +373,10 @@ extern "C" int pthread_create (pthread_t *thread,
 
   return result;
 }
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
 #endif
 
