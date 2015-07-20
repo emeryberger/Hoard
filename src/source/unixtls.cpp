@@ -264,7 +264,6 @@ extern "C" int thr_create (void * stack_base,
                            thread_t * new_tid) {
   // Force initialization of the TLAB before our first thread is created.
   static volatile TheCustomHeapType * t = initializeCustomHeap();
-  t = t;
 
   char fname[] = "_thr_create";
 
