@@ -34,6 +34,7 @@
 #if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-variable"
+#pragma clang diagnostic ignored "-Wunused-value"
 #endif
 
 // For now, we only use thread-local variables (__thread) for certain
