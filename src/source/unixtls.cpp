@@ -344,7 +344,7 @@ extern "C" int pthread_create (pthread_t *thread,
 {
   // Force initialization of the TLAB before our first thread is created.
   static volatile TheCustomHeapType * t = initializeCustomHeap();
-  t = t;
+  t;
 
 #if defined(__linux__) || defined(__APPLE__)
   char fname[] = "pthread_create";
