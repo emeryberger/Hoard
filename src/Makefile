@@ -18,7 +18,10 @@ all:
 	@echo generic-gcc
 	@echo windows
 
-.PHONY: macos debian freebsd linux-gcc-x86 linux-gcc-x86-debug solaris-sunw-sparc solaris-sunw-x86 solaris-gcc-sparc generic-gcc linux-gcc-x86-64 windows windows-debug clean
+.PHONY: macos debian freebsd linux-gcc-x86 linux-gcc-x86-debug solaris-sunw-sparc solaris-sunw-x86 solaris-gcc-sparc generic-gcc linux-gcc-x86-64 windows windows-debug clean test
+
+test:	test/mtest
+	(cd test ; ${MAKE}; ./mtest)
 
 #
 # Source files
