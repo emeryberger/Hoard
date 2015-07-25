@@ -5,6 +5,12 @@
 			 Version Information
 			 -------------------
 
+Since 2012, all commit information has been publicly accessible in the
+Hoard github repository (https://github.com/emeryberger/Hoard); this
+information is preserved here for historical reasons only.
+
+--------------------------------------------------------------------------------
+
 version 3.9 (June 10, 2012):
         * Overhauled Heap Layers and cleaned up directory structure.
         * Fixed allocator to eliminate integer overflow (CVE-2012-2676).
