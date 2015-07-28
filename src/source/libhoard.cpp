@@ -4,9 +4,9 @@
   The Hoard Multiprocessor Memory Allocator
   www.hoard.org
 
-  Author: Emery Berger, http://www.cs.umass.edu/~emery
+  Author: Emery Berger, http://www.emeryberger.org
  
-  Copyright (c) 1998-2012 Emery Berger
+  Copyright (c) 1998-2015 Emery Berger
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -95,7 +95,7 @@ using namespace Hoard;
 
 /// Maintain a single instance of the main Hoard heap.
 
-HoardHeapType * getMainHoardHeap (void) {
+HoardHeapType * getMainHoardHeap() {
   // This function is C++ magic that ensures that the heap is
   // initialized before its first use. First, allocate a static buffer
   // to hold the heap.
