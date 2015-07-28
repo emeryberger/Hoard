@@ -4,9 +4,9 @@
   The Hoard Multiprocessor Memory Allocator
   www.hoard.org
 
-  Author: Emery Berger, http://www.cs.umass.edu/~emery
+  Author: Emery Berger, http://www.emeryberger.org
  
-  Copyright (c) 1998-2012 Emery Berger
+  Copyright (c) 1998-2015 Emery Berger
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -46,13 +46,17 @@
 
 using namespace Hoard;
 
-DWORD LocalTLABIndex;
+#define USE_TLS 0
 
+#if USE_TLS
 __declspec(thread) TheCustomHeapType * threadLocalHeap = NULL;
+#else
+DWORD LocalTLABIndex;
+#endif
 
-extern HoardHeapType * getMainHoardHeap (void);
+extern HoardHeapType * getMainHoardHeap();
 
-static TheCustomHeapType * initializeCustomHeap (void)
+static TheCustomHeapType * initializeCustomHeap()
 {
   // Allocate a per-thread heap.
   TheCustomHeapType * heap;
@@ -60,21 +64,35 @@ static TheCustomHeapType * initializeCustomHeap (void)
   heap = new (mh) TheCustomHeapType (getMainHoardHeap());
 
   // Store it in the appropriate thread-local area.
+#if USE_TLS
   threadLocalHeap = heap;
-  //  TlsSetValue (LocalTLABIndex, heap);
+#else
+  TlsSetValue (LocalTLABIndex, heap);
+#endif
 
   return heap;
 }
 
 bool isCustomHeapInitialized() {
+#if USE_TLS
   return (threadLocalHeap != NULL);
+#else
+  return (TlsGetValue(LocalTLABIndex) != NULL);
+#endif
 }
 
 TheCustomHeapType * getCustomHeap() {
+#if USE_TLS
   if (threadLocalHeap != NULL)
     return threadLocalHeap;
   initializeCustomHeap();
   return threadLocalHeap;
+#else
+  if (!isCustomHeapInitialized()) {
+    initializeCustomHeap();
+  }
+  return (TheCustomHeapType *) TlsGetValue(LocalTLABIndex);
+#endif
 }
 
 extern "C" void InitializeWinWrapper();
@@ -118,9 +136,11 @@ extern "C" {
 	// Dump the memory from the TLAB.
 	getCustomHeap()->clear();
 	
-	TheCustomHeapType *heap
-	  = threadLocalHeap;
-	//	  = (TheCustomHeapType *) TlsGetValue(LocalTLABIndex);
+#if USE_TLS
+	auto * heap = threadLocalHeap;
+#else
+	auto * heap = (TheCustomHeapType *) TlsGetValue(LocalTLABIndex);
+#endif
 	
 	if (np != 1) {
 	  // If we're on a multiprocessor box, relinquish the heap
