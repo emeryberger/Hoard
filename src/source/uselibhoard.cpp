@@ -4,9 +4,9 @@
   The Hoard Multiprocessor Memory Allocator
   www.hoard.org
 
-  Author: Emery Berger, http://www.cs.umass.edu/~emery
+  Author: Emery Berger, http://www.emeryberger.org
  
-  Copyright (c) 1998-2012 Emery Berger
+  Copyright (c) 1998-2015 Emery Berger
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -39,7 +39,7 @@ extern "C" {
 
   __declspec(dllimport) int ReferenceWinWrapperStub;
   
-  void ReferenceHoard (void)
+  void ReferenceHoard()
   {
     LoadLibraryA ("libhoard.dll");
     ReferenceWinWrapperStub = 1; 
