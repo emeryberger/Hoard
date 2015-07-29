@@ -2,7 +2,7 @@
 [The Hoard Memory Allocator](http://www.hoard.org)
 --------------------------
 
-Copyright (C) 1998-2015 by [Emery Berger](http://www.cs.umass.edu/~emery)
+Copyright (C) 1998-2015 by [Emery Berger](http://www.emeryberger.org)
 
 The Hoard memory allocator is a fast, scalable, and memory-efficient
 memory allocator that works on a range of platforms,
