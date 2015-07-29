@@ -88,10 +88,12 @@ TheCustomHeapType * getCustomHeap() {
   initializeCustomHeap();
   return threadLocalHeap;
 #else
-  if (!isCustomHeapInitialized()) {
+  auto p = TlsGetValue(LocalTLABIndex);
+  if (p == NULL) {
     initializeCustomHeap();
+    p = TlsGetValue(LocalTLABIndex);
   }
-  return (TheCustomHeapType *) TlsGetValue(LocalTLABIndex);
+  return (TheCustomHeapType *) p;
 #endif
 }
 
