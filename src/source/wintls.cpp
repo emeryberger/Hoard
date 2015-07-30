@@ -119,6 +119,7 @@ extern "C" {
       {
 	//	fprintf (stderr, "Using the Hoard scalable memory manager (http://www.hoard.org).\n");
 	InitializeWinWrapper();
+	getCustomHeap();
       }
       break;
       
