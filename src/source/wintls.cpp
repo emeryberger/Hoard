@@ -152,7 +152,9 @@ extern "C" {
 	}
 	
 	if (heap != 0) {
-	  //	  TlsSetValue (LocalTLABIndex, 0);
+#if !USE_TLS
+	  TlsSetValue (LocalTLABIndex, 0);
+#endif
 	}
       }
       break;
