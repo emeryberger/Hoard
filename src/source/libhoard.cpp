@@ -133,7 +133,8 @@ extern "C" {
   }
 
   void xxfree (void * ptr) {
-    getCustomHeap()->free (ptr);
+    if (ptr != NULL)
+      getCustomHeap()->free (ptr);
   }
 
   size_t xxmalloc_usable_size (void * ptr) {
