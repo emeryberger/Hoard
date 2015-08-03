@@ -46,9 +46,9 @@
 
 using namespace Hoard;
 
-#define USE_TLS 0
+#define USE_DECLSPEC_THREADLOCAL 0
 
-#if USE_TLS
+#if USE_DECLSPEC_THREADLOCAL
 __declspec(thread) TheCustomHeapType * threadLocalHeap = NULL;
 #else
 DWORD LocalTLABIndex;
@@ -64,7 +64,7 @@ static TheCustomHeapType * initializeCustomHeap()
   heap = new (mh) TheCustomHeapType (getMainHoardHeap());
 
   // Store it in the appropriate thread-local area.
-#if USE_TLS
+#if USE_DECLSPEC_THREADLOCAL
   threadLocalHeap = heap;
 #else
   TlsSetValue (LocalTLABIndex, heap);
@@ -74,7 +74,7 @@ static TheCustomHeapType * initializeCustomHeap()
 }
 
 bool isCustomHeapInitialized() {
-#if USE_TLS
+#if USE_DECLSPEC_THREADLOCAL
   return (threadLocalHeap != NULL);
 #else
   return (TlsGetValue(LocalTLABIndex) != NULL);
@@ -82,7 +82,7 @@ bool isCustomHeapInitialized() {
 }
 
 TheCustomHeapType * getCustomHeap() {
-#if USE_TLS
+#if USE_DECLSPEC_THREADLOCAL
   if (threadLocalHeap != NULL)
     return threadLocalHeap;
   initializeCustomHeap();
@@ -139,7 +139,7 @@ extern "C" {
 	// Dump the memory from the TLAB.
 	getCustomHeap()->clear();
 	
-#if USE_TLS
+#if USE_DECLSPEC_THREADLOCAL
 	auto * heap = threadLocalHeap;
 #else
 	auto * heap = (TheCustomHeapType *) TlsGetValue(LocalTLABIndex);
@@ -150,12 +150,7 @@ extern "C" {
 	  // assigned to this thread.
 	  getMainHoardHeap()->releaseHeap();
 	}
-	
-	if (heap != 0) {
-#if !USE_TLS
-	  TlsSetValue (LocalTLABIndex, 0);
-#endif
-	}
+
       }
       break;
       
