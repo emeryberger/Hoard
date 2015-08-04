@@ -5,9 +5,9 @@
   The Hoard Multiprocessor Memory Allocator
   www.hoard.org
 
-  Author: Emery Berger, http://www.cs.umass.edu/~emery
+  Author: Emery Berger, http://www.emeryberger.org
  
-  Copyright (c) 1998-2012 Emery Berger
+  Copyright (c) 1998-2015 Emery Berger
   
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -34,18 +34,8 @@
 #include "debugprint.h"
 
 #include "heaplayers.h"
-
-//#include "freelistheap.h"
-//#include "kingsleyheap.h"
-//#include "stlallocator.h"
-//#include "bumpalloc.h"
-//#include "nullheap.h"
-//#include "sizeheap.h"
-//#include "uniqueheap.h"
-//#include "adaptheap.h"
-
 #include "mmapalloc.h"
-#include "exactlyoneheap.h"
+//#include "exactlyoneheap.h"
 
 using namespace std;
 
