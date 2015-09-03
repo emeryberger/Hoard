@@ -8,6 +8,7 @@ all:
 	@echo -------------------------------------------------
 	@echo debian
 	@echo freebsd
+	@echo linux-gcc-arm
 	@echo linux-gcc-x86
 	@echo linux-gcc-x86-64
 	@echo macos
@@ -18,7 +19,7 @@ all:
 	@echo generic-gcc
 	@echo windows
 
-.PHONY: macos debian freebsd linux-gcc-x86 linux-gcc-x86-debug solaris-sunw-sparc solaris-sunw-x86 solaris-gcc-sparc generic-gcc linux-gcc-x86-64 windows windows-debug clean test
+.PHONY: macos debian freebsd linux-gcc-x86 linux-gcc-x86-debug solaris-sunw-sparc solaris-sunw-x86 solaris-gcc-sparc generic-gcc linux-gcc-arm linux-gcc-x86-64 windows windows-debug clean test
 
 #
 # Source files
@@ -35,6 +36,9 @@ MACOS_SRC = $(MAIN_SRC) Heap-Layers/wrappers/macwrapper.cpp source/mactls.cpp
 #
 
 DEPS = $(MACOS_SRC) $(UNIX_SRC) source/libhoard.cpp
+
+# Prefix for installations (Unix / Mac)
+PREFIX ?= /usr/local
 
 #
 # Include directories
@@ -55,6 +59,8 @@ DEBIAN_COMPILE = g++-4.8 -std=c++11 -g -O3 -fPIC -DNDEBUG -I. -Iinclude -Iinclud
 MACOS_COMPILE = clang++ -std=c++11 -fno-builtin-malloc -ftemplate-depth=1024 -arch i386 -arch x86_64 -pipe -g $(CPPFLAGS) -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -dynamiclib -D'CUSTOM_PREFIX(x)=xx\#\#x' $(MACOS_SRC) -o libhoard.dylib -ldl -lpthread 
 
 MACOS_COMPILE_DEBUG = clang++ -std=c++11 -fno-builtin-malloc -ftemplate-depth=1024 -arch i386 -arch x86_64 -pipe -g -O0 -Wall $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -dynamiclib $(MACOS_SRC) -o libhoard.dylib -ldl -lpthread
+
+LINUX_GCC_ARM_COMPILE = arm-linux-gnueabihf-g++ -std=c++11 $(CPPFLAGS) -g -W -Wconversion -Wall -I/usr/include/nptl -fno-builtin-malloc -pipe -fPIC -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared   $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
 LINUX_GCC_x86_COMPILE = g++ -std=c++11 -m32 $(CPPFLAGS) -I/usr/include/nptl -ffast-math -g -fno-builtin-malloc -malign-double -pipe -finline-limit=20000 -finline-functions  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared  $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
@@ -118,6 +124,9 @@ debian:
 
 generic-gcc:
 	$(GENERIC_GCC_COMPILE)
+
+linux-gcc-arm:
+	$(LINUX_GCC_ARM_COMPILE)
 
 linux-gcc-x86:
 	$(LINUX_GCC_x86_COMPILE)
