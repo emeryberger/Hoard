@@ -8,18 +8,13 @@ PREFIX ?= /usr/lib
 ifeq ($(OS),Windows_NT)
 all:
       make windows
-#      CCFLAGS += -D WIN32
-#      ifeq ($(PROCESSOR_ARCHITECTURE),AMD64)
-#          CCFLAGS += -D AMD64
-#      endif
-#      ifeq ($(PROCESSOR_ARCHITECTURE),x86)
-#          CCFLAGS += -D IA32
-#      endif
 else
     UNAME_S := $(shell uname -s)
     UNAME_P := $(shell uname -p)
 all:
 	make $(UNAME_S)-gcc-$(UNAME_P)
+install:
+	make $(UNAME_S)-gcc-$(UNAME_P)-install
 endif
 
 
@@ -132,23 +127,64 @@ windows-debug: $(DEPS)
 Darwin-gcc-i386:
 	$(MACOS_COMPILE)
 
-Darwin-gcc-i386-debug:
-	$(MACOS_COMPILE_DEBUG)
-
-freebsd:
-	$(FREEBSD_COMPILE)
-
-debian:
-	$(DEBIAN_COMPILE)
+Darwin-gcc-i386-install: Darwin-gcc-i386
+	cp libhoard.dylib $(PREFIX)
 
 generic-gcc:
 	$(GENERIC_GCC_COMPILE)
 
+generic-gcc-install: generic-gcc
+	cp libhoard.so $(PREFIX)
+
 Linux-gcc-arm:
 	$(LINUX_GCC_ARM_COMPILE)
 
+Linux-gcc-arm-install: Linux-gcc-arm
+	cp libhoard.so $(PREFIX)
+
 Linux-gcc-x86:
 	$(LINUX_GCC_x86_COMPILE)
+
+Linux-gcc-x86-install: Linux-gcc-x86
+	cp libhoard.so $(PREFIX)
+
+Linux-gcc-x86_64:
+	$(LINUX_GCC_x86_64_COMPILE)
+
+Linux-gcc-x86_64-install: Linux-gcc-x86_64
+	cp libhoard.so $(PREFIX)
+
+SunOS-sunw-sparc:
+	$(SUNOS_SUNW_SPARC_COMPILE_32)
+	$(SUNOS_SUNW_SPARC_COMPILE_64)
+
+SunOS-sunw-sparc-install: SunOS-sunw-sparc
+	cp libhoard_32.so $(PREFIX)
+	cp libhoard_64.so $(PREFIX)
+
+SunOS-gcc-sparc:
+	$(SUNOS_GCC_SPARC_COMPILE_32)
+	$(SUNOS_GCC_SPARC_COMPILE_64)
+
+SunOS-gcc-sparc-install: SunOS-gcc-sparc
+	cp libhoard_32.so $(PREFIX)
+	cp libhoard_64.so $(PREFIX)
+
+SunOS-sunw-x86:
+	$(SUNOS_SUNW_x86_COMPILE_32)
+
+SunOS-sunw-x86-install: SunOS-sunw-x86
+	cp libhoard_32.so $(PREFIX)
+
+SunOS-sunw-x86_64:
+	$(SUNOS_SUNW_x86_COMPILE_64)
+
+SunOS-sunw-x86_64-install: SunOS-sunw-x86_64
+	cp libhoard_64.so $(PREFIX)
+
+#
+#
+#
 
 Linux-gcc-x86-static:
 	$(LINUX_GCC_x86_COMPILE_STATIC)
@@ -156,8 +192,11 @@ Linux-gcc-x86-static:
 Linux-gcc-x86-debug:
 	$(LINUX_GCC_x86_COMPILE_DEBUG)
 
-Linux-gcc-x86_64:
-	$(LINUX_GCC_x86_64_COMPILE)
+SunOS-gcc-sparc-debug:
+	$(SUNOS_GCC_SPARC_COMPILE_DEBUG)
+
+Darwin-gcc-i386-debug:
+	$(MACOS_COMPILE_DEBUG)
 
 Linux-gcc-x86_64-static:
 	$(LINUX_GCC_x86_64_COMPILE_STATIC)
@@ -168,22 +207,11 @@ Linux-gcc-x86_64-debug:
 SunOS-sunw-sparc-debug:
 	$(SUNOS_SUNW_SPARC_COMPILE_32_DEBUG)
 
-SunOS-sunw-sparc:
-	$(SUNOS_SUNW_SPARC_COMPILE_32)
-	$(SUNOS_SUNW_SPARC_COMPILE_64)
+freebsd:
+	$(FREEBSD_COMPILE)
 
-SunOS-gcc-sparc:
-	$(SUNOS_GCC_SPARC_COMPILE_32)
-	$(SUNOS_GCC_SPARC_COMPILE_64)
-
-SunOS-gcc-sparc-debug:
-	$(SUNOS_GCC_SPARC_COMPILE_DEBUG)
-
-SunOS-sunw-x86:
-	$(SUNOS_SUNW_x86_COMPILE_32)
-
-SunOS-sunw-x86_64:
-	$(SUNOS_SUNW_x86_COMPILE_64)
+debian:
+	$(DEBIAN_COMPILE)
 
 clean:
 	rm -rf libhoard.*
