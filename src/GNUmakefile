@@ -30,16 +30,16 @@ help:
 	@echo freebsd
 	@echo Linux-gcc-arm
 	@echo Linux-gcc-x86
-	@echo Linux-gcc-x86-64
+	@echo Linux-gcc-x86_64
 	@echo Darwin-gcc-i386
 	@echo SunOS-sunw-sparc
 	@echo SunOS-sunw-x86
-	@echo SunOS-sunw-x86-64
+	@echo SunOS-sunw-x86_64
 	@echo SunOS-gcc-sparc
 	@echo generic-gcc
 	@echo windows
 
-.PHONY: Darwin-gcc-i386 debian freebsd Linux-gcc-x86 Linux-gcc-x86-debug SunOS-sunw-sparc SunOS-sunw-x86 SunOS-gcc-sparc generic-gcc Linux-gcc-arm Linux-gcc-x86-64 windows windows-debug clean test
+.PHONY: Darwin-gcc-i386 debian freebsd Linux-gcc-x86 Linux-gcc-x86-debug SunOS-sunw-sparc SunOS-sunw-x86 SunOS-gcc-sparc generic-gcc Linux-gcc-arm Linux-gcc-x86_64 windows windows-debug clean test
 
 #
 # Source files
@@ -156,13 +156,13 @@ Linux-gcc-x86-static:
 Linux-gcc-x86-debug:
 	$(LINUX_GCC_x86_COMPILE_DEBUG)
 
-Linux-gcc-x86-64:
+Linux-gcc-x86_64:
 	$(LINUX_GCC_x86_64_COMPILE)
 
-Linux-gcc-x86-64-static:
+Linux-gcc-x86_64-static:
 	$(LINUX_GCC_x86_64_COMPILE_STATIC)
 
-Linux-gcc-x86-64-debug:
+Linux-gcc-x86_64-debug:
 	$(LINUX_GCC_x86_64_COMPILE_DEBUG)
 
 SunOS-sunw-sparc-debug:
@@ -182,7 +182,7 @@ SunOS-gcc-sparc-debug:
 SunOS-sunw-x86:
 	$(SUNOS_SUNW_x86_COMPILE_32)
 
-SunOS-sunw-x86-64:
+SunOS-sunw-x86_64:
 	$(SUNOS_SUNW_x86_COMPILE_64)
 
 clean:
