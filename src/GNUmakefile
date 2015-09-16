@@ -6,17 +6,13 @@ CPPFLAGS = -O3 -Wall -Wextra -Wshadow -Wconversion
 PREFIX ?= /usr/lib
 
 ifeq ($(OS),Windows_NT)
-all:
-      make windows
+all: windows
 else
     UNAME_S := $(shell uname -s)
     UNAME_P := $(shell uname -p)
-all:
-	make $(UNAME_S)-gcc-$(UNAME_P)
-install:
-	make $(UNAME_S)-gcc-$(UNAME_P)-install
+    all: $(UNAME_S)-gcc-$(UNAME_P)
+    install: $(UNAME_S)-gcc-$(UNAME_P)-install
 endif
-
 
 help:
 	@echo To build Hoard, specify the desired build target:
