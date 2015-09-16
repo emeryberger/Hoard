@@ -3,7 +3,11 @@
 
 CPPFLAGS = -O3 -Wall -Wextra -Wshadow -Wconversion
 
+# Prefix for installations (Unix / Mac)
+
 PREFIX ?= /usr/lib
+
+# Compute platform (OS and architecture) and build accordingly.
 
 ifeq ($(OS),Windows_NT)
 all: windows
@@ -47,8 +51,6 @@ MACOS_SRC = $(MAIN_SRC) Heap-Layers/wrappers/macwrapper.cpp source/mactls.cpp
 #
 
 DEPS = $(MACOS_SRC) $(UNIX_SRC) source/libhoard.cpp
-
-# Prefix for installations (Unix / Mac)
 
 #
 # Include directories
