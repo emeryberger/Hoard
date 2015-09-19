@@ -14,8 +14,13 @@ all: windows
 else
     UNAME_S := $(shell uname -s)
     UNAME_P := $(shell uname -p)
-    all: $(UNAME_S)-gcc-$(UNAME_P)
-    install: $(UNAME_S)-gcc-$(UNAME_P)-install
+    ifeq ($(UNAME_S),SunOS)
+      all: $(UNAME_S)-sunw-$(UNAME_P)
+      install: $(UNAME_S)-sunw-$(UNAME_P)-install
+    else
+      all: $(UNAME_S)-gcc-$(UNAME_P)
+      install: $(UNAME_S)-gcc-$(UNAME_P)-install
+    endif
 endif
 
 help:
@@ -28,13 +33,13 @@ help:
 	@echo Linux-gcc-x86_64
 	@echo Darwin-gcc-i386
 	@echo SunOS-sunw-sparc
-	@echo SunOS-sunw-x86
-	@echo SunOS-sunw-x86_64
+	@echo SunOS-sunw-i386
 	@echo SunOS-gcc-sparc
+	@echo SunOS-gcc-i386
 	@echo generic-gcc
 	@echo windows
 
-.PHONY: Darwin-gcc-i386 debian freebsd Linux-gcc-x86 Linux-gcc-x86-debug SunOS-sunw-sparc SunOS-sunw-x86 SunOS-gcc-sparc generic-gcc Linux-gcc-arm Linux-gcc-x86_64 windows windows-debug clean test
+.PHONY: Darwin-gcc-i386 debian freebsd Linux-gcc-x86 Linux-gcc-x86-debug SunOS-sunw-sparc SunOS-sunw-i386 SunOS-gcc-sparc generic-gcc Linux-gcc-arm Linux-gcc-x86_64 windows windows-debug clean test
 
 #
 # Source files
@@ -94,15 +99,19 @@ SUNOS_SUNW_SPARC_COMPILE_32 = CC -dalign -xbuiltin=%all -fast -xO5 -DNDEBUG -mt 
 
 SUNOS_SUNW_SPARC_COMPILE_64 = CC -g -xcode=pic13 -m64 -mt -fast -dalign -xbuiltin=%all -xO5 -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) Heap-Layers/wrappers/arch-specific/sparc-interchange.il -o libhoard_64.so -lthread -ldl -lCrun
 
-SUNOS_SUNW_x86_COMPILE_32 = CC -g -fns -fsimple=2 -ftrap=%none -xbuiltin=%all -mt -xO5 -fast -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) Heap-Layers/util/x86-interchange.il -o libhoard_32.so -lthread -ldl -lCrun
+SUNOS_SUNW_x86_COMPILE_32 = CC -std=c++11 -g -fns -fsimple=2 -ftrap=%none -xbuiltin=%all -mt -xO5 -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) Heap-Layers/wrappers/arch-specific/x86-interchange.il -o libhoard_32.so -lthread -ldl -lCrun
 
-SUNOS_SUNW_x86_COMPILE_32_DEBUG = CC -mt -g -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) Heap-Layers/util/x86-interchange.il -o libhoard_32.so -lthread -ldl -lCrun
+SUNOS_SUNW_x86_COMPILE_32_DEBUG = CC -std=c++11 -mt -g -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) Heap-Layers/wrappers/arch-specific/x86-interchange.il -o libhoard_32.so -lthread -ldl -lCrun
 
-SUNOS_SUNW_x86_COMPILE_64 = CC -g -xarch=amd64 -fns -fsimple=2 -ftrap=%none -xbuiltin=%all -xO5 -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) Heap-Layers/util/x86_64-interchange.il -o libhoard_64.so -lthread -ldl -lCrun
+SUNOS_SUNW_x86_COMPILE_64 = CC -std=c++11 -g -m64 -fns -fsimple=2 -ftrap=%none -xbuiltin=%all -xO5 -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) Heap-Layers/wrappers/arch-specific/x86_64-interchange.il -o libhoard_64.so -lthread -ldl -lCrun
 
 SUNOS_GCC_SPARC_COMPILE_32 = g++ -std=c++11 -g -fno-builtin-malloc -nostartfiles -pipe -DNDEBUG -mcpu=ultrasparc -m32 $(CPPFLAGS) -finline-limit=20000 -fPIC -fkeep-inline-functions -finline-functions -ffast-math $(INCLUDES) -D_REENTRANT=1 -shared $(SUNW_SRC) -lthread -lpthread -ldl -o libhoard_32.so
 
 SUNOS_GCC_SPARC_COMPILE_64 = g++ -std=c++11 -g -fno-builtin-malloc -nostartfiles -pipe -DNDEBUG -mcpu=ultrasparc -m64 $(CPPFLAGS) -finline-limit=20000 -fPIC -fkeep-inline-functions -finline-functions -ffast-math $(INCLUDES) -D_REENTRANT=1 -shared $(SUNW_SRC) -lthread -lpthread -ldl -o libhoard_64.so
+
+SUNOS_GCC_I386_COMPILE_32 = g++ -std=c++11 -g -fno-builtin-malloc -nostartfiles -pipe -DNDEBUG -m32 $(CPPFLAGS) -finline-limit=20000 -fPIC -fkeep-inline-functions -finline-functions -ffast-math $(INCLUDES) -D_REENTRANT=1 -shared $(SUNW_SRC) -lthread -ldl -o libhoard_32.so
+
+SUNOS_GCC_I386_COMPILE_64 = g++ -std=c++11 -g -fno-builtin-malloc -nostartfiles -pipe -DNDEBUG -m64 $(CPPFLAGS) -finline-limit=20000 -fPIC -fkeep-inline-functions -finline-functions -ffast-math $(INCLUDES) -D_REENTRANT=1 -shared $(SUNW_SRC) -lthread -ldl -o libhoard_64.so
 
 SUNOS_GCC_SPARC_COMPILE_DEBUG = g++ -std=c++11 -g -fno-builtin-malloc -nostartfiles -pipe -mcpu=ultrasparc -g -fPIC $(INCLUDES) -D_REENTRANT=1 -shared $(SUNW_SRC) -lthread -lpthread -ldl -o libhoard.so
 
@@ -168,16 +177,20 @@ SunOS-gcc-sparc-install: SunOS-gcc-sparc
 	cp libhoard_32.so $(PREFIX)
 	cp libhoard_64.so $(PREFIX)
 
-SunOS-sunw-x86:
-	$(SUNOS_SUNW_x86_COMPILE_32)
+SunOS-gcc-i386:
+	$(SUNOS_GCC_I386_COMPILE_32)
+	$(SUNOS_GCC_I386_COMPILE_64)
 
-SunOS-sunw-x86-install: SunOS-sunw-x86
+SunOS-gcc-i386-install: SunOS-gcc-sparc
 	cp libhoard_32.so $(PREFIX)
+	cp libhoard_64.so $(PREFIX)
 
-SunOS-sunw-x86_64:
+SunOS-sunw-i386:
+	$(SUNOS_SUNW_x86_COMPILE_32)
 	$(SUNOS_SUNW_x86_COMPILE_64)
 
-SunOS-sunw-x86_64-install: SunOS-sunw-x86_64
+SunOS-sunw-i386-install: SunOS-sunw-i386
+	cp libhoard_32.so $(PREFIX)
 	cp libhoard_64.so $(PREFIX)
 
 #
