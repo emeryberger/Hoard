@@ -275,6 +275,12 @@ extern "C" int thr_create (void * stack_base,
   static thr_create_function real_thr_create =
     (thr_create_function) dlsym (RTLD_NEXT, fname);
 
+  if (real_thr_create == nullptr) {
+    // Error. Must fail.
+    cerr << "Failure at startup: " << dlerror() << endl;
+    abort();
+  }
+
   anyThreadCreated = true;
 
   typedef pair<threadFunctionType, void *> argsType;
