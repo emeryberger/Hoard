@@ -39,7 +39,7 @@ help:
 	@echo generic-gcc
 	@echo windows
 
-.PHONY: Darwin-gcc-i386 debian freebsd Linux-gcc-x86 Linux-gcc-x86-debug SunOS-sunw-sparc SunOS-sunw-i386 SunOS-gcc-sparc generic-gcc Linux-gcc-arm Linux-gcc-x86_64 windows windows-debug clean test
+.PHONY: Darwin-gcc-i386 debian freebsd Linux-gcc-x86 Linux-gcc-x86-debug SunOS-sunw-sparc SunOS-sunw-i386 SunOS-gcc-sparc generic-gcc Linux-gcc-arm Linux-gcc-x86_64 Linux-gcc-unknown windows windows-debug clean test
 
 #
 # Source files
@@ -82,6 +82,9 @@ LINUX_GCC_ARM_COMPILE = arm-Linux-gnueabihf-g++ -std=c++11 $(CPPFLAGS) -g -W -Wc
 LINUX_GCC_x86_COMPILE = g++ -std=c++11 -m32 $(CPPFLAGS) -I/usr/include/nptl -ffast-math -g -fno-builtin-malloc -malign-double -pipe -finline-limit=20000 -finline-functions  -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared  $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
 LINUX_GCC_x86_64_COMPILE = $(CXX) -std=c++11 $(CPPFLAGS) -g -W -Wconversion -Wall -I/usr/include/nptl -fno-builtin-malloc -pipe -fPIC -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared   $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
+
+LINUX_GCC_UNKNOWN_COMPILE = $(CXX) -std=c++11 $(CPPFLAGS) -g -W -Wconversion -Wall -I/usr/include/nptl -fno-builtin-malloc -pipe -fPIC -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared   $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
+
 
 # LINUX_GCC_x86_64_COMPILE = $(CXX) -std=c++11 $(CPPFLAGS) -g -W -Wconversion -Wall -I/usr/include/nptl -fno-builtin-malloc -pipe -fPIC -finline-limit=20000 -finline-functions -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared   $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
@@ -159,6 +162,12 @@ Linux-gcc-x86_64:
 	$(LINUX_GCC_x86_64_COMPILE)
 
 Linux-gcc-x86_64-install: Linux-gcc-x86_64
+	cp libhoard.so $(PREFIX)
+
+Linux-gcc-unknown:
+	$(LINUX_GCC_UNKNOWN_COMPILE)
+
+Linux-gcc-unknown-install: Linux-gcc-unknown
 	cp libhoard.so $(PREFIX)
 
 SunOS-sunw-sparc:
