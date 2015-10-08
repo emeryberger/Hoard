@@ -1,21 +1,12 @@
 machine:
-  environment:
-    CC: clang
-    CXX: clang++
-
-dependencies:
   pre:
-    - sudo add-apt-repository -y 'deb http://llvm.org/apt/precise/ llvm-toolchain-precise-3.4 main'
-    - sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
-    - wget -q -O - http://llvm.org/apt/llvm-snapshot.gpg.key | sudo apt-key add -
-    - sudo apt-get update
-  override:
-    - sudo apt-get install libyaml-dev check clang-3.4 gcc-4.8
-  post:
-    - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 99
-    - sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-3.4 99
-    - gcc --version
-    - clang --version
+    - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.6 10
+    - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.6 10
+    - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.9 20
+    - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.9 20
+  environment:
+    CC: gcc
+    CXX: g++
 
 general:
   build_dir: src
