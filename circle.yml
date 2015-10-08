@@ -14,5 +14,4 @@ checkout:
 
 test:
   override:
-    - cd benchmarks && make && ./larson/larson 10 7 8 10000 1000 1 4 4
-    - cd ../src && make && cd test && make && cd .. && export LD_PRELOAD=$PWD/libhoard.so && ../benchmarks/larson/larson 10 7 8 10000 1000 1 4 4 && ./test/mtest && unset LD_PRELOAD ; fi
+    - ./test.sh
