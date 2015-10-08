@@ -25,12 +25,8 @@ checkout:
     - git submodule sync
     - git submodule update --init --recursive
 
-
-checkout:
-  post:
-    - git submodule sync
-    - git submodule update --init --recursive
-
 test:
+  pre:
+   - make
   override:
     - ./test.sh
