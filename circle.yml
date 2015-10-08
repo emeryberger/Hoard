@@ -7,7 +7,7 @@ dependencies:
   pre:
     - sudo apt-get -qq update
   override:
-    - sudo apt-get -qq install libyaml-dev check clang gcc-4.8 g++-4.8
+    - sudo apt-get -qq install libyaml-dev check clang-3.4 gcc-4.8 g++-4.8
   post:
     - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 99
     - sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-3.4 99
