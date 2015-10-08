@@ -1,6 +1,7 @@
 machine:
   environment:
     CC: clang
+    CXX: clang++
 
 dependencies:
   pre:
