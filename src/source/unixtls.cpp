@@ -309,6 +309,12 @@ extern "C" void thr_exit (void * value_ptr) {
   static thr_exit_function real_thr_exit =
     reinterpret_cast<thr_exit_function>(dlsym (RTLD_NEXT, fname));
 
+  if (real_thr_exit == nullptr) {
+    // Error. Must fail.
+    cerr << "Unable to find " << fname << " : " << dlerror() << endl;
+    abort();
+  }
+
   // Do necessary clean-up of the TLAB and get out.
 
   exitRoutine();
