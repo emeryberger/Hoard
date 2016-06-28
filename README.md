@@ -162,7 +162,7 @@ Building Hoard (Windows)
 
 Change into the `src` directory and build the Windows version:
 
-	C:\hoard\src> nmake windows
+	C:\hoard\src> nmake
 
 To use Hoard, link your executable with `source\uselibhoard.cpp` and `libhoard.lib`.
 You *must* use the `/MD` flag.
