@@ -10,15 +10,15 @@ PREFIX ?= /usr/lib
 # Compute platform (OS and architecture) and build accordingly.
 
 ifeq ($(OS),Windows_NT)
-all: windows
+all: Heap-Layers windows
 else
     UNAME_S := $(shell uname -s)
     UNAME_P := $(shell uname -p)
     ifeq ($(UNAME_S),SunOS)
-      all: $(UNAME_S)-sunw-$(UNAME_P)
+      all: Heap-Layers $(UNAME_S)-sunw-$(UNAME_P)
       install: $(UNAME_S)-sunw-$(UNAME_P)-install
     else
-      all: $(UNAME_S)-gcc-$(UNAME_P)
+      all: Heap-Layers $(UNAME_S)-gcc-$(UNAME_P)
       install: $(UNAME_S)-gcc-$(UNAME_P)-install
     endif
 endif
@@ -55,7 +55,10 @@ MACOS_SRC = $(MAIN_SRC) Heap-Layers/wrappers/macwrapper.cpp source/mactls.cpp
 # All dependencies.
 #
 
-DEPS = $(MACOS_SRC) $(UNIX_SRC) source/libhoard.cpp
+DEPS = Heap-Layers $(MACOS_SRC) $(UNIX_SRC) source/libhoard.cpp
+
+Heap-Layers:
+	git clone https://github.com/emeryberger/Heap-Layers
 
 #
 # Include directories
@@ -75,7 +78,7 @@ DEBIAN_COMPILE = g++-4.8 -std=c++11 -g -O3 -fPIC -DNDEBUG -I. -Iinclude -Iinclud
 
 MACOS_COMPILE = clang++ -std=c++11 -fno-builtin-malloc -ftemplate-depth=1024 -arch i386 -arch x86_64 -pipe -g $(CPPFLAGS) -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -dynamiclib -D'CUSTOM_PREFIX(x)=xx\#\#x' $(MACOS_SRC) -o libhoard.dylib -ldl -lpthread 
 
-MACOS_COMPILE_DEBUG = clang++ -std=c++11 -fno-builtin-malloc -ftemplate-depth=1024 -arch i386 -arch x86_64 -pipe -g -O0 -Wall $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -dynamiclib $(MACOS_SRC) -o libhoard.dylib -ldl -lpthread
+MACOS_COMPILE_DEBUG = clang++ -D_FORTIFY_SOURCE=2 -fstack-protector -ftrapv -std=c++11 -fno-builtin-malloc -ftemplate-depth=1024 -arch i386 -arch x86_64 -pipe -g -O0 -Wall $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -dynamiclib $(MACOS_SRC) -o libhoard.dylib -ldl -lpthread
 
 LINUX_GCC_ARM_COMPILE = arm-Linux-gnueabihf-g++ -std=c++11 $(CPPFLAGS) -g -W -Wconversion -Wall -I/usr/include/nptl -fno-builtin-malloc -pipe -fPIC -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared   $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
@@ -136,6 +139,7 @@ windows-debug: $(DEPS)
 
 Darwin-gcc-i386:
 	$(MACOS_COMPILE)
+	@echo "To use Hoard, execute this command: export DYLD_INSERT_LIBRARIES=libhoard.dylib"
 
 Darwin-gcc-i386-install: Darwin-gcc-i386
 	cp libhoard.dylib $(PREFIX)
