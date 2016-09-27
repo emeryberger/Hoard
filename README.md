@@ -135,7 +135,7 @@ type `make`, it will present a list of available targets. These
 include `linux-gcc-x86`, `solaris-sunw-sparc`, `macos`, `windows`, and
 more.
 
-	% make linux-gcc-x86-64
+	% make linux-gcc-x86_64
 
 You can then use Hoard by linking it with your executable, or
 by setting the `LD_PRELOAD` environment variable, as in
