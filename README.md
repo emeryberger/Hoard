@@ -131,7 +131,7 @@ Building Hoard (Unix/Mac)
 
 To build Hoard on non-Windows platforms, change into the `src/`
 directory and run `make` followed by the appropriate target. If you
-type `make`, it will present a list of available targets. These
+type `make help`, it will present a list of available targets. These
 include `linux-gcc-x86`, `solaris-sunw-sparc`, `macos`, `windows`, and
 more.
 
