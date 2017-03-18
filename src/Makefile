@@ -14,7 +14,7 @@ all:
 	@echo "*****"
 	@echo "This Makefile is for Windows only. For other systems, use gmake."
 	@echo "*****"
-	git submodule update --init --checkout --recursive
+	git clone https://github.com/emeryberger/Heap-Layers
 	cl $(WIN_INCLUDES) $(WIN_DEFINES) $(WIN_FLAGS) "source\libhoard.cpp" "Heap-Layers\wrappers\winwrapper.cpp" "source\wintls.cpp" /GL /link /DLL /subsystem:console /OUT:libhoard.dll
 	cl $(WIN_INCLUDES) $(WIN_DEFINES) $(WIN_FLAGS) /c "source\uselibhoard.cpp"
 
