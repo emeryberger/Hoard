@@ -42,8 +42,10 @@ namespace Hoard {
   class AddHeaderHeap {
   private:
 
-    HL::sassert<(((int) SuperHeap::Alignment) % SuperblockSize == 0)> verifySize1;
-    HL::sassert<(((int) SuperHeap::Alignment) >= SuperblockSize)> verifySize2;
+    static_assert(((int) SuperHeap::Alignment) % SuperblockSize == 0,
+		  "Superblock size must divide evenly into Alignment.");
+    static_assert(((int) SuperHeap::Alignment) >= SuperblockSize,
+		  "Alignment must be at least as large as the Superblock size.");
 
     SuperHeap theHeap;
 

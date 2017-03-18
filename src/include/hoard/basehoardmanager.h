@@ -35,7 +35,6 @@
  */
 
 #include "heaplayers.h"
-//#include "sassert.h"
 
 namespace Hoard {
 
@@ -45,7 +44,10 @@ namespace Hoard {
 
     BaseHoardManager (void)
       : _magic (0xedded00d)
-    {}
+    {
+      static_assert((SuperblockSize & (SuperblockSize - 1)) == 0,
+		    "Size of superblock must be a power of two.");
+    }
 
     inline int isValid (void) const {
       return (_magic == 0xedded00d);
@@ -80,8 +82,6 @@ namespace Hoard {
   private:
 
     enum { SuperblockSize = sizeof(SuperblockType) };
-
-    HL::sassert<((SuperblockSize & (SuperblockSize - 1)) == 0)> EnsureSuperblockSizeIsPowerOfTwo;
 
     const unsigned long _magic;
 

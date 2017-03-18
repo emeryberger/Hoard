@@ -48,13 +48,15 @@ namespace Hoard {
     enum { NumThreadsMask = NumThreads - 1};
     enum { NumHeapsMask = NumHeaps - 1};
     
-    HL::sassert<((NumHeaps & NumHeapsMask) == 0)> verifyPowerOfTwoHeaps;
-    HL::sassert<((NumThreads & NumThreadsMask) == 0)> verifyPowerOfTwoThreads;
-    
     enum { MaxHeaps = NumHeaps };
     
     ThreadPoolHeap()
     {
+      static_assert((NumHeaps & NumHeapsMask) == 0,
+		    "Number of heaps must be a power of two.");
+      static_assert((NumThreads & NumThreadsMask) == 0,
+		    "Number of threads must be a power of two.");
+    
       // Note: The tidmap values should be set externally.
       int j = 0;
       for (int i = 0; i < NumThreads; i++) {

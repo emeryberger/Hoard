@@ -33,13 +33,15 @@
 // free). Meant to be combined with something like RedirectFree, which will
 // implement free.
 
+#include <mutex>
+
 namespace Hoard {
 
   template <typename Heap>
     class LockMallocHeap : public Heap {
   public:
     MALLOC_FUNCTION INLINE void * malloc (size_t sz) {
-      HL::Guard<Heap> l (*this);
+      std::lock_guard<Heap> l (*this);
       return Heap::malloc (sz);
     }
   };

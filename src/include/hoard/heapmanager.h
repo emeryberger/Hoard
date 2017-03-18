@@ -29,6 +29,7 @@
 #define HOARD_HEAPMANAGER_H
 
 #include <cstdlib>
+#include <mutex>
 
 #include "hoardconstants.h"
 #include "heaplayers.h"
@@ -44,7 +45,7 @@ namespace Hoard {
 
     HeapManager()
     {
-      HL::Guard<LockType> g (heapLock);
+      std::lock_guard<LockType> g (heapLock);
       
       /// Initialize all heap maps (nothing yet assigned).
       for (auto i = 0; i < HeapType::MaxThreads; i++) {
@@ -57,13 +58,13 @@ namespace Hoard {
 
     /// Set this thread's heap id to 0.
     void chooseZero() {
-      HL::Guard<LockType> g (heapLock);
+      std::lock_guard<LockType> g (heapLock);
       HeapType::setTidMap (HL::CPUInfo::getThreadId() % Hoard::MaxThreads, 0);
     }
 
     int findUnusedHeap() {
 
-      HL::Guard<LockType> g (heapLock);
+      std::lock_guard<LockType> g (heapLock);
       
       auto tid_original = HL::CPUInfo::getThreadId();
       auto tid = tid_original % HeapType::MaxThreads;
@@ -90,7 +91,7 @@ namespace Hoard {
     void releaseHeap() {
       // Decrement the ref-count on the current heap.
       
-      HL::Guard<LockType> g (heapLock);
+      std::lock_guard<LockType> g (heapLock);
       
       // Statically ensure that the number of threads is a power of two.
       enum { VerifyPowerOfTwo = 1 / ((HeapType::MaxThreads & ~(HeapType::MaxThreads-1))) };

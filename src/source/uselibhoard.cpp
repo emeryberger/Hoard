@@ -29,7 +29,7 @@
 #if defined(_WIN32)
 
 #include <windows.h>
-#include <iostream>
+//#include <iostream>
 
 #if defined(_WIN64)
 #pragma comment(linker, "/include:ReferenceHoard")
@@ -43,11 +43,13 @@ extern "C" {
   
   void ReferenceHoard()
   {
-    HMODULE lib = LoadLibraryA ("libhoard.dll");
+    LoadLibraryA ("libhoard.dll");
+#if 0
     if (lib == NULL) {
       std::cerr << "Startup error code = " << GetLastError() << std::endl;
       abort();
     }
+#endif
     ReferenceWinWrapperStub = 1; 
   }
 

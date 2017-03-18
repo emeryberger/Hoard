@@ -65,10 +65,10 @@ namespace Hoard {
       : _parentHeap (parent),
       	_localHeapBytes (0)
     {
-      sassert<gcd<Alignment, DesiredAlignment>::value == DesiredAlignment> verifyAlignment;
-      sassert<(Alignment >= 2 * sizeof(size_t))> verifyCanHoldTwoPointers;
-      verifyAlignment = verifyAlignment;
-      verifyCanHoldTwoPointers = verifyCanHoldTwoPointers;
+      static_assert(gcd<Alignment, DesiredAlignment>::value == DesiredAlignment,
+		    "Alignment mismatch.");
+      static_assert((Alignment >= 2 * sizeof(size_t)),
+		    "Alignment must be enough to hold two pointers.");
     }
 
     ~ThreadLocalAllocationBuffer() {

@@ -111,15 +111,20 @@ extern "C" {
 			 DWORD fdwReason,
 			 LPVOID lpreserved)
   {
+    printf("IN\n");
     static int np = HL::CPUInfo::computeNumProcessors();
+    printf("IN 1\n");
 
     switch (fdwReason) {
       
     case DLL_PROCESS_ATTACH:
       {
+    printf("IN P1\n");
 	//	fprintf (stderr, "Using the Hoard scalable memory manager (http://www.hoard.org).\n");
 	InitializeWinWrapper();
+    printf("IN P2\n");
 	getCustomHeap();
+    printf("IN P3\n");
       }
       break;
       

@@ -30,6 +30,7 @@
 
 #include <cstdlib>
 #include <new>
+#include <mutex>
 
 // Hoard-specific Heap Layers
 #include "statistics.h"
@@ -97,7 +98,7 @@ namespace Hoard {
 
     /// Put a superblock on this heap.
     NO_INLINE void put (SuperblockType * s, size_t sz) {
-      HL::Guard<LockType> l (_theLock);
+      std::lock_guard<LockType> l (_theLock);
 
       assert (s->getOwner() != this);
       Check<HoardManager, sanityCheck> check (this);
@@ -121,7 +122,7 @@ namespace Hoard {
 
     /// Get an empty (or nearly-empty) superblock.
     NO_INLINE SuperblockType * get (size_t sz, HeapType * dest) {
-      HL::Guard<LockType> l (_theLock);
+      std::lock_guard<LockType> l (_theLock);
       Check<HoardManager, sanityCheck> check (this);
       const auto binIndex = binType::getSizeClass (sz);
       auto * s = _otherBins(binIndex).get();
@@ -188,7 +189,8 @@ namespace Hoard {
     enum { SuperblockSize = sizeof(SuperblockType_) };
 
     /// Ensure that the superblock size is a power of two.
-    HL::sassert<((SuperblockSize & (SuperblockSize-1)) == 0)> verifyPowerOfTwo;
+    static_assert((SuperblockSize & (SuperblockSize-1)) == 0,
+		  "Superblock size must be a power of two.");
 
     enum { MAGIC_NUMBER = 0xfeeddadd };
 
@@ -199,8 +201,8 @@ namespace Hoard {
       return (_magic == MAGIC_NUMBER);
     }
 
-    sassert<sizeof(typename SuperblockType::Header) % sizeof(double) == 0>
-    verifyHeaderRightSize;
+    static_assert(sizeof(typename SuperblockType::Header) % sizeof(double) == 0,
+		  "Header size must be a multiple of the size of a double.");
 
 
     /// The type of the bin manager.

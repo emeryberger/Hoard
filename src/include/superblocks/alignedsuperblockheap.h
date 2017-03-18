@@ -43,6 +43,17 @@ namespace Hoard {
 
     enum { Alignment = MmapSource::Alignment };
 
+    SuperblockStore() {
+#if defined(__SVR4)
+      // We only get 64K chunks from mmap on Solaris, so we need to grab
+      // more chunks (and align them to 64K!) for smaller superblock sizes.
+      // Right now, we do not handle this case and just assert here that
+      // we are getting chunks of 64K.
+      static_assert(SuperblockSize == 65536,
+		    "This is needed to prevent mmap fragmentation.");
+#endif
+    }
+    
     void * malloc (size_t) {
       if (_freeSuperblocks.isEmpty()) {
 	// Get more memory.
@@ -67,13 +78,6 @@ namespace Hoard {
 
 #if defined(__SVR4)
     enum { ChunksToGrab = 1 };
-
-    // We only get 64K chunks from mmap on Solaris, so we need to grab
-    // more chunks (and align them to 64K!) for smaller superblock sizes.
-    // Right now, we do not handle this case and just assert here that
-    // we are getting chunks of 64K.
-
-    HL::sassert<(SuperblockSize == 65536)> PreventMmapFragmentation;
 #else
     enum { ChunksToGrab = 1 };
 #endif
@@ -111,8 +115,11 @@ namespace Hoard {
 	    class MmapSource>
   class AlignedSuperblockHeap :
     public AlignedSuperblockHeapHelper<TheLockType, SuperblockSize, MmapSource> {
-
-    HL::sassert<(AlignedSuperblockHeapHelper<TheLockType, SuperblockSize, MmapSource>::Alignment % SuperblockSize == 0)> EnsureProperAlignment;
+  public:
+    AlignedSuperblockHeap() {
+      static_assert(AlignedSuperblockHeapHelper<TheLockType, SuperblockSize, MmapSource>::Alignment % SuperblockSize == 0,
+		    "Ensure proper alignment.");
+    }
 
   };
 #endif

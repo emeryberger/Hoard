@@ -209,8 +209,8 @@ namespace Hoard {
     HoardHeap() {
       enum { BIG_HEADERS = sizeof(Hoard::BigSuperblockType::Header),
 	     SMALL_HEADERS = sizeof(Hoard::SmallSuperblockType::Header)};
-      HL::sassert<(BIG_HEADERS == SMALL_HEADERS)> ensureSameSizeHeaders;
-      ensureSameSizeHeaders = ensureSameSizeHeaders;
+      static_assert(BIG_HEADERS == SMALL_HEADERS,
+		    "Headers must be the same size.");
     }
   };
 

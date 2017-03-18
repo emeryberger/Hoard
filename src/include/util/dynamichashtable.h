@@ -10,6 +10,7 @@
 #ifndef DYNAMICHASHTABLE_H
 #define DYNAMICHASHTABLE_H
 
+#include <mutex>
 #include <new>
 #include <stdint.h>
 

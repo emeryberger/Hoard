@@ -278,11 +278,12 @@ namespace Hoard {
   class HoardSuperblockHeader : public HoardSuperblockHeaderHelper<LockType, SuperblockSize, HeapType> {
   public:
 
+    
     HoardSuperblockHeader (size_t sz, size_t bufferSize)
       : HoardSuperblockHeaderHelper<LockType,SuperblockSize,HeapType> (sz, bufferSize, (char *) (this + 1))
     {
-      sassert<((sizeof(HoardSuperblockHeader) % Parent::Alignment) == 0)> verifySize;
-      verifySize = verifySize;
+      //      static_assert(sizeof(HoardSuperblockHeader) % Parent::Alignment,
+      //		    "Superblock header size must be a multiple of the parent's alignment.");
     }
 
   private:
