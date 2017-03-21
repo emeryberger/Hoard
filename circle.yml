@@ -1,4 +1,5 @@
 general:
+  build_dir: src
   branches:
     ignore:
       - gh-pages
