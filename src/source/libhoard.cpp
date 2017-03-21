@@ -30,10 +30,12 @@
  * @author Emery Berger <http://www.cs.umass.edu/~emery>
  */
 
+#include <stddef.h>
+#include <stdalign.h>
+#include <new>
+
 #include "heaplayers.h"
 using namespace HL;
-
-#include <new>
 
 // The undef below ensures that any pthread_* calls get strong
 // linkage.  Otherwise, our versions here won't replace them.  It is
@@ -113,14 +115,22 @@ enum { MAX_LOCAL_BUFFER_SIZE = 256 * 131072 };
 static char initBuffer[MAX_LOCAL_BUFFER_SIZE];
 static char * initBufferPtr = initBuffer;
 
-extern bool isCustomHeapInitialized();
+extern bool isCustomHeapInitialized() __attribute__((always_inline));
 
 extern "C" {
 
   void * xxmalloc (size_t sz) {
     if (isCustomHeapInitialized()) {
-      void * ptr = getCustomHeap()->malloc (sz);
-      return ptr;
+      if (sz <= INT_MAX) {
+	if (sz < alignof(max_align_t)) {
+	  sz = alignof(max_align_t);
+	}
+	sz = (sz + alignof(max_align_t) - 1UL) &
+	  ~(alignof(max_align_t) - 1UL);
+	void * ptr = getCustomHeap()->malloc (sz);
+	return ptr;
+      }
+      return nullptr;
     }
     // We still haven't initialized the heap. Satisfy this memory
     // request from the local buffer.
@@ -133,7 +143,9 @@ extern "C" {
   }
 
   void xxfree (void * ptr) {
-    getCustomHeap()->free (ptr);
+    if (ptr) { // Needed because we aren't using ANSIWrapper...
+      getCustomHeap()->free (ptr);
+    }
   }
 
   size_t xxmalloc_usable_size (void * ptr) {
