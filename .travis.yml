@@ -1,33 +1,15 @@
 dist: trusty
 sudo: required
 
-language: generic
-os: osx
-matrix:
-  include:
-    - os: linux
-      env: COMPILER_NAME=gcc CXX=g++-5 CC=gcc-5
-      addons:
-        apt:
-          packages:
-            - g++-5
-          sources: &sources
-            - llvm-toolchain-precise-3.8
-            - ubuntu-toolchain-r-test
-    - os: linux
-      env: COMPILER_NAME=clang CXX=clang++-3.8 CC=clang-3.8
-      addons:
-        apt:
-          packages:
-            - clang-3.8
-          sources: *sources
+general:
+  build_dir: src
+  branches:
+    ignore:
+      - gh-pages
 
-install:
-  - if [ "$CXX" = "g++" ]; then export CXX="g++-4.8" CC="gcc-4.8"; fi
-      
-script:
-  - cd src && make
-  - cd benchmarks && make
-  - if [ $TRAVIS_OS_NAME == linux ]; then cd ../src && make && cd test && make && cd .. && export LD_PRELOAD=$PWD/libhoard.so && ../benchmarks/larson/larson 10 7 8 10000 1000 1 4 4 && ./test/mtest && unset LD_PRELOAD ; fi
-  - if [ $TRAVIS_OS_NAME == osx ]; then cd ../src && make ; fi
+test:
+  pre:
+   - make
+  override:
+    - ./test.sh
 
