@@ -80,9 +80,11 @@ namespace Hoard {
     }
 
     inline void * malloc (size_t sz) {
+#if 0
       if (sz < Alignment) {
       	sz = Alignment;
       }
+#endif
       // Get memory from the local heap,
       // and deduct that amount from the local heap bytes counter.
       if (sz <= LargestObject) {
@@ -106,9 +108,6 @@ namespace Hoard {
 
 
     inline void free (void * ptr) {
-      if (!ptr) {
-	return;
-      }
       auto * s = getSuperblock (ptr);
       // If this isn't a valid superblock, just return.
 
