@@ -118,23 +118,22 @@ extern bool isCustomHeapInitialized();
 extern "C" {
 
   void * xxmalloc (size_t sz) {
-    if (!isCustomHeapInitialized()) {
-      // We still haven't initialized the heap. Satisfy this memory
-      // request from the local buffer.
-      void * ptr = initBufferPtr;
-      initBufferPtr += sz;
-      if (initBufferPtr > initBuffer + MAX_LOCAL_BUFFER_SIZE) {
-	abort();
-      }
+    if (isCustomHeapInitialized()) {
+      void * ptr = getCustomHeap()->malloc (sz);
       return ptr;
     }
-    void * ptr = getCustomHeap()->malloc (sz);
+    // We still haven't initialized the heap. Satisfy this memory
+    // request from the local buffer.
+    void * ptr = initBufferPtr;
+    initBufferPtr += sz;
+    if (initBufferPtr > initBuffer + MAX_LOCAL_BUFFER_SIZE) {
+      abort();
+    }
     return ptr;
   }
 
   void xxfree (void * ptr) {
-    if (ptr != NULL)
-      getCustomHeap()->free (ptr);
+    getCustomHeap()->free (ptr);
   }
 
   size_t xxmalloc_usable_size (void * ptr) {
