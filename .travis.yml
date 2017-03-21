@@ -1,5 +1,19 @@
 dist: trusty
-sudo: required
+sudo: false
+language: cpp
+compiler:
+  - gcc
+  - clang
+install:
+- if [ "$CXX" = "g++" ]; then export CXX="g++-4.8" CC="gcc-4.8"; fi
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    packages:
+    - gcc-4.8
+    - g++-4.8
+    - clang
 
 general:
   build_dir: src
@@ -17,6 +31,6 @@ machine:
 
 script:
   - cd src && make
-  - cd benchmarks && make
+  - cd ../benchmarks && make
   - if [ $TRAVIS_OS_NAME == linux ]; then cd ../src && make && cd test && make && cd .. && export LD_PRELOAD=$PWD/libhoard.so && ../benchmarks/larson/larson 10 7 8 10000 1000 1 4 4 && ./test/mtest && unset LD_PRELOAD ; fi
   - if [ $TRAVIS_OS_NAME == osx ]; then cd ../src && make ; fi
