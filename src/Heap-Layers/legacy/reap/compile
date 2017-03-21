@@ -1,0 +1,22 @@
+#! /bin/sh
+
+case "$OSTYPE" in
+darwin8.0)
+echo "Compiling for Darwin"
+  g++ -pipe -O3 -finline-limit=65000 -fkeep-inline-functions -finline-functions -ffast-math -fomit-frame-pointer -DNDEBUG  -I. -I../../heaplayers -I../../heaplayers/util -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -dynamiclib libreap.cpp -o libreap.dylib;;
+[Ll]inux*)
+  echo "Compiling for Linux"
+  g++ -pipe -O3 -finline-limit=5000 -DNDEBUG -I. -I../../heaplayers -D_REENTRANT=1 -fPIC -c libreap.cpp
+  g++ -pipe -O3 -finline-limit=5000 -DNDEBUG -I. -I../../heaplayers -D_REENTRANT=1 -shared libreap.o -o libreap.so;;
+solaris)
+  echo "Compiling for Solaris"
+  #CC -xildoff -native -noex -xipo=2 -xO5 -mt -DNDEBUG -I. -I.. -D_REENTRANT=1 -G -PIC libreap.cpp -o libreap.so;;
+#  g++ -pipe -DNDEBUG -I. -I.. -D_REENTRANT=1 -fPIC -shared libreap.cpp -o libreap.so;;
+   g++ -fPIC -pipe -mcpu=ultrasparc -O3 -finline-limit=5000 -fkeep-inline-functions -finline-functions -ffast-math -fomit-frame-pointer -DNDEBUG  -I. -I../../heaplayers -I../../heaplayers/util -D_REENTRANT=1 -shared libreap.cpp -o libreap.so;;
+#  g++ -pipe -mcpu=ultrasparc -O3 -finline-limit=65000 -fkeep-inline-functions -finline-functions -ffast-math -fomit-frame-pointer -DNDEBUG  -I. -I.. -D_REENTRANT=1 -shared libreap.cpp -o libreap.so;;
+*)
+  echo "hmmm"
+esac
+
+
+

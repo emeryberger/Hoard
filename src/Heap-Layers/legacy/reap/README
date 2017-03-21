@@ -1,0 +1,14 @@
+This directory contains the implementation of the Reap memory
+manager. Reap is a hybrid region-heap allocator. You can use Reap to
+create multiple memory allocation regions ("reaps"), that each have
+malloc-free functionality. These may be nested and deleted en
+masse. See doc/berger-oopsla2002.pdf for more information.
+
+The Reap API is in reap.h. libreap.cpp produces a shared object that
+replaces malloc/free and provides reap functionality. If you just want
+reap functionality, you can compile regionheap.cpp instead (which
+differs from libreap.cpp by exactly one line).
+
+The files regionsimulator.{h,cpp} are wrappers that provide reap and
+obstack functionality on top of malloc/free, and were used for
+experimental purposes in the paper mentioned above.
