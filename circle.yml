@@ -7,8 +7,6 @@ general:
     ignore:
       - gh-pages
 
-install: make
-
 test:
   pre:
    - make
