@@ -42,8 +42,6 @@
 #include "hoardconstants.h"
 
 #include "heaplayers.h"
-// #include "ansiwrapper.h"
-// #include "cpuinfo.h"
 
 namespace Hoard {
   
