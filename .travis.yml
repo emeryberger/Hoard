@@ -6,15 +6,15 @@ compiler:
   - gcc
   - clang
 install:
-- if [ "$CXX" = "g++" ]; then export CXX="g++-4.8" CC="gcc-4.8"; fi
+- if [ "$CXX" = "g++" ]; then export CXX="g++-5.4" CC="gcc-5.4"; fi
 addons:
   apt:
     sources:
     - ubuntu-toolchain-r-test
     packages:
-    - gcc-4.8
-    - g++-4.8
-    - clang
+    - gcc-5.4
+    - g++-5.4
+    - clang-3.9
 
 general:
   build_dir: src
