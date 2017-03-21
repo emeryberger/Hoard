@@ -1,33 +1,10 @@
-language: generic
-os: osx
-matrix:
-  include:
-    - os: linux
-      env: COMPILER_NAME=gcc CXX=g++-5 CC=gcc-5
-      addons:
-        apt:
-          packages:
-            - g++-5
-          sources: &sources
-            - llvm-toolchain-precise-3.8
-            - ubuntu-toolchain-r-test
-    - os: linux
-      env: COMPILER_NAME=clang CXX=clang++-3.8 CC=clang-3.8
-      addons:
-        apt:
-          packages:
-            - clang-3.8
-          sources: *sources
-
 machine:
   pre:
-#    - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.6 10
-#    - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.6 10
-#    - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.9 20
-#    - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.9 20
+    - sudo apt-get -qq install clang-3.9
+    - sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-3.9 60
   environment:
-#    CC: gcc
-#    CXX: g++
+    CC: clang
+    CXX: clang++
 
 general:
   build_dir: src
