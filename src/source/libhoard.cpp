@@ -121,16 +121,8 @@ extern "C" {
 
   void * xxmalloc (size_t sz) {
     if (isCustomHeapInitialized()) {
-      if (sz <= INT_MAX) {
-	if (sz < alignof(max_align_t)) {
-	  sz = alignof(max_align_t);
-	}
-	sz = (sz + alignof(max_align_t) - 1UL) &
-	  ~(alignof(max_align_t) - 1UL);
-	void * ptr = getCustomHeap()->malloc (sz);
-	return ptr;
-      }
-      return nullptr;
+      void * ptr = getCustomHeap()->malloc (sz);
+      return ptr;
     }
     // We still haven't initialized the heap. Satisfy this memory
     // request from the local buffer.
@@ -143,9 +135,7 @@ extern "C" {
   }
 
   void xxfree (void * ptr) {
-    if (ptr) { // Needed because we aren't using ANSIWrapper...
-      getCustomHeap()->free (ptr);
-    }
+    getCustomHeap()->free (ptr);
   }
 
   size_t xxmalloc_usable_size (void * ptr) {

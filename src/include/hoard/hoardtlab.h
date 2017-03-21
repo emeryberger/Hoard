@@ -89,6 +89,6 @@ namespace Hoard {
   
 }
 
-typedef Hoard::TLABBase TheCustomHeapType;
+typedef HL::ANSIWrapper<Hoard::TLABBase> TheCustomHeapType;
 
 #endif
