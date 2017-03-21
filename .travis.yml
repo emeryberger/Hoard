@@ -1,55 +1,29 @@
 dist: trusty
 sudo: required
 
-language: cpp
-
-compiler:
-  - clang
-  - gcc
-
-os:
-  - linux
-  - osx
+language: generic
+os: osx
+matrix:
+  include:
+    - os: linux
+      env: COMPILER_NAME=gcc CXX=g++-5 CC=gcc-5
+      addons:
+        apt:
+          packages:
+            - g++-5
+          sources: &sources
+            - llvm-toolchain-precise-3.8
+            - ubuntu-toolchain-r-test
+    - os: linux
+      env: COMPILER_NAME=clang CXX=clang++-3.8 CC=clang-3.8
+      addons:
+        apt:
+          packages:
+            - clang-3.8
+          sources: *sources
 
 install:
   - if [ "$CXX" = "g++" ]; then export CXX="g++-4.8" CC="gcc-4.8"; fi
-
-matrix:
-  include:
-    - compiler: gcc
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - g++-4.9
-      env: COMPILER=g++-4.9
-    - compiler: gcc
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - g++-5
-      env: COMPILER=g++-5
-    - compiler: clang
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-            - llvm-toolchain-precise-3.6
-          packages:
-            - clang-3.6
-      env: COMPILER=clang++-3.6
-    - compiler: clang
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-            - llvm-toolchain-precise-3.7
-          packages:
-            - clang-3.7
-      env: COMPILER=clang++-3.7
       
 script:
   - cd src && make
