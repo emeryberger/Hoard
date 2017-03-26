@@ -4,8 +4,8 @@
 
   Heap Layers: An Extensible Memory Allocation Infrastructure
   
-  Copyright (C) 2000-2003 by Emery Berger
-  http://www.cs.umass.edu/~emery
+  Copyright (C) 2000-2017 by Emery Berger
+  http://www.emeryberger.com
   emery@cs.umass.edu
   
   This program is free software; you can redistribute it and/or modify
@@ -41,28 +41,28 @@ namespace HL {
 class DLList {
 public:
 
-  inline DLList (void) {
+  inline DLList() {
     clear();
   }
 
   class Entry;
   
   /// Clear the list.
-  inline void clear (void) {
+  inline void clear() {
     head.setPrev (&head);
     head.setNext (&head);
   }
 
   /// Is the list empty?
-  inline bool isEmpty (void) const {
+  inline bool isEmpty() const {
     return (head.getNext() == &head);
   }
 
   /// Get the head of the list.
-  inline Entry * get (void) {
+  inline Entry * get() {
     const Entry * e = head.next;
     if (e == &head) {
-      return NULL;
+      return nullptr;
     }
     head.next = e->next;
     head.next->prev = &head;
@@ -83,11 +83,11 @@ public:
   class Entry {
   public:
     //  private:
-    inline void setPrev (Entry * p) { assert (p != NULL); prev = p; }
-    inline void setNext (Entry * p) { assert (p != NULL); next = p; }
-    inline Entry * getPrev (void) const { return prev; }
-    inline Entry * getNext (void) const { return next; }
-    inline void remove (void) const {
+    inline void setPrev (Entry * p) { assert (p != nullptr); prev = p; }
+    inline void setNext (Entry * p) { assert (p != nullptr); next = p; }
+    inline Entry * getPrev() const { return prev; }
+    inline Entry * getNext() const { return next; }
+    inline void remove() const {
       prev->setNext(next);
       next->setPrev(prev);
     }

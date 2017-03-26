@@ -4,8 +4,8 @@
 
   Heap Layers: An Extensible Memory Allocation Infrastructure
   
-  Copyright (C) 2000-2003 by Emery Berger
-  http://www.cs.umass.edu/~emery
+  Copyright (C) 2000-2017 by Emery Berger
+  http://www.emeryberger.com
   emery@cs.umass.edu
   
   This program is free software; you can redistribute it and/or modify
@@ -40,27 +40,27 @@ namespace HL {
   class SLList {
   public:
     
-    inline SLList (void) {
+    inline SLList() {
       clear();
     }
 
     class Entry;
   
     /// Clear the list.
-    inline void clear (void) {
-      head.next = NULL;
+    inline void clear() {
+      head.next = nullptr;
     }
 
-  /// Is the list empty?
-  inline bool isEmpty (void) const {
-    return (head.next == NULL);
-  }
+    /// Is the list empty?
+    inline bool isEmpty() const {
+      return (head.next == nullptr);
+    }
 
     /// Get the head of the list.
-    inline Entry * get (void) {
+    inline Entry * get() {
       const Entry * e = head.next;
-      if (e == NULL) {
-	return NULL;
+      if (e == nullptr) {
+	return nullptr;
       }
       head.next = e->next;
       return (Entry *) e;
@@ -88,8 +88,8 @@ namespace HL {
     /// An entry in the list.
     class Entry {
     public:
-      inline Entry (void)
-	: next (NULL)
+      inline Entry()
+	: next (nullptr)
       {}
       //  private:
       //    Entry * prev;

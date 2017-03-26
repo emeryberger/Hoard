@@ -38,17 +38,17 @@
 
 extern "C" {
 
-  void * xxmalloc (size_t) __attribute__((always_inline));
-  void   xxfree (void *) __attribute__((always_inline));
+  void * xxmalloc (size_t);
+  void   xxfree (void *);
 
   // Takes a pointer and returns how much space it holds.
-  size_t xxmalloc_usable_size (void *) __attribute__((always_inline));
+  size_t xxmalloc_usable_size (void *);
 
   // Locks the heap(s), used prior to any invocation of fork().
-  void xxmalloc_lock (void);
+  void xxmalloc_lock();
 
   // Unlocks the heap(s), after fork().
-  void xxmalloc_unlock (void);
+  void xxmalloc_unlock();
 
 }
 
@@ -357,11 +357,11 @@ extern "C" int xxmalloc_TRIM(size_t /* pad */) {
   return 0; // no memory returned to OS.
 }
 
-extern "C" void xxmalloc_STATS(void) {
+extern "C" void xxmalloc_STATS() {
   // NOP.
 }
 
-extern "C" void * xxmalloc_GET_STATE(void) {
+extern "C" void * xxmalloc_GET_STATE() {
   return NULL; // always returns "error".
 }
 
@@ -370,7 +370,7 @@ extern "C" int xxmalloc_SET_STATE(void * /* ptr */) {
 }
 
 #if defined(__GNUC__) && !defined(__FreeBSD__)
-extern "C" struct mallinfo CUSTOM_MALLINFO(void) {
+extern "C" struct mallinfo CUSTOM_MALLINFO() {
   // For now, we return useless stats.
   struct mallinfo m;
   m.arena = 0;
