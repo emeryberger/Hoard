@@ -128,9 +128,9 @@ extern "C" {
 
 #include <stdio.h>
 
-extern "C" void MYCDECL CUSTOM_FREE(void *)     __attribute__((always_inline));
-extern "C" void * MYCDECL CUSTOM_MALLOC(size_t) __attribute__((always_inline));
-extern "C" void * MYCDECL CUSTOM_CALLOC(size_t nelem, size_t elsize) __attribute__((always_inline));
+extern "C" void MYCDECL CUSTOM_FREE(void *);
+extern "C" void * MYCDECL CUSTOM_MALLOC(size_t);
+extern "C" void * MYCDECL CUSTOM_CALLOC(size_t nelem, size_t elsize);
 
 extern "C" void MYCDECL CUSTOM_FREE (void * ptr)
 {

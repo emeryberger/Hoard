@@ -109,13 +109,13 @@ HoardHeapType * getMainHoardHeap() {
   return th;
 }
 
-TheCustomHeapType * getCustomHeap()  __attribute__((always_inline));
+TheCustomHeapType * getCustomHeap();
 
 enum { MAX_LOCAL_BUFFER_SIZE = 256 * 131072 };
 static char initBuffer[MAX_LOCAL_BUFFER_SIZE];
 static char * initBufferPtr = initBuffer;
 
-extern bool isCustomHeapInitialized() __attribute__((always_inline));
+extern bool isCustomHeapInitialized();
 
 extern "C" {
 
