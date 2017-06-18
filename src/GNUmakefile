@@ -30,6 +30,7 @@ help:
 	@echo debian
 	@echo freebsd
 	@echo Linux-gcc-arm
+	@echo Linux-gcc-aarch64
 	@echo Linux-gcc-x86
 	@echo Linux-gcc-x86_64
 	@echo Darwin-gcc-i386
@@ -40,7 +41,7 @@ help:
 	@echo generic-gcc
 	@echo windows
 
-.PHONY: Darwin-gcc-i386 debian freebsd Linux-gcc-x86 Linux-gcc-x86-debug SunOS-sunw-sparc SunOS-sunw-i386 SunOS-gcc-sparc generic-gcc Linux-gcc-arm Linux-gcc-x86_64 Linux-gcc-unknown windows windows-debug clean test
+.PHONY: Darwin-gcc-i386 debian freebsd Linux-gcc-x86 Linux-gcc-x86-debug SunOS-sunw-sparc SunOS-sunw-i386 SunOS-gcc-sparc generic-gcc Linux-gcc-arm Linux-gcc-aarch64 Linux-gcc-x86_64 Linux-gcc-unknown windows windows-debug clean test
 
 #
 # Source files
@@ -82,6 +83,8 @@ MACOS_COMPILE = $(CXX) -ftemplate-depth=1024 -arch i386 -arch x86_64 -pipe -g $(
 MACOS_COMPILE_DEBUG = $(CXX) -D_FORTIFY_SOURCE=2 -fstack-protector -ftrapv -fno-builtin-malloc -ftemplate-depth=1024 -arch i386 -arch x86_64 -pipe -g -O0 -Wall $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -dynamiclib $(MACOS_SRC) -o libhoard.dylib -ldl -lpthread
 
 LINUX_GCC_ARM_COMPILE = arm-Linux-gnueabihf-g++ $(CPPFLAGS) -g -W -Wconversion -Wall -I/usr/include/nptl -fno-builtin-malloc -pipe -fPIC -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared   $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
+
+LINUX_GCC_AARCH64_COMPILE = aarch64-linux-gnu-g++ $(CPPFLAGS) -g -W -Wconversion -Wall -I/usr/include/nptl -fno-builtin-malloc -pipe -fPIC -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared   $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
 LINUX_GCC_x86_COMPILE = $(CXX) -m32 $(CPPFLAGS) -I/usr/include/nptl -ffast-math -g -fno-builtin-malloc -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared  $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
@@ -152,6 +155,12 @@ Linux-gcc-arm:
 	$(LINUX_GCC_ARM_COMPILE)
 
 Linux-gcc-arm-install: Linux-gcc-arm
+	cp libhoard.so $(PREFIX)
+
+Linux-gcc-aarch64:
+	$(LINUX_GCC_AARCH64_COMPILE)
+
+Linux-gcc-aarch64-install: Linux-gcc-aarch64
 	cp libhoard.so $(PREFIX)
 
 Linux-gcc-x86:
