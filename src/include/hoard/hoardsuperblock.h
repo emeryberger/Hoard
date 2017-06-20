@@ -167,7 +167,7 @@ namespace Hoard {
       // Returns true iff the pointer is valid.
       auto ptrValue = (size_t) ptr;
       return ((ptrValue >= (size_t) _buf) &&
-	      (ptrValue <= (size_t) &_buf[BufferSize]));
+	      (ptrValue < (size_t) &_buf[BufferSize]));
     }
     
     INLINE void * normalize (void * ptr) const {
