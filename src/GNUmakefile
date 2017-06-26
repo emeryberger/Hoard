@@ -140,7 +140,7 @@ windows-debug: $(DEPS)
 
 Darwin-gcc-i386:
 	$(MACOS_COMPILE)
-	@echo "To use Hoard, execute this command: export DYLD_INSERT_LIBRARIES=libhoard.dylib"
+	@echo "To use Hoard, execute this command: export DYLD_INSERT_LIBRARIES=$$PWD/libhoard.dylib"
 
 Darwin-gcc-i386-install: Darwin-gcc-i386
 	cp libhoard.dylib $(PREFIX)
