@@ -80,31 +80,34 @@ extern Hoard::HoardHeapType * getMainHoardHeap();
 #define BUFFER_SIZE (sizeof(TheCustomHeapType) / sizeof(double) + 1)
 
 static __thread double tlabBuffer[BUFFER_SIZE] INITIAL_EXEC_ATTR;
-static __thread TheCustomHeapType * theTLAB INITIAL_EXEC_ATTR = NULL;
+static __thread TheCustomHeapType * theTLAB INITIAL_EXEC_ATTR = nullptr;
 
-// Initialize the TLAB (must only be called once).
+// Initialize the TLAB.
 
 static TheCustomHeapType * initializeCustomHeap() __attribute__((constructor));
 
 static TheCustomHeapType * initializeCustomHeap() {
-  if (theTLAB == NULL) {
+  auto tlab = theTLAB;
+  if (tlab == nullptr) {
     new (reinterpret_cast<char *>(&tlabBuffer)) TheCustomHeapType(getMainHoardHeap());
-    theTLAB = reinterpret_cast<TheCustomHeapType *>(&tlabBuffer);
+    tlab = reinterpret_cast<TheCustomHeapType *>(&tlabBuffer);
+    theTLAB = tlab;
   }
-  return theTLAB;
+  return tlab;
 }
 
 // Get the TLAB.
 
 bool isCustomHeapInitialized() {
-  return (theTLAB != NULL);
+  return (theTLAB != nullptr);
 }
 
 TheCustomHeapType * getCustomHeap() {
   // The pointer to the TLAB itself.
-  TheCustomHeapType * tlab = theTLAB;
-  if (tlab == NULL) {
-    tlab = theTLAB = initializeCustomHeap();
+  auto tlab = theTLAB;
+  if (tlab == nullptr) {
+    tlab = initializeCustomHeap();
+    theTLAB = tlab;
   }
   return tlab;
 }
@@ -122,13 +125,13 @@ static pthread_once_t key_once = PTHREAD_ONCE_INIT;
 // TLAB and then reclaims the memory allocated to hold it.
 
 static void deleteThatHeap(void * p) {
-  TheCustomHeapType * heap = reinterpret_cast<TheCustomHeapType *>(p);
+  auto * heap = reinterpret_cast<TheCustomHeapType *>(p);
   heap->clear();
   getMainHoardHeap()->free(reinterpret_cast<void *>(heap));
 
   // Relinquish the assigned heap.
   getMainHoardHeap()->releaseHeap();
-  //  pthread_setspecific(theHeapKey, NULL);
+  //  pthread_setspecific(theHeapKey, nullptr);
 }
 
 static void make_heap_key() {
@@ -154,12 +157,11 @@ bool isCustomHeapInitialized() {
 }
 
 static TheCustomHeapType * initializeCustomHeap() {
-  assert(pthread_getspecific(theHeapKey) == NULL);
+  assert(pthread_getspecific(theHeapKey) == nullptr);
   // Allocate a per-thread heap.
-  TheCustomHeapType * heap;
   size_t sz = sizeof(TheCustomHeapType) + sizeof(double);
-  char * mh = reinterpret_cast<char *>(getMainHoardHeap()->malloc(sz));
-  heap = new (mh) TheCustomHeapType(getMainHoardHeap());
+  auto * mh = reinterpret_cast<char *>(getMainHoardHeap()->malloc(sz));
+  auto heap = new (mh) TheCustomHeapType(getMainHoardHeap());
   // Store it in the appropriate thread-local area.
   pthread_setspecific(theHeapKey, reinterpret_cast<void *>(heap));
   return heap;
@@ -169,7 +171,7 @@ TheCustomHeapType * getCustomHeap() {
   TheCustomHeapType * heap;
   initTSD();
   heap = reinterpret_cast<TheCustomHeapType *>(pthread_getspecific(theHeapKey));
-  if (heap == NULL) {
+  if (heap == nullptr) {
     heap = initializeCustomHeap();
   }
   return heap;
@@ -198,7 +200,7 @@ extern "C" {
 
 // A special routine we call on thread exit to free up some resources.
 static void exitRoutine() {
-  TheCustomHeapType * heap = initializeCustomHeap();
+  auto * heap = initializeCustomHeap();
 
   // Relinquish the assigned heap.
   getMainHoardHeap()->releaseHeap();
@@ -216,14 +218,11 @@ extern "C" {
   static inline void * startMeUp(void * a) {
     initializeCustomHeap();
     getMainHoardHeap()->findUnusedHeap();
-    pair<threadFunctionType, void *> * z
-      = (pair<threadFunctionType, void *> *) a;
-
-    threadFunctionType f = z->first;
-    void * arg = z->second;
-
-    void * result = NULL;
-    result = (*f)(arg);
+    auto * z = (pair<threadFunctionType, void *> *) a;
+    
+    auto f   = z->first;
+    auto arg = z->second;
+    auto result = (*f)(arg);
 
     delete z;
 
@@ -369,13 +368,13 @@ extern "C" int pthread_create (pthread_t *thread,
 #endif
 
   // A pointer to the library version of pthread_create.
-  static pthread_create_function real_pthread_create =
+  static auto real_pthread_create =
     reinterpret_cast<pthread_create_function>
     (reinterpret_cast<intptr_t>(dlsym(RTLD_NEXT, fname)));
 
   anyThreadCreated = true;
 
-  pair<threadFunctionType, void *> * args =
+  auto * args =
     // new (_heap.malloc(sizeof(pair<threadFunctionType, void*>)))
     new
     pair<threadFunctionType, void *> (start_routine, arg);
