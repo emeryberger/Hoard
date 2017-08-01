@@ -6,7 +6,7 @@
 
   Author: Emery Berger, http://www.emeryberger.org
  
-  Copyright (c) 1998-2015 Emery Berger
+  Copyright (c) 1998-2016 Emery Berger
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -33,6 +33,10 @@
 #include <stddef.h>
 #include <stdalign.h>
 #include <new>
+
+#include "VERSION.h"
+
+#define versionMessage "Using the Hoard memory allocator (http://www.hoard.org), version " HOARD_VERSION_STRING "\n"
 
 #include "heaplayers.h"
 using namespace HL;
@@ -130,6 +134,13 @@ extern "C" {
     initBufferPtr += sz;
     if (initBufferPtr > initBuffer + MAX_LOCAL_BUFFER_SIZE) {
       abort();
+    }
+    {
+      static bool initialized = false;
+      if (!initialized) {
+	initialized = true;
+	fprintf(stderr, versionMessage);
+      }
     }
     return ptr;
   }
