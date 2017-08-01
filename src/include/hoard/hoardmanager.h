@@ -86,7 +86,7 @@ namespace Hoard {
       assert (realSize >= sz);
 
       // Iterate until we succeed in allocating memory.
-      void * ptr = getObject (binIndex, realSize);
+      auto ptr = getObject (binIndex, realSize);
       if (!ptr) {
 	ptr = slowPathMalloc (realSize);
       }
@@ -151,7 +151,7 @@ namespace Hoard {
       // normalized at this point.
       assert (s->normalize (ptr) == ptr);
 
-      size_t sz = s->getObjectSize ();
+      auto sz = s->getObjectSize ();
       auto binIndex = (int) binType::getSizeClass (sz);
 
       // Free the object.
