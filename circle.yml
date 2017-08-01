@@ -25,8 +25,7 @@ general:
 
 machine:
   pre:
-    - sudo apt-get -qq install clang-4.0
-    - sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-4.0 60
+    - sudo apt-get -qq install clang
   environment:
     CC: clang
     CXX: clang++ -stdlib=libc++
