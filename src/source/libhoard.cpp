@@ -31,7 +31,6 @@
  */
 
 #include <stddef.h>
-#include <stdalign.h>
 #include <new>
 
 #include "VERSION.h"
