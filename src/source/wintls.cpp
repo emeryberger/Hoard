@@ -41,6 +41,9 @@
 // Windows TLS functions.
 
 #include "VERSION.h"
+
+#define versionMessage "Using the Hoard memory allocator (http://www.hoard.org), version " HOARD_VERSION_STRING "\n"
+
 #include "hoardheap.h"
 #include "hoardtlab.h"
 
@@ -111,20 +114,14 @@ extern "C" {
 			 DWORD fdwReason,
 			 LPVOID lpreserved)
   {
-    printf("IN\n");
     static int np = HL::CPUInfo::computeNumProcessors();
-    printf("IN 1\n");
-
     switch (fdwReason) {
       
     case DLL_PROCESS_ATTACH:
       {
-    printf("IN P1\n");
-	//	fprintf (stderr, "Using the Hoard scalable memory manager (http://www.hoard.org).\n");
+	fprintf (stderr, versionMessage);
 	InitializeWinWrapper();
-    printf("IN P2\n");
 	getCustomHeap();
-    printf("IN P3\n");
       }
       break;
       
