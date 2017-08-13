@@ -38,6 +38,7 @@ help:
 	@echo SunOS-sunw-i386
 	@echo SunOS-gcc-sparc
 	@echo SunOS-gcc-i386
+	@echo FreeBSD-gcc-amd64
 	@echo generic-gcc
 	@echo windows
 
@@ -99,6 +100,8 @@ LINUX_GCC_x86_COMPILE_STATIC = g++ $(CPPFLAGS) -g -I/usr/include/nptl -static -p
 LINUX_GCC_x86_64_COMPILE_STATIC = g++ $(CPPFLAGS) -g -W -Wconversion -Wall -I/usr/include/nptl -static -pipe -fPIC -fno-builtin-malloc -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared -c $(GNU_SRC) -Bsymbolic ; ar cr libhoard.a libhoard.o
 
 LINUX_GCC_x86_COMPILE_DEBUG = g++ -m32 $(CPPFLAGS) -fPIC -fno-inline -I/usr/include/nptl -fno-builtin-malloc -g -pipe $(INCLUDES) -D_REENTRANT=1  -shared $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
+
+FREEBSD_GCC_AMD64_COMPILE = $(CXX) $(CPPFLAGS) -g -W -Wconversion -Wall -I/usr/include/nptl -fno-builtin-malloc -pipe -fPIC -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared   $(GNU_SRC) -Bsymbolic -o libhoard.so -lpthread
 
 SUNOS_SUNW_SPARC_COMPILE_32_DEBUG = CC -dalign -xbuiltin=%all -fast -mt -g -xildoff -xthreadvar=dynamic -L/usr/lib/lwp -R/usr/lib/lwp -DNDEBUG $(INCLUDES) -D_REENTRANT=1 -G -PIC $(SUNW_SRC) Heap-Layers/wrappers/arch-specific/sparc-interchange.il -o libhoard_32.so -lthread -ldl -lCrun
 
@@ -168,6 +171,9 @@ Linux-gcc-x86:
 
 Linux-gcc-x86-install: Linux-gcc-x86
 	cp libhoard.so $(PREFIX)
+
+FreeBSD-gcc-amd64:
+	$(FREEBSD_GCC_AMD64_COMPILE)
 
 Linux-gcc-x86_64:
 	$(LINUX_GCC_x86_64_COMPILE)
