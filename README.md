@@ -7,8 +7,8 @@
 Copyright (C) 1998-2017 by [Emery Berger](http://www.emeryberger.org)
 
 The Hoard memory allocator is a fast, scalable, and memory-efficient
-memory allocator that works on a range of platforms,
-including Linux, Solaris, Mac OS X, and Windows.
+memory allocator that works on a range of platforms, including Linux,
+Mac OS X, and Windows.
 
 Hoard is a drop-in replacement for malloc that can dramatically
 improve application performance, especially for multithreaded programs
@@ -127,36 +127,20 @@ could mean that you need four times as much memory. Hoard is guaranteed (provabl
 Building Hoard (Unix/Mac)
 -------------------------
 
-**NOTE: Make sure to invoke git as follows:**
-
-	% git clone --recursive https://github.com/emeryberger/Hoard.git
-
 To build Hoard on non-Windows platforms, change into the `src/`
-directory and run `make` followed by the appropriate target. If you
-type `make help`, it will present a list of available targets. These
-include `linux-gcc-x86`, `solaris-sunw-sparc`, `macos`, `windows`, and
-more.
+directory and run `make` (or `gmake`) followed by the appropriate
+target. It should automatically detect your system and build
+appropriately.
 
-	% make linux-gcc-x86_64
+	% make
 
 You can then use Hoard by linking it with your executable, or
 by setting the `LD_PRELOAD` environment variable, as in
 
 	% export LD_PRELOAD=/path/to/libhoard.so
 
-in Solaris:
-
-	% make solaris-sunw-sparc
-	% export LD_PRELOAD="/path/to/libhoard_32.so:/usr/lib/libCrun.so.1"
-
-  (32-bit version)
-
-	% export LD_PRELOAD="/path/to/libhoard_64.so:/usr/lib/64/libCrun.so.1"
-  (64-bit version)
-
 or, in Mac OS X:
 
-	% make macos
 	% export DYLD_INSERT_LIBRARIES=/path/to/libhoard.dylib
 
 Building Hoard (Windows)
