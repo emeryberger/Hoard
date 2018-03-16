@@ -30,7 +30,7 @@
  * @author Emery Berger <http://www.cs.umass.edu/~emery>
  */
 
-#include <stddef.h>
+#include <cstddef>
 #include <new>
 
 #include "VERSION.h"
@@ -38,7 +38,6 @@
 #define versionMessage "Using the Hoard memory allocator (http://www.hoard.org), version " HOARD_VERSION_STRING "\n"
 
 #include "heaplayers.h"
-using namespace HL;
 
 // The undef below ensures that any pthread_* calls get strong
 // linkage.  Otherwise, our versions here won't replace them.  It is
@@ -87,7 +86,7 @@ namespace Hoard {
 #define HOARD_MMAP_PROTECTION_MASK (PROT_READ | PROT_WRITE)
 #endif
 
-}
+} // namespace Hoard
 
 #include "hoardtlab.h"
 
@@ -96,19 +95,17 @@ namespace Hoard {
 //
 
 
-using namespace Hoard;
-
 /// Maintain a single instance of the main Hoard heap.
 
-HoardHeapType * getMainHoardHeap() {
+Hoard::HoardHeapType * getMainHoardHeap() {
   // This function is C++ magic that ensures that the heap is
   // initialized before its first use. First, allocate a static buffer
   // to hold the heap.
 
-  static double thBuf[sizeof(HoardHeapType) / sizeof(double) + 1];
+  static double thBuf[sizeof(Hoard::HoardHeapType) / sizeof(double) + 1];
 
   // Now initialize the heap into that buffer.
-  static HoardHeapType * th = new (thBuf) HoardHeapType;
+  static auto * th = new (thBuf) Hoard::HoardHeapType;
   return th;
 }
 
@@ -125,6 +122,10 @@ extern "C" {
   void * xxmalloc (size_t sz) {
     if (isCustomHeapInitialized()) {
       void * ptr = getCustomHeap()->malloc (sz);
+      if (ptr == nullptr) {
+	fprintf(stderr, "INTERNAL FAILURE.\n");
+	abort();
+      }
       return ptr;
     }
     // We still haven't initialized the heap. Satisfy this memory
@@ -162,4 +163,4 @@ extern "C" {
     // Undefined for Hoard.
   }
 
-}
+} // namespace Hoard

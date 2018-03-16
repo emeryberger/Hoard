@@ -68,7 +68,10 @@ namespace Hoard {
   public:
 
     HoardManager()
-      : _magic (MAGIC_NUMBER)
+      : _magic (MAGIC_NUMBER),
+	_cachedSize (binType::getClassSize(0)),
+	_cachedRealSize (_cachedSize),
+	_cachedSizeClass (0)
     {}
 
     virtual ~HoardManager() {}
@@ -81,8 +84,18 @@ namespace Hoard {
     MALLOC_FUNCTION INLINE void * malloc (size_t sz)
     {
       Check<HoardManager, sanityCheck> check (this);
-      auto binIndex = binType::getSizeClass(sz);
-      auto realSize = binType::getClassSize (binIndex);
+      int binIndex;
+      size_t realSize;
+      if (false) { // sz == _cachedSize) {
+	binIndex = _cachedSizeClass;
+	realSize = _cachedRealSize;
+      } else {
+	binIndex = binType::getSizeClass(sz);
+	realSize = binType::getClassSize (binIndex);
+	_cachedSize = sz;
+	_cachedSizeClass = binIndex;
+	_cachedRealSize = realSize;
+      }
       assert (realSize >= sz);
 
       // Iterate until we succeed in allocating memory.
@@ -197,6 +210,10 @@ namespace Hoard {
     /// A magic number used for debugging.
     const unsigned long _magic;
 
+    size_t _cachedSize;
+    size_t _cachedRealSize;
+    int    _cachedSizeClass;
+    
     inline int isValid() const {
       return (_magic == MAGIC_NUMBER);
     }
@@ -384,6 +401,6 @@ namespace Hoard {
 
   };
 
-}
+} // namespace Hoard
 
 #endif
