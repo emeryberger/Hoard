@@ -5,9 +5,9 @@
   The Hoard Multiprocessor Memory Allocator
   www.hoard.org
 
-  Author: Emery Berger, http://www.cs.umass.edu/~emery
+  Author: Emery Berger, http://www.emeryberger.com
  
-  Copyright (c) 1998-2012 Emery Berger
+  Copyright (c) 1998-2018 Emery Berger
   
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -62,14 +62,16 @@ namespace Hoard {
 
   public:
 
+    typedef HoardSuperblock<LockType, SuperblockSize, HeapType> BlockType;
+    
     HoardSuperblockHeaderHelper (size_t sz, size_t bufferSize, char * start)
       : _magicNumber (MAGIC_NUMBER ^ (size_t) this),
 	_objectSize (sz),
 	_objectSizeIsPowerOfTwo (!(sz & (sz - 1)) && sz),
 	_totalObjects ((unsigned int) (bufferSize / sz)),
-	_owner (NULL),
-	_prev (NULL),
-	_next (NULL),
+	_owner (nullptr),
+	_prev (nullptr),
+	_next (nullptr),
 	_reapableObjects (_totalObjects),
 	_objectsFree (_totalObjects),
 	_start (start),
@@ -87,12 +89,12 @@ namespace Hoard {
     inline void * malloc() {
       assert (isValid());
       void * ptr = reapAlloc();
-      assert ((ptr == NULL) || ((size_t) ptr % Alignment == 0));
+      assert ((ptr == nullptr) || ((size_t) ptr % Alignment == 0));
       if (!ptr) {
 	ptr = freeListAlloc();
-	assert ((ptr == NULL) || ((size_t) ptr % Alignment == 0));
+	assert ((ptr == nullptr) || ((size_t) ptr % Alignment == 0));
       }
-      if (ptr != NULL) {
+      if (ptr != nullptr) {
 	assert (getSize(ptr) >= _objectSize);
 	assert ((size_t) ptr % Alignment == 0);
       }
@@ -175,19 +177,19 @@ namespace Hoard {
       return (_magicNumber == (MAGIC_NUMBER ^ (size_t) this));
     }
 
-    HoardSuperblock<LockType, SuperblockSize, HeapType> * getNext() const {
+    BlockType * getNext() const {
       return _next;
     }
 
-    HoardSuperblock<LockType, SuperblockSize, HeapType> * getPrev() const {
+    BlockType* getPrev() const {
       return _prev;
     }
 
-    void setNext (HoardSuperblock<LockType, SuperblockSize, HeapType> * n) {
+    void setNext (BlockType* n) {
       _next = n;
     }
 
-    void setPrev (HoardSuperblock<LockType, SuperblockSize, HeapType> * p) {
+    void setPrev (BlockType* p) {
       _prev = p;
     }
 
@@ -213,7 +215,7 @@ namespace Hoard {
 	assert ((size_t) ptr % Alignment == 0);
 	return ptr;
       } else {
-	return NULL;
+	return nullptr;
       }
     }
 
@@ -249,10 +251,10 @@ namespace Hoard {
     HeapType * _owner;
 
     /// The preceding superblock in a linked list.
-    HoardSuperblock<LockType, SuperblockSize, HeapType> * _prev;
+    BlockType* _prev;
 
     /// The succeeding superblock in a linked list.
-    HoardSuperblock<LockType, SuperblockSize, HeapType> * _next;
+    BlockType* _next;
     
     /// The number of objects available to be 'reap'ed.
     unsigned int _reapableObjects;
