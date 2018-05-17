@@ -5,9 +5,9 @@
   The Hoard Multiprocessor Memory Allocator
   www.hoard.org
 
-  Author: Emery Berger, http://www.cs.umass.edu/~emery
+  Author: Emery Berger, http://www.emeryberger.com
  
-  Copyright (c) 1998-2012 Emery Berger
+  Copyright (c) 1998-2018 Emery Berger
   
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -31,7 +31,7 @@
 /**
  * @class BumpAlloc
  * @brief Obtains memory in chunks and bumps a pointer through the chunks.
- * @author Emery Berger <http://www.cs.umass.edu/~emery>
+ * @author Emery Berger <http://www.emeryberger.com>
  */
 
 #include "mallocinfo.h"
@@ -46,8 +46,8 @@ namespace Hoard {
 
     enum { Alignment = HL::MallocInfo::Alignment };
 
-    BumpAlloc (void)
-      : _bump (NULL),
+    BumpAlloc()
+      : _bump (nullptr),
 	_remaining (0)
     {}
 
@@ -69,7 +69,7 @@ namespace Hoard {
 	return old;
       } else {
 	// We were unable to get memory.
-	return NULL;
+	return nullptr;
       }
     }
 

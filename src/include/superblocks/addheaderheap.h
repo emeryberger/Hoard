@@ -5,9 +5,9 @@
   The Hoard Multiprocessor Memory Allocator
   www.hoard.org
 
-  Author: Emery Berger, http://www.cs.umass.edu/~emery
+  Author: Emery Berger, http://www.emeryberger.com
  
-  Copyright (c) 1998-2012 Emery Berger
+  Copyright (c) 1998-2018 Emery Berger
   
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -64,8 +64,8 @@ namespace Hoard {
       // and return a pointer to just past it.
       const size_t headerSize = sizeof(typename SuperblockType::Header);
       void * ptr = theHeap.malloc (sz + headerSize);
-      if (ptr == NULL) {
-	return NULL;
+      if (ptr == nullptr) {
+	return nullptr;
       }
       typename SuperblockType::Header * p
 	= new (ptr) typename SuperblockType::Header (sz, sz);

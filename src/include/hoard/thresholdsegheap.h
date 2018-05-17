@@ -44,7 +44,7 @@ namespace Hoard {
 	return BigHeap::malloc (maxSz);
       } else {
 	void * ptr = _heap[sizeClass].malloc (maxSz);
-	if (ptr == NULL) {
+	if (ptr == nullptr) {
 	  return BigHeap::malloc (maxSz);
 	}
 	assert (getSize(ptr) <= maxSz);

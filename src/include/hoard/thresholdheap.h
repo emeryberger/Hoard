@@ -7,7 +7,7 @@
 
   Author: Emery Berger, http://www.emeryberger.org
  
-  Copyright (c) 1998-2015 Emery Berger
+  Copyright (c) 1998-2018 Emery Berger
   
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -68,7 +68,7 @@ namespace Hoard {
       // in the cache.
 
       void * ptr = _cache.remove(sz);
-      if (ptr == NULL) {
+      if (ptr == nullptr) {
 	// If none found, allocate one and return it.
 	ptr = SuperHeap::malloc (sz);
 	_allocated += SuperHeap::getSize(ptr);
@@ -186,7 +186,7 @@ namespace Hoard {
 	    return ptr;
 	  }
 	}
-	return NULL;
+	return nullptr;
       }
 
       // Remove one of the largest available objects.
@@ -208,7 +208,7 @@ namespace Hoard {
 	  }
 	  return ptr;
 	}
-	return NULL;
+	return nullptr;
       }
     };
 

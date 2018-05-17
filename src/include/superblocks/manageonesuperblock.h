@@ -5,9 +5,9 @@
   The Hoard Multiprocessor Memory Allocator
   www.hoard.org
 
-  Author: Emery Berger, http://www.cs.umass.edu/~emery
+  Author: Emery Berger, http://www.emeryberger.com
  
-  Copyright (c) 1998-2012 Emery Berger
+  Copyright (c) 1998-2018 Emery Berger
   
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@
 
 /**
  * @file manageonesuperblock.h
- * @author Emery Berger <http://www.cs.umass.edu/~emery>
+ * @author Emery Berger <http://www.emeryberger.com>
  */
 
 
@@ -47,7 +47,7 @@ namespace Hoard {
   public:
 
     ManageOneSuperblock()
-      : _current (NULL)
+      : _current (nullptr)
     {}
 
     typedef typename SuperHeap::SuperblockType SuperblockType;
@@ -80,7 +80,7 @@ namespace Hoard {
     SuperblockType * get() {
       if (_current) {
 	SuperblockType * s = _current;
-	_current = NULL;
+	_current = nullptr;
 	return s;
       } else {
 	// There's none cached, so just get one from the superheap.
@@ -92,7 +92,7 @@ namespace Hoard {
     inline void put (SuperblockType * s) {
       if (!s || (s == _current) || (!s->isValidSuperblock())) {
 	// Ignore if we already are holding this superblock, of if we
-	// got a NULL pointer, or if it's invalid.
+	// got a nullptr, or if it's invalid.
 	return;
       }
       if (_current) {
@@ -106,14 +106,14 @@ namespace Hoard {
 
     /// Obtain a superblock and return an object from it.
     void * slowMallocPath (size_t sz) {
-      void * ptr = NULL;
+      void * ptr = nullptr;
       while (!ptr) {
 	// If we don't have a superblock, get one.
 	if (!_current) {
 	  _current = SuperHeap::get();
 	  if (!_current) {
 	    // Out of memory.
-	    return NULL;
+	    return nullptr;
 	  }
 	}
 	// Try to allocate memory from it.
@@ -121,7 +121,7 @@ namespace Hoard {
 	if (!ptr) {
 	  // No memory left: put the superblock away and get a new one next time.
 	  SuperHeap::put (_current);
-	  _current = NULL;
+	  _current = nullptr;
 	}
       }
       return ptr;

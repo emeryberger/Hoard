@@ -5,9 +5,9 @@
   The Hoard Multiprocessor Memory Allocator
   www.hoard.org
 
-  Author: Emery Berger, http://www.cs.umass.edu/~emery
+  Author: Emery Berger, http://www.emeryberger.com
  
-  Copyright (c) 1998-2012 Emery Berger
+  Copyright (c) 1998-2018 Emery Berger
   
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -88,7 +88,7 @@ namespace Hoard {
 
       for (;;) {
 	owner = reinterpret_cast<baseHeapType>(s->getOwner());
-	assert (owner != NULL);
+	assert (owner != nullptr);
 	assert (owner->isValid());
 	// Lock the owner. If ownership changed between these two lines,
 	// we'll detect it and try again.

@@ -7,7 +7,7 @@
 
   Author: Emery Berger, http://www.emeryberger.org
  
-  Copyright (c) 1998-2015 Emery Berger
+  Copyright (c) 1998-2018 Emery Berger
   
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@
 
 /**
  * @file alignedmmap.h
- * @author Emery Berger <http://www.cs.umass.edu/~emery>
+ * @author Emery Berger <http://www.emeryberger.com>
  */
 
 
@@ -79,7 +79,7 @@ namespace Hoard {
 	return ptr;
       }
 
-      void * ptr = NULL;
+      void * ptr = nullptr;
 
       // Try a map call and hope that it's suitably aligned. If we get lucky,
       // we're done.
@@ -130,8 +130,8 @@ namespace Hoard {
 
       void * ptr = reinterpret_cast<char *>(HL::MmapWrapper::map (sz + Alignment));
 
-      if (ptr == NULL) {
-	return NULL;
+      if (ptr == nullptr) {
+	return nullptr;
       }
 
       char * newptr = (char *) HL::align<Alignment>((size_t) ptr);

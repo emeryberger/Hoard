@@ -5,9 +5,9 @@
   The Hoard Multiprocessor Memory Allocator
   www.hoard.org
 
-  Author: Emery Berger, http://www.cs.umass.edu/~emery
+  Author: Emery Berger, http://www.emeryberger.com
  
-  Copyright (c) 1998-2012 Emery Berger
+  Copyright (c) 1998-2018 Emery Berger
   
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -59,7 +59,7 @@ namespace Hoard {
 	// Get more memory.
 	void * ptr = _superblockSource.malloc (ChunksToGrab * SuperblockSize);
 	if (!ptr) {
-	  return NULL;
+	  return nullptr;
 	}
 	char * p = (char *) ptr;
 	for (int i = 0; i < ChunksToGrab; i++) {

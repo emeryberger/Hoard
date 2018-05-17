@@ -49,7 +49,7 @@ using namespace HL;
  *
  * @class HoardManager
  * @brief Manages superblocks by emptiness, returning them to the parent heap when empty enough.
- * @author Emery Berger <http://www.cs.umass.edu/~emery>
+ * @author Emery Berger <http://www.emeryberger.com>
  *
  **/
 
@@ -360,7 +360,7 @@ namespace Hoard {
       if (sb) {
 	if (!sb->isValidSuperblock()) {
 	  // As above - drop any invalid superblocks.
-	  sb = NULL;
+	  sb = nullptr;
 	}
 
       } else {

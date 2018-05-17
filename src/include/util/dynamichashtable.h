@@ -3,8 +3,8 @@
 /**
  * @file   dynamichashtable.h
  * @brief  A thread-safe dynamic hash table based on linear probing.
- * @author Emery Berger <http://www.cs.umass.edu/~emery>
- * @note   Copyright (C) 2013 by Emery Berger, University of Massachusetts Amherst.
+ * @author Emery Berger <http://www.emeryberger.com>
+ * @note   Copyright (C) 2013-2018 by Emery Berger, University of Massachusetts Amherst.
  **/
 
 #ifndef DYNAMICHASHTABLE_H
@@ -135,7 +135,7 @@ private:
     }
 #endif
 
-    if (_entries == NULL) {
+    if (_entries == nullptr) {
       // Failed to allocate space for a bigger table.
       // Give up the ghost.
       abort();
@@ -176,7 +176,7 @@ private:
 #endif
 
 
-    if (_entries == NULL) {
+    if (_entries == nullptr) {
       // Failed to allocate space for a bigger table.
       // Give up the ghost.
       abort();
