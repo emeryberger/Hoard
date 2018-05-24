@@ -5,9 +5,9 @@
   The Hoard Multiprocessor Memory Allocator
   www.hoard.org
 
-  Author: Emery Berger, http://www.cs.umass.edu/~emery
+  Author: Emery Berger, http://www.emeryberger.com
  
-  Copyright (c) 1998-2012 Emery Berger
+  Copyright (c) 1998-2018 Emery Berger
   
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -52,6 +52,7 @@ using namespace HL;
 #include "ignoreinvalidfree.h"
 #include "conformantheap.h"
 #include "hoardsuperblock.h"
+#include "hoardsuperblockheader.h"
 #include "lockmallocheap.h"
 #include "alignedsuperblockheap.h"
 #include "alignedmmap.h"
@@ -91,7 +92,7 @@ namespace Hoard {
   // There is just one "global" heap, shared by all of the per-process heaps.
   //
 
-  typedef GlobalHeap<SUPERBLOCK_SIZE, EMPTINESS_CLASSES, MmapSource, TheLockType>
+  typedef GlobalHeap<SUPERBLOCK_SIZE, HoardSuperblockHeader, EMPTINESS_CLASSES, MmapSource, TheLockType>
   TheGlobalHeap;
   
   //
@@ -120,7 +121,8 @@ namespace Hoard {
 
   class SmallHeap;
   
-  typedef HoardSuperblock<TheLockType, SUPERBLOCK_SIZE, SmallHeap> SmallSuperblockType;
+  //  typedef Hoard::HoardSuperblockHeader<TheLockType, SUPERBLOCK_SIZE, SmallHeap> HSHeader;
+  typedef HoardSuperblock<TheLockType, SUPERBLOCK_SIZE, SmallHeap, Hoard::HoardSuperblockHeader> SmallSuperblockType;
 
   //
   // The heap that manages small objects.
@@ -138,7 +140,11 @@ namespace Hoard {
 
   class BigHeap;
 
-  typedef HoardSuperblock<TheLockType, SUPERBLOCK_SIZE, BigHeap> BigSuperblockType;
+  typedef HoardSuperblock<TheLockType,
+			  SUPERBLOCK_SIZE,
+			  BigHeap,
+			  Hoard::HoardSuperblockHeader>
+  BigSuperblockType;
 
   // The heap that manages large objects.
 

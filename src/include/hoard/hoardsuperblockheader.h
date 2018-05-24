@@ -49,9 +49,18 @@ namespace Hoard {
 
   template <class LockType,
 	    int SuperblockSize,
-	    typename HeapType>
+	    typename HeapType,
+	    template <class LockType_,
+		      int SuperblockSize_,
+		      typename HeapType_>
+	    class Header_>
   class HoardSuperblock;
 
+  template <class LockType,
+	    int SuperblockSize,
+	    typename HeapType>
+  class HoardSuperblockHeader;
+  
   template <class LockType,
 	    int SuperblockSize,
 	    typename HeapType>
@@ -62,7 +71,7 @@ namespace Hoard {
 
   public:
 
-    typedef HoardSuperblock<LockType, SuperblockSize, HeapType> BlockType;
+    typedef HoardSuperblock<LockType, SuperblockSize, HeapType, HoardSuperblockHeader> BlockType;
     
     HoardSuperblockHeaderHelper (size_t sz, size_t bufferSize, char * start)
       : _magicNumber (MAGIC_NUMBER ^ (size_t) this),
@@ -277,21 +286,22 @@ namespace Hoard {
   template <class LockType,
 	    int SuperblockSize,
 	    typename HeapType>
-  class HoardSuperblockHeader : public HoardSuperblockHeaderHelper<LockType, SuperblockSize, HeapType> {
+  class HoardSuperblockHeader :
+    public HoardSuperblockHeaderHelper<LockType, SuperblockSize, HeapType> {
   public:
 
     
     HoardSuperblockHeader (size_t sz, size_t bufferSize)
       : HoardSuperblockHeaderHelper<LockType,SuperblockSize,HeapType> (sz, bufferSize, (char *) (this + 1))
     {
-      //      static_assert(sizeof(HoardSuperblockHeader) % Parent::Alignment,
-      //		    "Superblock header size must be a multiple of the parent's alignment.");
+      static_assert(sizeof(HoardSuperblockHeader) % Parent::Alignment == 0,
+		    "Superblock header size must be a multiple of the parent's alignment.");
     }
 
   private:
 
+    //    typedef Header_<LockType, SuperblockSize, HeapType> Header;
     typedef HoardSuperblockHeaderHelper<LockType,SuperblockSize,HeapType> Parent;
-
     char _dummy[Parent::Alignment - (sizeof(Parent) % Parent::Alignment)];
   };
 

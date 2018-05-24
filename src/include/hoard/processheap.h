@@ -39,6 +39,9 @@
 namespace Hoard {
 
   template <size_t SuperblockSize,
+	    template <class LockType_,
+		      int SuperblockSize_,
+		      typename HeapType_> class Header_,
 	    int EmptinessClasses,
 	    class LockType,
 	    class ThresholdClass,
@@ -46,12 +49,17 @@ namespace Hoard {
   class ProcessHeap :
     public ConformantHeap<
     HoardManager<AlignedSuperblockHeap<LockType, SuperblockSize, MmapSource>,
-		 EmptyHoardManager<HoardSuperblock<LockType, SuperblockSize, ProcessHeap<SuperblockSize, EmptinessClasses, LockType, ThresholdClass, MmapSource> > >,
-		 HoardSuperblock<LockType, SuperblockSize, ProcessHeap<SuperblockSize, EmptinessClasses, LockType, ThresholdClass, MmapSource> >,
+		 EmptyHoardManager<HoardSuperblock<LockType,
+						   SuperblockSize,
+						   ProcessHeap<SuperblockSize, Header_, EmptinessClasses, LockType, ThresholdClass, MmapSource>,
+						   Header_>>,
+		 HoardSuperblock<LockType,
+				 SuperblockSize,
+				 ProcessHeap<SuperblockSize, Header_, EmptinessClasses, LockType, ThresholdClass, MmapSource>, Header_>,
 		 EmptinessClasses,
 		 LockType,
 		 ThresholdClass,
-		 ProcessHeap<SuperblockSize, EmptinessClasses, LockType, ThresholdClass, MmapSource> > > {
+		 ProcessHeap<SuperblockSize, Header_, EmptinessClasses, LockType, ThresholdClass, MmapSource> > > {
   
   public:
   

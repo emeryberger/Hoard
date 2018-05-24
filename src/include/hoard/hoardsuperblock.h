@@ -33,13 +33,14 @@
 
 #include "heaplayers.h"
 
-#include "hoardsuperblockheader.h"
-
 namespace Hoard {
 
   template <class LockType,
 	    int SuperblockSize,
-	    class HeapType>
+	    typename HeapType,
+	    template <class LockType_,
+		      int SuperblockSize_,
+		      typename HeapType_> class Header_>
   class HoardSuperblock {
   public:
 
@@ -176,7 +177,7 @@ namespace Hoard {
       return ptr2;
     }
 
-    typedef Hoard::HoardSuperblockHeader<LockType, SuperblockSize, HeapType> Header;
+    typedef Header_<LockType, SuperblockSize, HeapType> Header;
 
   private:
     

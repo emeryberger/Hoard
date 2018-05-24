@@ -5,9 +5,9 @@
   The Hoard Multiprocessor Memory Allocator
   www.hoard.org
 
-  Author: Emery Berger, http://www.cs.umass.edu/~emery
- 
-  Copyright (c) 1998-2012 Emery Berger
+  Author: Emery Berger, http://www.emeryberger.com
+
+  Copyright (c) 1998-2018 Emery Berger
   
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -34,6 +34,9 @@
 namespace Hoard {
 
   template <size_t SuperblockSize,
+	    template <class LockType_,
+		      int SuperblockSize_,
+		      typename HeapType_> class Header_,
 	    int EmptinessClasses,
 	    class MmapSource,
 	    class LockType>
@@ -50,13 +53,13 @@ namespace Hoard {
   
   public:
 
-    GlobalHeap (void) 
+    GlobalHeap() 
       : _theHeap (getHeap())
     {
     }
   
-    typedef ProcessHeap<SuperblockSize, EmptinessClasses, LockType, bogusThresholdFunctionClass, MmapSource> SuperHeap;
-    typedef HoardSuperblock<LockType, SuperblockSize, GlobalHeap> SuperblockType;
+    typedef ProcessHeap<SuperblockSize, Header_, EmptinessClasses, LockType, bogusThresholdFunctionClass, MmapSource> SuperHeap;
+    typedef HoardSuperblock<LockType, SuperblockSize, GlobalHeap, Header_> SuperblockType;
   
     void put (void * s, size_t sz) {
       assert (s);
