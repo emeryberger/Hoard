@@ -111,7 +111,7 @@ namespace Hoard {
       auto * s = getSuperblock (ptr);
       // If this isn't a valid superblock, just return.
 
-      if (s->isValidSuperblock()) {
+      if (s && s->isValidSuperblock()) {
 
       	ptr = s->normalize (ptr);
       	auto sz = s->getObjectSize ();
