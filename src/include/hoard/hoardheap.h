@@ -36,7 +36,13 @@ using namespace HL;
 
 // The minimum allocation grain for a given object -
 // that is, we carve objects out of chunks of this size.
-#define SUPERBLOCK_SIZE 65536
+//#define SUPERBLOCK_SIZE 65536
+
+#define SUPERBLOCK_SIZE (1UL << 21)
+
+//#define SUPERBLOCK_SIZE (256*1048576)
+//#define SUPERBLOCK_SIZE (512*1048576)
+//#define SUPERBLOCK_SIZE (1024UL*1048576)
 
 // The number of 'emptiness classes'; see the ASPLOS paper for details.
 #define EMPTINESS_CLASSES 8
