@@ -119,7 +119,7 @@ extern "C" {
       
     case DLL_PROCESS_ATTACH:
       {
-	fprintf (stderr, versionMessage);
+	/* fprintf (stderr, versionMessage); */
 	InitializeWinWrapper();
 	getCustomHeap();
       }

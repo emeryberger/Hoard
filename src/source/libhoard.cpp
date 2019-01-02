@@ -140,7 +140,7 @@ extern "C" {
       if (!initialized) {
 	initialized = true;
 #if !defined(_WIN32)
-	fprintf(stderr, versionMessage);
+	/* fprintf(stderr, versionMessage); */
 #endif
       }
     }
