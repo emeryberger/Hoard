@@ -65,9 +65,8 @@ Heap-Layers:
 	git clone https://github.com/emeryberger/Heap-Layers
 
 release: Heap-Layers
-	tar -cf ../../hoard-release.tar ../../Hoard
-	gzip -f ../../hoard-release.tar
-	zip -r ../../hoard-release.zip ../../Hoard
+	pushd ../.. ; tar -cf hoard-release.tar Hoard ;	gzip -f hoard-release.tar ; popd
+	pushd ../.. ; zip -r hoard-release.zip Hoard ; popd
 
 #
 # Include directories
