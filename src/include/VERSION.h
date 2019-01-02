@@ -7,7 +7,7 @@
 
   Author: Emery Berger, http://www.cs.umass.edu/~emery
  
-  Copyright (c) 1998-2012 Emery Berger
+  Copyright (c) 1998-2019 Emery Berger
   
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -28,8 +28,8 @@
 // Hoard version X.Y.0 = X0Y00
 
 #define HOARD_MAJOR 3
-#define HOARD_MINOR 12
+#define HOARD_MINOR 13
 #define HOARD_PATCH 0
 
-#define HOARD_VERSION_STRING "3.12.0"
+#define HOARD_VERSION_STRING "3.13.0"
 #define HOARD_VERSION_NUMBER (HOARD_MAJOR * 10000 + HOARD_MINOR * 100 + HOARD_PATCH)
