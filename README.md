@@ -4,7 +4,7 @@
 
 [![Build Status](https://travis-ci.org/emeryberger/Hoard.svg?branch=master)](https://travis-ci.org/emeryberger/Hoard)
 
-Copyright (C) 1998-2017 by [Emery Berger](http://www.emeryberger.org)
+Copyright (C) 1998-2019 by [Emery Berger](http://www.emeryberger.org)
 
 The Hoard memory allocator is a fast, scalable, and memory-efficient
 memory allocator that works on a range of platforms, including Linux,
