@@ -43,7 +43,7 @@ help:
 	@echo generic-gcc
 	@echo windows
 
-.PHONY: Darwin-gcc-i386 debian freebsd Linux-gcc-x86 Linux-gcc-x86-debug SunOS-sunw-sparc SunOS-sunw-i386 SunOS-gcc-sparc generic-gcc Linux-gcc-arm Linux-gcc-aarch64 Linux-gcc-x86_64 Linux-gcc-unknown windows windows-debug clean test
+.PHONY: Darwin-gcc-i386 debian freebsd Linux-gcc-x86 Linux-gcc-x86-debug SunOS-sunw-sparc SunOS-sunw-i386 SunOS-gcc-sparc generic-gcc Linux-gcc-arm Linux-gcc-aarch64 Linux-gcc-x86_64 Linux-gcc-unknown windows windows-debug clean test release
 
 #
 # Source files
@@ -63,6 +63,11 @@ DEPS = Heap-Layers $(MACOS_SRC) $(UNIX_SRC) source/libhoard.cpp
 
 Heap-Layers:
 	git clone https://github.com/emeryberger/Heap-Layers
+
+release: Heap-Layers
+	tar -cf ../../hoard-release.tar ../
+	gzip -f ../../hoard-release.tar
+	zip -r ../../hoard-release.zip ../*
 
 #
 # Include directories
