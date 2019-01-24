@@ -36,9 +36,14 @@ using namespace HL;
 
 // The minimum allocation grain for a given object -
 // that is, we carve objects out of chunks of this size.
-//#define SUPERBLOCK_SIZE 65536
 
+
+#if defined(_WIN32)
+// Larger superblock sizes are not yet working for Windows for some reason to be determined.
+#define SUPERBLOCK_SIZE 65536
+#else
 #define SUPERBLOCK_SIZE (1UL << 21)
+#endif
 
 //#define SUPERBLOCK_SIZE (256*1048576)
 //#define SUPERBLOCK_SIZE (512*1048576)

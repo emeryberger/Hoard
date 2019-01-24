@@ -62,18 +62,18 @@ extern HoardHeapType * getMainHoardHeap();
 static TheCustomHeapType * initializeCustomHeap()
 {
   // Allocate a per-thread heap.
-  TheCustomHeapType * heap;
-  void * mh = getMainHoardHeap()->malloc(sizeof(TheCustomHeapType));
-  heap = new (mh) TheCustomHeapType (getMainHoardHeap());
+  auto * mainHeap = getMainHoardHeap();
+  auto * customHeapBuf = mainHeap->malloc(sizeof(TheCustomHeapType));
+  auto * perThreadHeap = new (customHeapBuf) TheCustomHeapType (mainHeap);
 
   // Store it in the appropriate thread-local area.
 #if USE_DECLSPEC_THREADLOCAL
-  threadLocalHeap = heap;
+  threadLocalHeap = perThreadHeap;
 #else
-  TlsSetValue (LocalTLABIndex, heap);
+  TlsSetValue (LocalTLABIndex, perThreadHeap);
 #endif
 
-  return heap;
+  return perThreadHeap;
 }
 
 bool isCustomHeapInitialized() {
@@ -108,32 +108,58 @@ extern "C" void FinalizeWinWrapper();
 // Intercept thread creation and destruction to flush the TLABs.
 //
 
+#include <iostream>
+using namespace std;
+
+// example usage: debugMessage(L"Hello, world.\n");
+void debugMessage(const wchar_t * lpBuff) {
+  static bool initialized = false;
+  if (!initialized) {
+    AllocConsole();
+  }
+  DWORD dwSize = 0;
+  WriteConsole(GetStdHandle(STD_OUTPUT_HANDLE), lpBuff, lstrlen(lpBuff), &dwSize, NULL);
+}
+
+extern "C" void _CRT_INIT();
+
 extern "C" {
 
   BOOL APIENTRY DllMain (HANDLE hinstDLL,
 			 DWORD fdwReason,
 			 LPVOID lpreserved)
   {
-    static int np = HL::CPUInfo::computeNumProcessors();
+    static auto np = HL::CPUInfo::computeNumProcessors();
     switch (fdwReason) {
       
     case DLL_PROCESS_ATTACH:
       {
-	/* fprintf (stderr, versionMessage); */
+	// Before we do anything, force initialization of the C++
+	// library. Without this pre-initialization, the Windows heap
+	// and the Hoard heaps get mixed up, and then nothing
+	// works. This is quite the hack but seems to do the trick.
+	// -- Emery Berger, 24/1/2019
+	cout << "";
+
+	// Now we are good to go.
 	InitializeWinWrapper();
-	getCustomHeap();
+	// Force creation of the heap.
+	volatile auto * ch = getCustomHeap();
       }
       break;
       
     case DLL_THREAD_ATTACH:
-      if (np == 1) {
-	// We have exactly one processor - just assign the thread to
-	// heap 0.
-	getMainHoardHeap()->chooseZero();
-      } else {
-	getMainHoardHeap()->findUnusedHeap();
+      {
+	if (np == 1) {
+	  // We have exactly one processor - just assign the thread to
+	  // heap 0.
+	  getMainHoardHeap()->chooseZero();
+	} else {
+	  getMainHoardHeap()->findUnusedHeap();
+	}
+	// Force creation of the heap.
+	volatile auto * ch = getCustomHeap();
       }
-      getCustomHeap();
       break;
       
     case DLL_THREAD_DETACH:
