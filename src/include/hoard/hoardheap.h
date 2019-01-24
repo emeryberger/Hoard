@@ -40,9 +40,10 @@ using namespace HL;
 
 #if defined(_WIN32)
 // Larger superblock sizes are not yet working for Windows for some reason to be determined.
-#define SUPERBLOCK_SIZE 65536
+#define SUPERBLOCK_SIZE 65536UL
 #else
-#define SUPERBLOCK_SIZE (1UL << 21)
+#define SUPERBLOCK_SIZE 262144UL
+// unclear why this is not working with 524288UL and larger...
 #endif
 
 //#define SUPERBLOCK_SIZE (256*1048576)
