@@ -5,10 +5,6 @@ CPPFLAGS = -std=c++14 -O3 -DNDEBUG -ffast-math -fno-builtin-malloc -Wall -Wextra
 #CPPFLAGS = -std=c++14 -g -O0 -ffast-math -fno-builtin-malloc -Wall -Wextra -Wshadow -Wconversion -Wuninitialized
 CXX = clang++
 
-# Prefix for installations (Unix / Mac)
-
-PREFIX ?= /usr/lib
-
 # Compute platform (OS and architecture) and build accordingly.
 
 ifeq ($(OS),Windows_NT)
@@ -19,10 +15,21 @@ else
     ifeq ($(UNAME_S),SunOS)
       all: Heap-Layers $(UNAME_S)-sunw-$(UNAME_P)
       install: $(UNAME_S)-sunw-$(UNAME_P)-install
+	@echo "To use Hoard, execute this command: export DYLD_INSERT_LIBRARIES=$(DESTDIR)$(PREFIX)/libhoard.dylib"
     else
       all: Heap-Layers $(UNAME_S)-gcc-$(UNAME_P)
       install: $(UNAME_S)-gcc-$(UNAME_P)-install
-    endif
+	@echo "To use Hoard, execute this command: export DYLD_INSERT_LIBRARIES=$(DESTDIR)$(PREFIX)/libhoard.dylib"
+endif
+endif
+
+# Prefix for installations (Unix / Mac)
+
+ifeq ($(UNAME_S),Darwin)
+# Mac: can't copy into /usr/lib
+PREFIX ?= /usr/local/lib
+else
+PREFIX ?= /usr/lib
 endif
 
 help:
@@ -84,7 +91,7 @@ FREEBSD_COMPILE = $(CXX) -g $(CPPFLAGS) -DNDEBUG -fPIC $(INCLUDES) -D_REENTRANT=
 
 DEBIAN_COMPILE = $(CXX) -g -O3 -fPIC -DNDEBUG -I. -Iinclude -Iinclude/util -Iinclude/hoard -Iinclude/superblocks -IHeap-Layers -D_REENTRANT=1 -shared source/libhoard.cpp source/unixtls.cpp Heap-Layers/wrappers/wrapper.cpp -Bsymbolic -o libhoard.so -lpthread -lstdc++ -ldl
 
-MACOS_COMPILE = $(CXX) -ftemplate-depth=1024 -arch x86_64 -pipe -g $(CPPFLAGS) $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -D'CUSTOM_PREFIX(x)=xx\#\#x' $(MACOS_SRC) -dynamiclib -o libhoard.dylib -ldl -lpthread 
+MACOS_COMPILE = $(CXX) -ftemplate-depth=1024 -arch x86_64 -pipe -g $(CPPFLAGS) $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -D'CUSTOM_PREFIX(x)=xx\#\#x' $(MACOS_SRC) -dynamiclib -install_name $(DESTDIR)$(PREFIX)/libhoard.dylib -o libhoard.dylib -ldl -lpthread 
 
 MACOS_COMPILE_DEBUG = $(CXX) -std=c++14 -D_FORTIFY_SOURCE=2 -fstack-protector -ftrapv -fno-builtin-malloc -ftemplate-depth=1024 -arch x86_64 -pipe -g -O0 -Wall $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -D'CUSTOM_PREFIX(x)=xx\#\#x' $(MACOS_SRC) -dynamiclib -o libhoard.dylib -ldl -lpthread 
 
@@ -148,7 +155,6 @@ windows-debug: $(DEPS)
 
 Darwin-gcc-i386:
 	$(MACOS_COMPILE)
-	@echo "To use Hoard, execute this command: export DYLD_INSERT_LIBRARIES=$$PWD/libhoard.dylib"
 
 Darwin-gcc-i386-install: Darwin-gcc-i386
 	cp libhoard.dylib $(DESTDIR)$(PREFIX)
