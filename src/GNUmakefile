@@ -151,31 +151,31 @@ Darwin-gcc-i386:
 	@echo "To use Hoard, execute this command: export DYLD_INSERT_LIBRARIES=$$PWD/libhoard.dylib"
 
 Darwin-gcc-i386-install: Darwin-gcc-i386
-	cp libhoard.dylib $(PREFIX)
+	cp libhoard.dylib $(DESTDIR)$(PREFIX)
 
 generic-gcc:
 	$(GENERIC_GCC_COMPILE)
 
 generic-gcc-install: generic-gcc
-	cp libhoard.so $(PREFIX)
+	cp libhoard.so $(DESTDIR)$(PREFIX)
 
 Linux-gcc-arm:
 	$(LINUX_GCC_ARM_COMPILE)
 
 Linux-gcc-arm-install: Linux-gcc-arm
-	cp libhoard.so $(PREFIX)
+	cp libhoard.so $(DESTDIR)$(PREFIX)
 
 Linux-gcc-aarch64:
 	$(LINUX_GCC_AARCH64_COMPILE)
 
 Linux-gcc-aarch64-install: Linux-gcc-aarch64
-	cp libhoard.so $(PREFIX)
+	cp libhoard.so $(DESTDIR)$(PREFIX)
 
 Linux-gcc-x86:
 	$(LINUX_GCC_x86_COMPILE)
 
 Linux-gcc-x86-install: Linux-gcc-x86
-	cp libhoard.so $(PREFIX)
+	cp libhoard.so $(DESTDIR)$(PREFIX)
 
 FreeBSD-gcc-amd64:
 	$(FREEBSD_GCC_AMD64_COMPILE)
@@ -184,45 +184,45 @@ Linux-gcc-x86_64:
 	$(LINUX_GCC_x86_64_COMPILE)
 
 Linux-gcc-x86_64-install: Linux-gcc-x86_64
-	cp libhoard.so $(PREFIX)
+	cp libhoard.so $(DESTDIR)$(PREFIX)
 
 Linux-gcc-unknown:
 	$(LINUX_GCC_UNKNOWN_COMPILE)
 
 Linux-gcc-unknown-install: Linux-gcc-unknown
-	cp libhoard.so $(PREFIX)
+	cp libhoard.so $(DESTDIR)$(PREFIX)
 
 SunOS-sunw-sparc:
 	$(SUNOS_SUNW_SPARC_COMPILE_32)
 	$(SUNOS_SUNW_SPARC_COMPILE_64)
 
 SunOS-sunw-sparc-install: SunOS-sunw-sparc
-	cp libhoard_32.so $(PREFIX)
-	cp libhoard_64.so $(PREFIX)
+	cp libhoard_32.so $(DESTDIR)$(PREFIX)
+	cp libhoard_64.so $(DESTDIR)$(PREFIX)
 
 SunOS-gcc-sparc:
 	$(SUNOS_GCC_SPARC_COMPILE_32)
 	$(SUNOS_GCC_SPARC_COMPILE_64)
 
 SunOS-gcc-sparc-install: SunOS-gcc-sparc
-	cp libhoard_32.so $(PREFIX)
-	cp libhoard_64.so $(PREFIX)
+	cp libhoard_32.so $(DESTDIR)$(PREFIX)
+	cp libhoard_64.so $(DESTDIR)$(PREFIX)
 
 SunOS-gcc-i386:
 	$(SUNOS_GCC_I386_COMPILE_32)
 	$(SUNOS_GCC_I386_COMPILE_64)
 
 SunOS-gcc-i386-install: SunOS-gcc-sparc
-	cp libhoard_32.so $(PREFIX)
-	cp libhoard_64.so $(PREFIX)
+	cp libhoard_32.so $(DESTDIR)$(PREFIX)
+	cp libhoard_64.so $(DESTDIR)$(PREFIX)
 
 SunOS-sunw-i386:
 	$(SUNOS_SUNW_x86_COMPILE_32)
 	$(SUNOS_SUNW_x86_COMPILE_64)
 
 SunOS-sunw-i386-install: SunOS-sunw-i386
-	cp libhoard_32.so $(PREFIX)
-	cp libhoard_64.so $(PREFIX)
+	cp libhoard_32.so $(DESTDIR)$(PREFIX)
+	cp libhoard_64.so $(DESTDIR)$(PREFIX)
 
 #
 #
