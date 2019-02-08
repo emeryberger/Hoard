@@ -8,15 +8,18 @@ CXX = clang++
 # Compute platform (OS and architecture) and build accordingly.
 
 ifeq ($(OS),Windows_NT)
+windows: Heap-Layers
 all: Heap-Layers windows
 else
     UNAME_S := $(shell uname -s)
     UNAME_P := $(shell uname -p)
     ifeq ($(UNAME_S),SunOS)
+      $(UNAME_S)-sunw-$(UNAME_P): Heap-Layers
       all: Heap-Layers $(UNAME_S)-sunw-$(UNAME_P)
       install: $(UNAME_S)-sunw-$(UNAME_P)-install
 	@echo "To use Hoard, execute this command: export DYLD_INSERT_LIBRARIES=$(DESTDIR)$(PREFIX)/libhoard.dylib"
     else
+      $(UNAME_S)-gcc-$(UNAME_P): Heap-Layers
       all: Heap-Layers $(UNAME_S)-gcc-$(UNAME_P)
       install: $(UNAME_S)-gcc-$(UNAME_P)-install
 	@echo "To use Hoard, execute this command: export DYLD_INSERT_LIBRARIES=$(DESTDIR)$(PREFIX)/libhoard.dylib"
