@@ -60,35 +60,8 @@ Open64 compilers.
 Licensing
 ---------
 
-Hoard is distributed under the GPL (v2.0), and can also be licensed
-for commercial use.
-
-Because of the restrictions imposed by the GPL license (you must make
-your code open-source), commercial users of Hoard can purchase non-GPL
-licenses through the University of Texas at Austin. Please consult the
-[current Hoard pricing
-information](http://www.cs.umass.edu/~emery/hoard/Hoard%20Pricing%202-05-2009.pdf)
-(updated 2/5/2009), which lists a number of options for purchasing
-licenses, as well as [software license terms and
-conditions](http://www.cs.umass.edu/~emery/hoard/SLA%20Terms%20and%20Conditions%209.22.2006.pdf),
-and the [software license
-agreement](http://www.cs.umass.edu/~emery/hoard/SLA%20Short%20Form%209-26-2006.pdf):
-note that the [main UT-Austin licensing
-page](http://www.otc.utexas.edu/IndustryForms.jsp) always contains the
-most up-to-date documents.
-
-To obtain a license, please contact Jitendra Jain directly
-(jjain@otc.utexas.edu) and copy Emery Berger (emery@cs.umass.edu).
-
-Jitendra Jain's full contact information follows:
-
-Jitendra Jain  
-The University of Texas at Austin  
-Office of Technology Commercialization  
-MCC Building, Suite 1.9A  
-3925 West Braker Lane  
-Austin, Texas 78759  
-(512) 471-9055, (512) 475-6894 (fax)  
+Hoard has now been released under the widely-used and permissive
+Apache license, version 2.0.
 
 
 Why Hoard?
