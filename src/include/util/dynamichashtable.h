@@ -1,10 +1,23 @@
 // -*- C++ -*-
 
+/*
+
+  The Hoard Multiprocessor Memory Allocator
+  www.hoard.org
+
+  Author: Emery Berger, http://www.emeryberger.com
+  Copyright (c) 1998-2020 Emery Berger
+
+  See the LICENSE file at the top-level directory of this
+  distribution and at http://github.com/emeryberger/Hoard.
+
+*/
+
 /**
  * @file   dynamichashtable.h
  * @brief  A thread-safe dynamic hash table based on linear probing.
  * @author Emery Berger <http://www.emeryberger.com>
- * @note   Copyright (C) 2013-2018 by Emery Berger, University of Massachusetts Amherst.
+ * @note   Copyright (C) 2013-2020 by Emery Berger, University of Massachusetts Amherst.
  **/
 
 #ifndef DYNAMICHASHTABLE_H

@@ -1,3 +1,16 @@
+/*
+
+  The Hoard Multiprocessor Memory Allocator
+  www.hoard.org
+
+  Author: Emery Berger, http://www.emeryberger.com
+  Copyright (c) 1998-2020 Emery Berger
+
+  See the LICENSE file at the top-level directory of this
+  distribution and at http://github.com/emeryberger/Hoard.
+
+*/
+
 #if !defined(NDEBUG)
 #define DEBUG_PRINT(format)			\
   {						\
