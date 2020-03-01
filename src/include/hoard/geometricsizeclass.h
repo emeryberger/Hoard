@@ -66,7 +66,7 @@ namespace Hoard {
     }
 
     /// Return the size class for a given size.
-    static int size2class (const size_t sz) {
+    static int constexpr size2class (const size_t sz) {
       // Do a binary search to find the right size class.
       int left  = 0;
       int right = NUM_SIZECLASSES - 1;
@@ -84,7 +84,7 @@ namespace Hoard {
     }
 
     /// Return the maximum size for a given size class.
-    static size_t class2size (const int cl) {
+    static size_t constexpr class2size (const int cl) {
       return c2s (cl);
     }
 
@@ -99,7 +99,7 @@ namespace Hoard {
   private:
 
     /// Verify that this class is working properly.
-    static bool test() {
+    static bool constexpr test() {
       // Iterate just up to 1MB for now.
       for (size_t sz = Alignment; sz < 1048576; sz += Alignment) {
 	int cl = size2class (sz);
