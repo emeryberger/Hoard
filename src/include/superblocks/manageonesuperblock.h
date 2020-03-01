@@ -28,6 +28,9 @@
  * @author Emery Berger <http://www.cs.umass.edu/~emery>
  */
 
+#define likely(x) __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
+
 namespace Hoard {
 
   template <class SuperHeap>
@@ -42,7 +45,7 @@ namespace Hoard {
 
     /// Get memory from the current superblock.
     inline void * malloc (size_t sz) {
-      if (_current) {
+      if (likely(_current)) {
 	void * ptr = _current->malloc (sz);
 	if (ptr) {
 	  assert (_current->getSize(ptr) >= sz);
@@ -56,7 +59,7 @@ namespace Hoard {
     /// Try to free the pointer to this superblock first.
     inline void free (void * ptr) {
       SuperblockType * s = SuperHeap::getSuperblock (ptr);
-      if (s == _current) {
+      if (likely(s == _current)) {
 	_current->free (ptr);
       } else {
 	// It wasn't ours, so free it remotely.
@@ -66,7 +69,7 @@ namespace Hoard {
 
     /// Get the current superblock and remove it.
     SuperblockType * get() {
-      if (_current) {
+      if (likely(_current)) {
 	SuperblockType * s = _current;
 	_current = nullptr;
 	return s;
