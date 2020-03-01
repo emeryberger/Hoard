@@ -42,12 +42,12 @@ namespace Hoard {
     
     /// @brief Find the start of the superblock by bitmasking.
     /// @note  All superblocks <em>must</em> be naturally aligned, and powers of two.
-    static inline HoardSuperblock * getSuperblock (void * ptr) {
+    static inline constexpr HoardSuperblock * getSuperblock (void * ptr) {
       return (HoardSuperblock *)
 	(((size_t) ptr) & ~((size_t) SuperblockSize-1));
     }
 
-    INLINE size_t getSize (void * ptr) const {
+    constexpr INLINE size_t getSize (void * ptr) const {
       if (_header.isValid() && inRange (ptr)) {
 	return _header.getSize (ptr);
       } else {
@@ -56,7 +56,7 @@ namespace Hoard {
     }
 
 
-    INLINE size_t getObjectSize() const {
+    constexpr INLINE size_t getObjectSize() const {
       if (_header.isValid()) {
 	return _header.getObjectSize();
       } else {
@@ -84,24 +84,25 @@ namespace Hoard {
     }
     
     void clear() {
-      if (_header.isValid())
+      if (_header.isValid()) {
 	_header.clear();
+      }
     }
     
     // ----- below here are non-conventional heap methods ----- //
     
-    INLINE bool isValidSuperblock() const {
+    constexpr INLINE bool isValidSuperblock() const {
       auto b = _header.isValid();
       return b;
     }
     
-    INLINE unsigned int getTotalObjects() const {
+    constexpr INLINE unsigned int getTotalObjects() const {
       assert (_header.isValid());
       return _header.getTotalObjects();
     }
     
     /// Return the number of free objects in this superblock.
-    INLINE unsigned int getObjectsFree() const {
+    constexpr INLINE unsigned int getObjectsFree() const {
       assert (_header.isValid());
       assert (_header.getObjectsFree() >= 0);
       assert (_header.getObjectsFree() <= _header.getTotalObjects());
@@ -118,7 +119,7 @@ namespace Hoard {
       _header.unlock();
     }
     
-    inline HeapType * getOwner() const {
+    constexpr inline HeapType * getOwner() const {
       assert (_header.isValid());
       return _header.getOwner();
     }
@@ -129,12 +130,12 @@ namespace Hoard {
       _header.setOwner (o);
     }
     
-    inline HoardSuperblock * getNext() const {
+    constexpr inline HoardSuperblock * getNext() const {
       assert (_header.isValid());
       return _header.getNext();
     }
 
-    inline HoardSuperblock * getPrev() const {
+    constexpr inline HoardSuperblock * getPrev() const {
       assert (_header.isValid());
       return _header.getPrev();
     }
@@ -151,14 +152,14 @@ namespace Hoard {
       _header.setPrev (f);
     }
     
-    INLINE bool inRange (void * ptr) const {
+    constexpr INLINE bool inRange (void * ptr) const {
       // Returns true iff the pointer is valid.
       auto ptrValue = (size_t) ptr;
       return ((ptrValue >= (size_t) _buf) &&
 	      (ptrValue < (size_t) &_buf[BufferSize]));
     }
     
-    INLINE void * normalize (void * ptr) const {
+    constexpr INLINE void * normalize (void * ptr) const {
       auto * ptr2 = _header.normalize (ptr);
       assert (inRange (ptr));
       assert (inRange (ptr2));
