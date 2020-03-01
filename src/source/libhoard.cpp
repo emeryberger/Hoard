@@ -108,7 +108,7 @@ extern bool isCustomHeapInitialized();
 
 extern "C" {
 
-  void * xxmalloc (size_t sz) {
+	void * __attribute__((always_inline)) xxmalloc (size_t sz) {
     if (isCustomHeapInitialized()) {
       void * ptr = getCustomHeap()->malloc (sz);
       if (ptr == nullptr) {
@@ -136,7 +136,7 @@ extern "C" {
     return ptr;
   }
 
-  void xxfree (void * ptr) {
+  void __attribute__((always_inline)) xxfree (void * ptr) {
     getCustomHeap()->free (ptr);
   }
 
@@ -153,3 +153,5 @@ extern "C" {
   }
 
 } // namespace Hoard
+
+#include "Heap-Layers/wrappers/gnuwrapper.cpp"

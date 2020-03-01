@@ -1,7 +1,7 @@
 # Commands to compile Hoard for various targets.
 # Run make (with no arguments) to see the complete target list.
 
-CPPFLAGS = -std=c++14 -O3 -DNDEBUG -ffast-math -fno-builtin-malloc -Wall -Wextra -Wshadow -Wconversion -Wuninitialized
+CPPFLAGS = -std=c++14 -flto -ftls-model=initial-exec -O3 -DNDEBUG -ffast-math -fno-builtin-malloc -Wall -Wextra -Wshadow -Wconversion -Wuninitialized
 #CPPFLAGS = -std=c++14 -g -O0 -ffast-math -fno-builtin-malloc -Wall -Wextra -Wshadow -Wconversion -Wuninitialized
 CXX = clang++
 
@@ -62,7 +62,7 @@ help:
 MAIN_SRC  = source/libhoard.cpp
 UNIX_SRC  = $(MAIN_SRC) source/unixtls.cpp
 SUNW_SRC  = $(UNIX_SRC) Heap-Layers/wrappers/wrapper.cpp
-GNU_SRC   = $(UNIX_SRC) Heap-Layers/wrappers/gnuwrapper.cpp
+GNU_SRC   = $(UNIX_SRC)
 MACOS_SRC = $(MAIN_SRC) Heap-Layers/wrappers/macwrapper.cpp source/mactls.cpp
 
 #
