@@ -28,7 +28,7 @@
  * @author Emery Berger <http://www.cs.umass.edu/~emery>
  */
 
-#define likely(x) __builtin_expect(!!(x), 1)
+#define likely(x) (x) // __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
 
 namespace Hoard {
