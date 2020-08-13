@@ -103,52 +103,44 @@ could mean that you need four times as much memory. Hoard is guaranteed (provabl
 
 You can use Homebrew to install the current version of Hoard as follows:
 
-```
-  % brew tap emeryberger/hoard
-  % brew install --HEAD emeryberger/hoard/libhoard
-```
+    brew tap emeryberger/hoard
+    brew install --HEAD emeryberger/hoard/libhoard
 
 This not only installs the Hoard library, but also creates a `hoard` command you can use to run Hoard with anything at the command-line.
 
-```
-  % hoard myprogram-goes-here
-```
+    hoard myprogram-goes-here
 
-### From source (Mac OS X, Linux, and Windows WSL2)
-
-Building Hoard (Unix/Mac)
 -------------------------
+### Building Hoard from source (Mac OS X, Linux, and Windows WSL2)
 
 To build Hoard from source, do the following:
 
-```
-  % git clone https://github.com/emeryberger/Hoard
-  % cd src
-  % make
-```
+    git clone https://github.com/emeryberger/Hoard
+    cd src
+    make
 
 You can then use Hoard by linking it with your executable, or
 by setting the `LD_PRELOAD` environment variable, as in
 
-	% export LD_PRELOAD=/path/to/libhoard.so
+    export LD_PRELOAD=/path/to/libhoard.so
 
 or, in Mac OS X:
 
-	% export DYLD_INSERT_LIBRARIES=/path/to/libhoard.dylib
+    export DYLD_INSERT_LIBRARIES=/path/to/libhoard.dylib
 
-Building Hoard (Windows)
 ------------------------
+### Building Hoard (Windows)
 
 Change into the `src` directory and build the Windows version:
 
-	C:\hoard\src> nmake
+    C:\hoard\src> nmake
 
 To use Hoard, link your executable with `source\uselibhoard.cpp` and `libhoard.lib`.
 You *must* use the `/MD` flag.
 
 Example:
 
-	C:\hoard\src> cl /Ox /MD yourapp.cpp source\uselibhoard.cpp libhoard.lib
+    C:\hoard\src> cl /Ox /MD yourapp.cpp source\uselibhoard.cpp libhoard.lib
 
 To run `yourapp.exe`, you will need to have `libhoard.dll` in your path.
 
