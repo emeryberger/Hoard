@@ -97,15 +97,35 @@ run your application by the number of CPUs on your machine: four CPUs
 could mean that you need four times as much memory. Hoard is guaranteed (provably!) to bound memory consumption.
 
 
+## Installation
+
+### Homebrew (Mac OS X)
+
+You can use Homebrew to install the current version of Hoard as follows:
+
+```
+  % brew tap emeryberger/hoard
+  % brew install --HEAD emeryberger/hoard/libhoard
+```
+
+This not only installs the Hoard library, but also creates a `hoard` command you can use to run Hoard with anything at the command-line.
+
+```
+  % hoard myprogram-goes-here
+```
+
+### From source (Mac OS X, Linux, and Windows WSL2)
+
 Building Hoard (Unix/Mac)
 -------------------------
 
-To build Hoard on non-Windows platforms, change into the `src/`
-directory and run `make` (or `gmake`) followed by the appropriate
-target. It should automatically detect your system and build
-appropriately.
+To build Hoard from source, do the following:
 
-	% make
+```
+  % git clone https://github.com/emeryberger/Hoard
+  % cd src
+  % make
+```
 
 You can then use Hoard by linking it with your executable, or
 by setting the `LD_PRELOAD` environment variable, as in
@@ -131,7 +151,6 @@ Example:
 	C:\hoard\src> cl /Ox /MD yourapp.cpp source\uselibhoard.cpp libhoard.lib
 
 To run `yourapp.exe`, you will need to have `libhoard.dll` in your path.
-
 
 Benchmarks
 ----------
