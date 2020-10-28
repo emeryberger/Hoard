@@ -26,6 +26,9 @@
 
 #define versionMessage "Using the Hoard memory allocator (http://www.hoard.org), version " HOARD_VERSION_STRING "\n"
 
+// Disable size checks in ANSIwrapper.
+#define HL_NO_MALLOC_SIZE_CHECKS 0
+
 #include "heaplayers.h"
 
 // The undef below ensures that any pthread_* calls get strong
@@ -106,9 +109,15 @@ static char * initBufferPtr = initBuffer;
 
 extern bool isCustomHeapInitialized();
 
+#include "Heap-Layers/wrappers/generic-memalign.cpp"
+
 extern "C" {
 
-	void * __attribute__((always_inline)) xxmalloc (size_t sz) {
+#if !defined(__GNUG__)
+  void * __attribute__((always_inline)) xxmalloc (size_t sz) {
+#else
+  void * xxmalloc (size_t sz) {
+#endif
     if (isCustomHeapInitialized()) {
       void * ptr = getCustomHeap()->malloc (sz);
       if (ptr == nullptr) {
@@ -136,10 +145,23 @@ extern "C" {
     return ptr;
   }
 
+#if !defined(__GNUG__)
   void __attribute__((always_inline)) xxfree (void * ptr) {
+#else
+  void xxfree (void * ptr) {
+#endif
     getCustomHeap()->free (ptr);
   }
 
+ 
+#if !defined(__GNUG__)
+  void * __attribute__((always_inline)) xxmemalign (size_t alignment, size_t sz) {
+#else
+  void * xxmemalign (size_t alignment, size_t sz) {
+#endif
+    return generic_xxmemalign(alignment, sz);
+  }
+    
   size_t xxmalloc_usable_size (void * ptr) {
     return getCustomHeap()->getSize (ptr);
   }
