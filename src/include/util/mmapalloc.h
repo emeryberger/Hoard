@@ -17,7 +17,6 @@
 #define HOARD_MMAPALLOC_H
 
 #include "heaplayers.h"
-// #include "mmapwrapper.h"
 
 /**
  * @class MmapAlloc
