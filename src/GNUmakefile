@@ -45,6 +45,7 @@ help:
 	@echo Linux-gcc-x86
 	@echo Linux-gcc-x86_64
 	@echo Darwin-gcc-i386
+	@echo Darwin-gcc-arm
 	@echo SunOS-sunw-sparc
 	@echo SunOS-sunw-i386
 	@echo SunOS-gcc-sparc
@@ -53,7 +54,7 @@ help:
 	@echo generic-gcc
 	@echo windows
 
-.PHONY: Darwin-gcc-i386 debian freebsd Linux-gcc-x86 Linux-gcc-x86-debug SunOS-sunw-sparc SunOS-sunw-i386 SunOS-gcc-sparc generic-gcc Linux-gcc-arm Linux-gcc-aarch64 Linux-gcc-x86_64 Linux-gcc-unknown windows windows-debug clean test release
+.PHONY: Darwin-gcc-i386 Darwin-gcc-arm debian freebsd Linux-gcc-x86 Linux-gcc-x86-debug SunOS-sunw-sparc SunOS-sunw-i386 SunOS-gcc-sparc generic-gcc Linux-gcc-arm Linux-gcc-aarch64 Linux-gcc-x86_64 Linux-gcc-unknown windows windows-debug clean test release
 
 #
 # Source files
@@ -95,9 +96,9 @@ FREEBSD_COMPILE = $(CXX) -g $(CPPFLAGS) -DNDEBUG -fPIC $(INCLUDES) -D_REENTRANT=
 DEBIAN_COMPILE = $(CXX) -g -O3 -fPIC -DNDEBUG -I. -Iinclude -Iinclude/util -Iinclude/hoard -Iinclude/superblocks -IHeap-Layers -D_REENTRANT=1 -shared source/libhoard.cpp source/unixtls.cpp Heap-Layers/wrappers/wrapper.cpp -Bsymbolic -o libhoard.so -lpthread -lstdc++ -ldl
 
 # -ftls-model=local-dynamic
-MACOS_COMPILE = $(CXX) -ftls-model=initial-exec -ftemplate-depth=1024 -arch x86_64 -pipe -g $(CPPFLAGS) $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -D'CUSTOM_PREFIX(x)=xx\#\#x' $(MACOS_SRC) -dynamiclib -install_name $(DESTDIR)$(PREFIX)/libhoard.dylib -o libhoard.dylib -ldl -lpthread 
+MACOS_COMPILE = $(CXX) -ftls-model=initial-exec -ftemplate-depth=1024 -arch x86_64 -arch arm64 -pipe -g $(CPPFLAGS) $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -D'CUSTOM_PREFIX(x)=xx\#\#x' $(MACOS_SRC) -dynamiclib -install_name $(DESTDIR)$(PREFIX)/libhoard.dylib -o libhoard.dylib -ldl -lpthread 
 
-MACOS_COMPILE_DEBUG = $(CXX) -std=c++14 -D_FORTIFY_SOURCE=2 -fstack-protector -ftrapv -fno-builtin-malloc -ftemplate-depth=1024 -arch x86_64 -pipe -g -O0 -Wall $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -D'CUSTOM_PREFIX(x)=xx\#\#x' $(MACOS_SRC) -dynamiclib -o libhoard.dylib -ldl -lpthread 
+MACOS_COMPILE_DEBUG = $(CXX) -std=c++14 -D_FORTIFY_SOURCE=2 -fstack-protector -ftrapv -fno-builtin-malloc -ftemplate-depth=1024 -arch x86_64 -arch arm64 -pipe -g -O0 -Wall $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -D'CUSTOM_PREFIX(x)=xx\#\#x' $(MACOS_SRC) -dynamiclib -o libhoard.dylib -ldl -lpthread 
 
 LINUX_GCC_ARM_COMPILE = arm-Linux-gnueabihf-g++ $(CPPFLAGS) -g -W -Wconversion -Wall -I/usr/include/nptl -fno-builtin-malloc -pipe -fPIC -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared   $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
@@ -161,6 +162,12 @@ Darwin-gcc-i386:
 	$(MACOS_COMPILE)
 
 Darwin-gcc-i386-install: Darwin-gcc-i386
+	cp libhoard.dylib $(DESTDIR)$(PREFIX)
+
+Darwin-gcc-arm:
+	$(MACOS_COMPILE)
+
+Darwin-gcc-arm-install: Darwin-gcc-arm
 	cp libhoard.dylib $(DESTDIR)$(PREFIX)
 
 generic-gcc:
@@ -248,6 +255,9 @@ SunOS-gcc-sparc-debug:
 	$(SUNOS_GCC_SPARC_COMPILE_DEBUG)
 
 Darwin-gcc-i386-debug:
+	$(MACOS_COMPILE_DEBUG)
+
+Darwin-gcc-arm-debug:
 	$(MACOS_COMPILE_DEBUG)
 
 Linux-gcc-x86_64-static:
