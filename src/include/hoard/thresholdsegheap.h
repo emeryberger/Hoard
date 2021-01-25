@@ -70,11 +70,9 @@ namespace Hoard {
       }
     }
 
-    void free (void * ptr) {
-      // Update current live memory stats, then free the object.
-      size_t sz = getSize(ptr);
+    void free (void * ptr, size_t sz) {
       if (sz >= MaxObjectSize) {
-	BigHeap::free (ptr);
+	BigHeap::free (ptr, sz);
 	return;
       }
       int cl = getSizeClass (sz);
@@ -99,6 +97,12 @@ namespace Hoard {
 	  _cleared = true;
 	  _maxLive = _currLive;
 	}
+    }
+    
+    void free (void * ptr) {
+      // Update current live memory stats, then free the object.
+      size_t sz = getSize(ptr);
+      free(ptr, sz);
     }
 
   private:

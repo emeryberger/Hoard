@@ -25,6 +25,8 @@
 #include "heaplayers.h"
 #include "mmapalloc.h"
 
+#define TRACK_SIZE 0
+
 using namespace std;
 using namespace HL;
 
@@ -45,7 +47,9 @@ namespace Hoard {
   public:
 
     AlignedMmapInstance()
+#if TRACK_SIZE
       : MyMap (16381) // entries in the hash map.
+#endif
     {}
 
     enum { Alignment = Alignment_ };
@@ -62,7 +66,9 @@ namespace Hoard {
       // If the memory is already suitably aligned, just track size requests.
       if ((size_t) HL::MmapWrapper::Alignment % (size_t) Alignment == 0) {
 	void * ptr = HL::MmapWrapper::map (sz);
+#if TRACK_SIZE
 	MyMap.set (ptr, sz);
+#endif
 	assert ((size_t) ptr % Alignment == 0);
 	return ptr;
       }
@@ -76,7 +82,9 @@ namespace Hoard {
 
       if ((size_t) ptr == HL::align<Alignment>((size_t) ptr)) {
 	// We're done.
+#if TRACK_SIZE
 	MyMap.set (ptr, sz);
+#endif
 	return ptr;
       }
 
@@ -86,6 +94,11 @@ namespace Hoard {
       return slowMap (sz);
     }
 
+    inline void free (void * ptr, size_t sz) {
+      HL::MmapWrapper::unmap (ptr, sz);
+    }
+    
+#if 0
     inline void free (void * ptr) {
 
       // Find the object. If we don't find it, we didn't allocate it.
@@ -106,7 +119,7 @@ namespace Hoard {
     inline size_t getSize (void * ptr) {
       return MyMap.get (ptr);
     }
-
+#endif
 
   private:
 
@@ -139,7 +152,9 @@ namespace Hoard {
 
       // Now record the size associated with this pointer.
 
+#if TRACK_SIZE
       MyMap.set (newptr, sz);
+#endif
       return newptr;
     }
 
@@ -160,7 +175,9 @@ namespace Hoard {
     typedef MyHashMap<keyType, valType, SourceHeap> mapType;
 
     /// The map that maintains the size of each mmapped chunk.
+#if TRACK_SIZE
     mapType MyMap;
+#endif
 
   };
 

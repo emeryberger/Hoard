@@ -73,7 +73,14 @@ namespace Hoard {
       // Find the header (just before the pointer) and free the whole object.
       typename SuperblockType::Header * p;
       p = reinterpret_cast<typename SuperblockType::Header *>(ptr);
-      theHeap.free (reinterpret_cast<void *>(p - 1));
+      theHeap.free (reinterpret_cast<void *>(p - 1), getSize(ptr));
+    }
+
+    INLINE void free (void * ptr, size_t sz) {
+      // Find the header (just before the pointer) and free the whole object.
+      typename SuperblockType::Header * p;
+      p = reinterpret_cast<typename SuperblockType::Header *>(ptr);
+      theHeap.free (reinterpret_cast<void *>(p - 1), sz);
     }
   };
 
