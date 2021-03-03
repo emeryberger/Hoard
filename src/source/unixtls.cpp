@@ -34,9 +34,11 @@
                      + __GNUC_MINOR__ * 100 \
                      + __GNUC_PATCHLEVEL__)
 
+  //      !defined(__APPLE__))
+
 #if (((defined(GCC_VERSION) && (GCC_VERSION >= 30300)) &&	\
-      !defined(__SVR4) &&					\
-      !defined(__APPLE__))					\
+      !defined(__SVR4))						\
+  && !defined(__APPLE__) \
      || defined(__SUNPRO_CC)					\
      || defined(__FreeBSD__))
 #define USE_THREAD_KEYWORD 1
@@ -65,7 +67,14 @@ extern Hoard::HoardHeapType * getMainHoardHeap();
 // Optimization to accelerate thread-local access. This precludes the
 // use of Hoard in a dlopen module, but is MUCH faster.
 
+#if !defined(INITIAL_EXEC_ATTR)
+#if !defined(__APPLE__)
 #define INITIAL_EXEC_ATTR __attribute__((tls_model ("initial-exec")))
+#else
+#define INITIAL_EXEC_ATTR
+#endif
+#endif
+
 #define BUFFER_SIZE (sizeof(TheCustomHeapType) / sizeof(double) + 1)
 
 static __thread double tlabBuffer[BUFFER_SIZE] INITIAL_EXEC_ATTR;
@@ -313,7 +322,7 @@ extern "C" void thr_exit (void * value_ptr) {
 
 
 #if defined(__APPLE__)
-#error "This file should not be used on Mac OS platforms."
+// #error "This file should not be used on Mac OS platforms."
 #else
 
 extern "C" void pthread_exit (void *value_ptr) {
