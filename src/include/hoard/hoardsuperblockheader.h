@@ -55,7 +55,7 @@ namespace Hoard {
   class HoardSuperblockHeaderHelper {
   public:
 
-    enum { Alignment = 16 };
+    enum { Alignment = sizeof(void *) * 2 };
 
   public:
 
