@@ -48,7 +48,7 @@
 #include <pthread.h>
 #endif
 
-#if defined(__SVR4)
+#if defined(__SVR4) || defined(__FreeBSD__)
 #include <dlfcn.h>
 #endif
 
