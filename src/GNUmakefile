@@ -2,6 +2,7 @@
 # Run make (with no arguments) to see the complete target list.
 
 CPPFLAGS = -std=c++14 -flto -O3 -DNDEBUG -ffast-math -fno-builtin-malloc -Wall -Wextra -Wshadow -Wconversion -Wuninitialized # -DHL_NO_MALLOC_SIZE_CHECKS=1
+CPPFLAGS_NOLTO = -std=c++14 -O3 -DNDEBUG -ffast-math -fno-builtin-malloc -Wall -Wextra -Wshadow -Wconversion -Wuninitialized # -DHL_NO_MALLOC_SIZE_CHECKS=1
 #CPPFLAGS = -std=c++14 -g -O0 -ffast-math -fno-builtin-malloc -Wall -Wextra -Wshadow -Wconversion -Wuninitialized
 CXX = clang++
 
@@ -40,6 +41,7 @@ help:
 	@echo -------------------------------------------------
 	@echo debian
 	@echo freebsd
+	@echo netbsd
 	@echo Linux-gcc-arm
 	@echo Linux-gcc-aarch64
 	@echo Linux-gcc-x86
@@ -54,7 +56,7 @@ help:
 	@echo generic-gcc
 	@echo windows
 
-.PHONY: Darwin-gcc-i386 Darwin-gcc-arm debian freebsd Linux-gcc-x86 Linux-gcc-x86-debug SunOS-sunw-sparc SunOS-sunw-i386 SunOS-gcc-sparc generic-gcc Linux-gcc-arm Linux-gcc-aarch64 Linux-gcc-x86_64 Linux-gcc-unknown windows windows-debug clean test release
+.PHONY: Darwin-gcc-i386 Darwin-gcc-arm debian freebsd netbsd Linux-gcc-x86 Linux-gcc-x86-debug SunOS-sunw-sparc SunOS-sunw-i386 SunOS-gcc-sparc generic-gcc Linux-gcc-arm Linux-gcc-aarch64 Linux-gcc-x86_64 Linux-gcc-unknown windows windows-debug clean test release
 
 #
 # Source files
@@ -92,6 +94,8 @@ WIN_INCLUDES = /I. /Iinclude /Iinclude/util /Iinclude/hoard /Iinclude/superblock
 #
 
 FREEBSD_COMPILE = $(CXX) -g $(CPPFLAGS) -DNDEBUG -fPIC $(INCLUDES) -D_REENTRANT=1 -shared $(SUNW_SRC) -Bsymbolic -o libhoard.so -lpthread
+
+NETBSD_COMPILE = $(CXX) -g $(CPPFLAGS_NOLTO) -DNDEBUG -fPIC $(INCLUDES) -D_REENTRANT=1 -shared $(SUNW_SRC) -Bsymbolic -o libhoard.so -lpthread
 
 DEBIAN_COMPILE = $(CXX) -g -O3 -fPIC -DNDEBUG -I. -Iinclude -Iinclude/util -Iinclude/hoard -Iinclude/superblocks -IHeap-Layers -D_REENTRANT=1 -shared source/libhoard.cpp source/unixtls.cpp Heap-Layers/wrappers/wrapper.cpp -Bsymbolic -o libhoard.so -lpthread -lstdc++ -ldl
 
@@ -271,6 +275,9 @@ SunOS-sunw-sparc-debug:
 
 freebsd:
 	$(FREEBSD_COMPILE)
+
+netbsd:
+	$(NETBSD_COMPILE)
 
 debian:
 	$(DEBIAN_COMPILE)

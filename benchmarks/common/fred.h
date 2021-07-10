@@ -74,7 +74,7 @@ public:
 #if defined(_WIN32)
 #elif defined(__SVR4)
     thr_setconcurrency (n);
-#else
+#elif !defined(__NetBSD__)
     pthread_setconcurrency (n);
 #endif
   }
