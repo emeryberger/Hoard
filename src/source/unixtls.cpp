@@ -48,7 +48,7 @@
 #include <pthread.h>
 #endif
 
-#if defined(__SVR4) || defined(__FreeBSD__)
+#if defined(__SVR4) || defined(__FreeBSD__) || defined(__NetBSD__)
 #include <dlfcn.h>
 #endif
 
@@ -352,7 +352,7 @@ extern "C" int pthread_create (pthread_t *thread,
                                const pthread_attr_t *attr,
                                void * (*start_routine)(void *),
                                void * arg)
-#if !defined(__SUNPRO_CC) && !defined(__APPLE__) && !defined(__FreeBSD__)
+#if !defined(__SUNPRO_CC) && !defined(__APPLE__) && !defined(__FreeBSD__) && !defined(__NetBSD__)
   throw ()
 #endif
 {
