@@ -61,25 +61,6 @@ volatile bool anyThreadCreated = true;
 volatile bool anyThreadCreated = false;
 #endif
 
-namespace Hoard {
-  
-  // HOARD_MMAP_PROTECTION_MASK defines the protection flags used for
-  // freshly-allocated memory. The default case is that heap memory is
-  // NOT executable, thus preventing the class of attacks that inject
-  // executable code on the heap.
-  // 
-  // While this is not recommended, you can define HL_EXECUTABLE_HEAP as
-  // 1 in heaplayers/heaplayers.h if you really need to (i.e., you're
-  // doing dynamic code generation into malloc'd space).
-  
-#if HL_EXECUTABLE_HEAP
-#define HOARD_MMAP_PROTECTION_MASK (PROT_READ | PROT_WRITE | PROT_EXEC)
-#else
-#define HOARD_MMAP_PROTECTION_MASK (PROT_READ | PROT_WRITE)
-#endif
-
-} // namespace Hoard
-
 #include "hoardtlab.h"
 
 //
