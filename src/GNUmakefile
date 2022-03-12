@@ -34,6 +34,12 @@ ifeq ($(UNAME_S),Darwin)
 PREFIX ?= /usr/local/lib
 else
 PREFIX ?= /usr/lib
+  ifeq ($(UNAME_S),Linux)
+    LINKER_N := $(shell ldd --version 2>&1 | head -n 1 | cut -f 1 -d " ")
+    ifeq ($(LINKER_N),musl)
+        CPPFLAGS = $(CPPFLAGS_NOLTO) -D__MUSL__
+    endif
+  endif
 endif
 
 help:

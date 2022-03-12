@@ -178,7 +178,7 @@ extern "C" {
 
 } // namespace Hoard
 
-#if defined(__linux__)
+#if defined(__linux__) && !defined(__MUSL__)
 // include gnuwrapper here to aid inlining of xxmalloc + friends
 #include "Heap-Layers/wrappers/gnuwrapper.cpp"
 #endif
