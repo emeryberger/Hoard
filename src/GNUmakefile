@@ -18,12 +18,16 @@ else
       $(UNAME_S)-sunw-$(UNAME_P): Heap-Layers
       all: Heap-Layers $(UNAME_S)-sunw-$(UNAME_P)
       install: $(UNAME_S)-sunw-$(UNAME_P)-install
-	@echo "To use Hoard, execute this command: export DYLD_INSERT_LIBRARIES=$(DESTDIR)$(PREFIX)/libhoard.dylib"
+	@echo "To use Hoard, execute this command: export LD_PRELOAD=$(DESTDIR)$(PREFIX)/libhoard.so"
     else
       $(UNAME_S)-gcc-$(UNAME_P): Heap-Layers
       all: Heap-Layers $(UNAME_S)-gcc-$(UNAME_P)
       install: $(UNAME_S)-gcc-$(UNAME_P)-install
-	@echo "To use Hoard, execute this command: export DYLD_INSERT_LIBRARIES=$(DESTDIR)$(PREFIX)/libhoard.dylib"
+        ifeq ($(UNAME_S),Darwin)
+	  @echo "To use Hoard, execute this command: export DYLD_INSERT_LIBRARIES=$(DESTDIR)$(PREFIX)/libhoard.dylib"
+        else
+	  @echo "To use Hoard, execute this command: export LD_PRELOAD=$(DESTDIR)$(PREFIX)/libhoard.so"
+        endif
 endif
 endif
 
@@ -140,9 +144,9 @@ SUNOS_GCC_SPARC_COMPILE_32 = g++ -g -fno-builtin-malloc -nostartfiles -pipe -DND
 
 SUNOS_GCC_SPARC_COMPILE_64 = g++ -g -fno-builtin-malloc -nostartfiles -pipe -DNDEBUG -mcpu=ultrasparc -m64 $(CPPFLAGS) -fPIC -fkeep-inline-functions -finline-functions -ffast-math $(INCLUDES) -D_REENTRANT=1 -shared $(SUNW_SRC) -lthread -lpthread -ldl -o libhoard_64.so
 
-SUNOS_GCC_I386_COMPILE_32 = g++ -g -fno-builtin-malloc -nostartfiles -pipe -DNDEBUG -m32 $(CPPFLAGS) -finline-limit=20000 -fPIC -fkeep-inline-functions -finline-functions -ffast-math $(INCLUDES) -D_REENTRANT=1 -shared $(SUNW_SRC) -lthread -ldl -o libhoard_32.so
+SUNOS_GCC_I386_COMPILE_32 = $(CXX) -g -fno-builtin-malloc -nostartfiles -pipe -DNDEBUG -m32 $(CPPFLAGS) -finline-limit=20000 -fPIC -fkeep-inline-functions -finline-functions -ffast-math $(INCLUDES) -D_REENTRANT=1 -shared $(SUNW_SRC) -lthread -ldl -fno-use-cxa-atexit -o libhoard_32.so
 
-SUNOS_GCC_I386_COMPILE_64 = g++ -g -fno-builtin-malloc -nostartfiles -pipe -DNDEBUG -m64 $(CPPFLAGS) -finline-limit=20000 -fPIC -fkeep-inline-functions -finline-functions -ffast-math $(INCLUDES) -D_REENTRANT=1 -shared $(SUNW_SRC) -lthread -ldl -o libhoard_64.so
+SUNOS_GCC_I386_COMPILE_64 = $(CXX) -g -fno-builtin-malloc -nostartfiles -pipe -DNDEBUG -m64 $(CPPFLAGS) -finline-limit=20000 -fPIC -fkeep-inline-functions -finline-functions -ffast-math $(INCLUDES) -D_REENTRANT=1 -shared $(SUNW_SRC) -lthread -ldl -fno-use-cxa-atexit -o libhoard_64.so
 
 SUNOS_GCC_SPARC_COMPILE_DEBUG = g++ -g -fno-builtin-malloc -nostartfiles -pipe -mcpu=ultrasparc -g -fPIC $(INCLUDES) -D_REENTRANT=1 -shared $(SUNW_SRC) -lthread -lpthread -ldl -o libhoard.so
 
@@ -233,7 +237,7 @@ SunOS-gcc-i386:
 	$(SUNOS_GCC_I386_COMPILE_32)
 	$(SUNOS_GCC_I386_COMPILE_64)
 
-SunOS-gcc-i386-install: SunOS-gcc-sparc
+SunOS-gcc-i386-install: SunOS-gcc-i386
 	cp libhoard_32.so $(DESTDIR)$(PREFIX)
 	cp libhoard_64.so $(DESTDIR)$(PREFIX)
 

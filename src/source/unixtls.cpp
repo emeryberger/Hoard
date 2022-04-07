@@ -54,6 +54,7 @@
 
 #include <new>
 #include <utility>
+#include <iostream>
 
 
 #include "hoard/hoardtlab.h"

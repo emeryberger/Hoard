@@ -37,8 +37,11 @@ namespace Hoard {
       // more chunks (and align them to 64K!) for smaller superblock sizes.
       // Right now, we do not handle this case and just assert here that
       // we are getting chunks of 64K.
-      static_assert(SuperblockSize == 65536,
-		    "This is needed to prevent mmap fragmentation.");
+      //
+      // However on illumos, it does not seem to be the case
+      // but there is no way to distinguish from solaris
+      //static_assert(SuperblockSize == 65536,
+      //		    "This is needed to prevent mmap fragmentation.");
 #endif
     }
     

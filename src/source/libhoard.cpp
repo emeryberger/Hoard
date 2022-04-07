@@ -95,7 +95,7 @@ extern bool isCustomHeapInitialized();
 extern "C" {
 
 #if defined(__GNUG__)
-  void * __attribute__((always_inline)) xxmalloc (size_t sz)
+  inline void * __attribute__((always_inline)) xxmalloc (size_t sz)
 #else
     void * __attribute__((flatten)) xxmalloc (size_t sz) __attribute__((alloc_size(1))) __attribute((malloc))
 #endif
@@ -128,7 +128,7 @@ extern "C" {
   }
 
 #if defined(__GNUG__)
-  void __attribute__((flatten)) __attribute__((always_inline)) xxfree (void * ptr)
+  inline void __attribute__((flatten)) __attribute__((always_inline)) xxfree (void * ptr)
 #else
   void xxfree (void * ptr)
 #endif
@@ -138,7 +138,7 @@ extern "C" {
 
  
 #if defined(__GNUG__)
-  void * __attribute__((always_inline)) xxmemalign (size_t alignment, size_t sz) {
+  inline void * __attribute__((always_inline)) xxmemalign (size_t alignment, size_t sz) {
 #else
   void * xxmemalign (size_t alignment, size_t sz) {
 #endif
