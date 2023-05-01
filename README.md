@@ -2,7 +2,7 @@
 [The Hoard Memory Allocator](http://www.hoard.org)
 --------------------------
 
-Copyright (C) 1998-2020 by [Emery Berger](http://www.emeryberger.org)
+by [Emery Berger](http://www.emeryberger.org)
 
 The Hoard memory allocator is a fast, scalable, and memory-efficient
 memory allocator that works on a range of platforms, including Linux,
@@ -13,6 +13,8 @@ improve application performance, especially for multithreaded programs
 running on multiprocessors and multicore CPUs. No source code changes
 necessary: just link it in or set one environment variable (see
 [Building Hoard](#building-hoard-unixmac), below).
+
+![Downloads](https://img.shields.io/github/downloads/emeryberger/Hoard/total)
 
 Press
 -----
