@@ -113,21 +113,32 @@ This not only installs the Hoard library, but also creates a `hoard` command you
 -------------------------
 ### Building Hoard from source (Mac OS X, Linux, and Windows WSL2)
 
-To build Hoard from source, do the following:
+On Linux, you may need to first install the appropriate version of `libstdc++-dev` (e.g., `libstdc++-12-dev`):
 
+```bash
+   sudo apt install libstdc++-dev
+```
+
+Now, to build Hoard from source, do the following:
+
+```bash
     git clone https://github.com/emeryberger/Hoard
     cd src
     make
+```
 
 You can then use Hoard by linking it with your executable, or
 by setting the `LD_PRELOAD` environment variable, as in
 
+```bash
     export LD_PRELOAD=/path/to/libhoard.so
+```
 
 or, in Mac OS X:
 
+```bash
     export DYLD_INSERT_LIBRARIES=/path/to/libhoard.dylib
-
+```
 ------------------------
 ### Building Hoard (Windows)
 
