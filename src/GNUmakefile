@@ -4,7 +4,7 @@
 CPPFLAGS = -std=c++14 -flto -O3 -DNDEBUG -ffast-math -fno-builtin-malloc -Wall -Wextra -Wshadow -Wconversion -Wuninitialized # -DHL_NO_MALLOC_SIZE_CHECKS=1
 CPPFLAGS_NOLTO = -std=c++14 -O3 -DNDEBUG -ffast-math -fno-builtin-malloc -Wall -Wextra -Wshadow -Wconversion -Wuninitialized # -DHL_NO_MALLOC_SIZE_CHECKS=1
 #CPPFLAGS = -std=c++14 -g -O0 -ffast-math -fno-builtin-malloc -Wall -Wextra -Wshadow -Wconversion -Wuninitialized
-CXX = clang++
+CXX ?= clang++
 
 # Compute platform (OS and architecture) and build accordingly.
 
@@ -58,6 +58,7 @@ help:
 	@echo Linux-gcc-x86_64
 	@echo Darwin-gcc-i386
 	@echo Darwin-gcc-arm
+	@echo Darwin-gcc-powerpc
 	@echo SunOS-sunw-sparc
 	@echo SunOS-sunw-i386
 	@echo SunOS-gcc-sparc
@@ -66,7 +67,7 @@ help:
 	@echo generic-gcc
 	@echo windows
 
-.PHONY: Darwin-gcc-i386 Darwin-gcc-arm debian freebsd netbsd Linux-gcc-x86 Linux-gcc-x86-debug SunOS-sunw-sparc SunOS-sunw-i386 SunOS-gcc-sparc generic-gcc Linux-gcc-arm Linux-gcc-aarch64 Linux-gcc-x86_64 Linux-gcc-unknown windows windows-debug clean test release
+.PHONY: Darwin-gcc-i386 Darwin-gcc-arm Darwin-gcc-powerpc debian freebsd netbsd Linux-gcc-x86 Linux-gcc-x86-debug SunOS-sunw-sparc SunOS-sunw-i386 SunOS-gcc-sparc generic-gcc Linux-gcc-arm Linux-gcc-aarch64 Linux-gcc-x86_64 Linux-gcc-unknown windows windows-debug clean test release
 
 #
 # Source files
@@ -110,9 +111,13 @@ NETBSD_COMPILE = $(CXX) -g $(CPPFLAGS_NOLTO) -DNDEBUG -fPIC $(INCLUDES) -D_REENT
 DEBIAN_COMPILE = $(CXX) -g -O3 -fPIC -DNDEBUG -I. -Iinclude -Iinclude/util -Iinclude/hoard -Iinclude/superblocks -IHeap-Layers -D_REENTRANT=1 -shared source/libhoard.cpp source/unixtls.cpp Heap-Layers/wrappers/wrapper.cpp -Bsymbolic -o libhoard.so -lpthread -lstdc++ -ldl
 
 # -ftls-model=local-dynamic
-MACOS_COMPILE = $(CXX) -ftls-model=initial-exec -ftemplate-depth=1024 -arch x86_64 -arch arm64 -pipe -g $(CPPFLAGS) $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -D'CUSTOM_PREFIX(x)=xx\#\#x' $(MACOS_SRC) -dynamiclib -install_name $(DESTDIR)$(PREFIX)/libhoard.dylib -o libhoard.dylib -ldl -lpthread 
+MACOS_COMPILE = $(CXX) -ftls-model=initial-exec -ftemplate-depth=1024 -arch x86_64 -arch arm64 -pipe -g $(CPPFLAGS) $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -D'CUSTOM_PREFIX(x)=xx\#\#x' $(MACOS_SRC) -dynamiclib -install_name $(DESTDIR)$(PREFIX)/libhoard.dylib -o libhoard.dylib -ldl -lpthread
 
-MACOS_COMPILE_DEBUG = $(CXX) -std=c++14 -D_FORTIFY_SOURCE=2 -fstack-protector -ftrapv -fno-builtin-malloc -ftemplate-depth=1024 -arch x86_64 -arch arm64 -pipe -g -O0 -Wall $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -D'CUSTOM_PREFIX(x)=xx\#\#x' $(MACOS_SRC) -dynamiclib -o libhoard.dylib -ldl -lpthread 
+MACOS_COMPILE_DEBUG = $(CXX) -std=c++14 -D_FORTIFY_SOURCE=2 -fstack-protector -ftrapv -fno-builtin-malloc -ftemplate-depth=1024 -arch x86_64 -arch arm64 -pipe -g -O0 -Wall $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -D'CUSTOM_PREFIX(x)=xx\#\#x' $(MACOS_SRC) -dynamiclib -o libhoard.dylib -ldl -lpthread
+
+MACOS_COMPILE_PPC = $(CXX) -ftls-model=initial-exec -ftemplate-depth=1024 -arch ppc -pipe -g $(CPPFLAGS) $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -D'CUSTOM_PREFIX(x)=xx\#\#x' $(MACOS_SRC) -dynamiclib -install_name $(DESTDIR)$(PREFIX)/libhoard.dylib -o libhoard.dylib -ldl -lpthread
+
+MACOS_COMPILE_PPC64 = $(CXX) -ftls-model=initial-exec -ftemplate-depth=1024 -arch ppc64 -pipe -g $(CPPFLAGS) $(INCLUDES) -D_REENTRANT=1 -compatibility_version 1 -current_version 1 -D'CUSTOM_PREFIX(x)=xx\#\#x' $(MACOS_SRC) -dynamiclib -install_name $(DESTDIR)$(PREFIX)/libhoard.dylib -o libhoard.dylib -ldl -lpthread
 
 LINUX_GCC_ARM_COMPILE = arm-Linux-gnueabihf-g++ $(CPPFLAGS) -g -W -Wconversion -Wall -I/usr/include/nptl -fno-builtin-malloc -pipe -fPIC -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared   $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
@@ -182,6 +187,12 @@ Darwin-gcc-arm:
 	$(MACOS_COMPILE)
 
 Darwin-gcc-arm-install: Darwin-gcc-arm
+	cp libhoard.dylib $(DESTDIR)$(PREFIX)
+
+Darwin-gcc-powerpc:
+	$(MACOS_COMPILE_PPC)
+
+Darwin-gcc-powerpc-install: Darwin-gcc-powerpc
 	cp libhoard.dylib $(DESTDIR)$(PREFIX)
 
 generic-gcc:
@@ -294,5 +305,4 @@ debian:
 
 clean:
 	rm -rf libhoard.*
-
 
