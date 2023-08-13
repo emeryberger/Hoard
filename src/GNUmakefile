@@ -56,6 +56,7 @@ help:
 	@echo Linux-gcc-aarch64
 	@echo Linux-gcc-x86
 	@echo Linux-gcc-x86_64
+	@echo Linux-gcc-riscv64
 	@echo Darwin-gcc-i386
 	@echo Darwin-gcc-arm
 	@echo Darwin-gcc-powerpc
@@ -67,7 +68,7 @@ help:
 	@echo generic-gcc
 	@echo windows
 
-.PHONY: Darwin-gcc-i386 Darwin-gcc-arm Darwin-gcc-powerpc debian freebsd netbsd Linux-gcc-x86 Linux-gcc-x86-debug SunOS-sunw-sparc SunOS-sunw-i386 SunOS-gcc-sparc generic-gcc Linux-gcc-arm Linux-gcc-aarch64 Linux-gcc-x86_64 Linux-gcc-unknown windows windows-debug clean test release
+.PHONY: Darwin-gcc-i386 Darwin-gcc-arm Darwin-gcc-powerpc debian freebsd netbsd Linux-gcc-x86 Linux-gcc-x86-debug SunOS-sunw-sparc SunOS-sunw-i386 SunOS-gcc-sparc generic-gcc Linux-gcc-arm Linux-gcc-aarch64 Linux-gcc-riscv64 Linux-gcc-x86_64 Linux-gcc-unknown windows windows-debug clean test release
 
 #
 # Source files
@@ -122,6 +123,8 @@ MACOS_COMPILE_PPC64 = $(CXX) -ftls-model=initial-exec -ftemplate-depth=1024 -arc
 LINUX_GCC_ARM_COMPILE = arm-Linux-gnueabihf-g++ $(CPPFLAGS) -g -W -Wconversion -Wall -I/usr/include/nptl -fno-builtin-malloc -pipe -fPIC -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared   $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
 LINUX_GCC_AARCH64_COMPILE = aarch64-linux-gnu-g++ $(CPPFLAGS) -g -W -Wconversion -Wall -I/usr/include/nptl -fno-builtin-malloc -pipe -fPIC -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared   $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
+
+LINUX_GCC_RISCV64_COMPILE = riscv64-linux-gnu-g++ $(CPPFLAGS) -g -W -Wconversion -Wall -I/usr/include/nptl -fno-builtin-malloc -pipe -fPIC -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared   $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread -latomic
 
 LINUX_GCC_x86_COMPILE = $(CXX) -m32 $(CPPFLAGS) -I/usr/include/nptl -ffast-math -g -fno-builtin-malloc -DNDEBUG  $(INCLUDES) -D_REENTRANT=1 -shared  $(GNU_SRC) -Bsymbolic -o libhoard.so -ldl -lpthread
 
@@ -211,6 +214,12 @@ Linux-gcc-aarch64:
 	$(LINUX_GCC_AARCH64_COMPILE)
 
 Linux-gcc-aarch64-install: Linux-gcc-aarch64
+	cp libhoard.so $(DESTDIR)$(PREFIX)
+
+Linux-gcc-riscv64:
+	$(LINUX_GCC_RISCV64_COMPILE)
+
+Linux-gcc-riscv64-install: Linux-gcc-riscv64
 	cp libhoard.so $(DESTDIR)$(PREFIX)
 
 Linux-gcc-x86:
