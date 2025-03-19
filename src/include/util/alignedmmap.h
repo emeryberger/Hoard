@@ -22,6 +22,8 @@
 #ifndef HOARD_ALIGNEDMMAP_H
 #define HOARD_ALIGNEDMMAP_H
 
+#include <unordered_map>
+
 #include "heaplayers.h"
 #include "mmapalloc.h"
 
@@ -172,7 +174,12 @@ namespace Hoard {
     class SourceHeap : public HL::FreelistHeap<BumpAlloc<65536, MmapAlloc> > { };
 
     /// The map type, with all the pieces in place.
-    typedef MyHashMap<keyType, valType, SourceHeap> mapType;
+    typedef std::unordered_map<keyType,
+      valType,
+      std::hash<keyType>,
+      std::equal_to<keyType>,
+      HL::STLAllocator<std::pair<keyType const, valType>,
+		       SourceHeap>> mapType;
 
     /// The map that maintains the size of each mmapped chunk.
 #if TRACK_SIZE
