@@ -60,12 +60,12 @@ target_compile_definitions(hoard
     _REENTRANT=1
 )
 # Add threading support if needed
-find_package(Threads)
-if(Threads_FOUND)
-    target_link_libraries(hoard Threads::Threads)
-endif()
+#find_package(Threads)
+#if(Threads_FOUND)
+#    target_link_libraries(hoard Threads::Threads)
+#endif()
 # Link with pthread/dl on Unix-like systems; on Windows, CMake will adjust automatically
-# target_link_libraries(hoard PRIVATE pthread dl)
+target_link_libraries(hoard PRIVATE pthread dl)
 # Output the final library name as libhoard.so/.dylib on most platforms
 set_target_properties(hoard PROPERTIES
   OUTPUT_NAME "hoard"
