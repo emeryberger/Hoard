@@ -5,7 +5,6 @@ project(hoard LANGUAGES CXX)
 # ─── OPTIONS ──────────────────────────────────────────────────────────
 #
 
-# Default to C++14 (adjust as desired)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -22,13 +21,6 @@ include_directories(
   ${PROJECT_SOURCE_DIR}/src/include/hoard
   ${PROJECT_SOURCE_DIR}/src/include/superblocks
   ${PROJECT_SOURCE_DIR}/src/include/util
-  ${PROJECT_SOURCE_DIR}/include
-  ${PROJECT_SOURCE_DIR}/include/layers
-  ${PROJECT_SOURCE_DIR}/include/math
-  ${PROJECT_SOURCE_DIR}/include/static
-  ${PROJECT_SOURCE_DIR}/include/rng
-  ${PROJECT_SOURCE_DIR}/include/hoard
-  ${PROJECT_SOURCE_DIR}/include/superblocks
 )
 
 include(FetchContent)
@@ -54,6 +46,7 @@ set(MACOS_SOURCES
 
 if(APPLE)
   set(HOARD_SOURCES ${MACOS_SOURCES})
+  add_compile_options(-ftls-model=initial-exec -ftemplate-depth=1024)
 else()
   set(HOARD_SOURCES ${UNIX_SOURCES})
 endif()
