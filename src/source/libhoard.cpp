@@ -90,7 +90,7 @@ static char * initBufferPtr = initBuffer;
 
 extern bool isCustomHeapInitialized();
 
-#include "Heap-Layers/wrappers/generic-memalign.cpp"
+#include "wrappers/generic-memalign.cpp"
 
 extern "C" {
 

@@ -19,7 +19,7 @@
 #include <pthread.h>
 #include <utility>
 
-#include "Heap-Layers/heaplayers.h"
+#include "heaplayers.h"
 #include "hoard/hoardtlab.h"
 
 extern Hoard::HoardHeapType * getMainHoardHeap();
