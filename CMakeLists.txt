@@ -33,7 +33,7 @@ FetchContent_MakeAvailable(Heap-Layers)
 include_directories(${heap-layers_SOURCE_DIR})
 
 set(UNIX_SOURCES
-  ${heap-layers_SOURCE_DIR}/wrappers/gnuwrapper.cpp
+#  ${heap-layers_SOURCE_DIR}/wrappers/gnuwrapper.cpp
   src/source/unixtls.cpp
   src/source/libhoard.cpp
 )
@@ -46,9 +46,10 @@ set(MACOS_SOURCES
 
 if(APPLE)
   set(HOARD_SOURCES ${MACOS_SOURCES})
-  add_compile_options(-ftls-model=initial-exec -ftemplate-depth=1024)
+  add_compile_options(-DNDEBUG -ftls-model=initial-exec -ftemplate-depth=1024)
 else()
   set(HOARD_SOURCES ${UNIX_SOURCES})
+  add_definitions(-DNDEBUG)
 endif()
 
 set(CMAKE_BUILD_TYPE RelWithDebInfo)
@@ -58,9 +59,15 @@ target_compile_definitions(hoard
     PRIVATE
     _REENTRANT=1
 )
+# Add threading support if needed
+find_package(Threads)
+if(Threads_FOUND)
+    target_link_libraries(hoard Threads::Threads)
+endif()
 # Link with pthread/dl on Unix-like systems; on Windows, CMake will adjust automatically
-target_link_libraries(hoard PRIVATE pthread dl)
+# target_link_libraries(hoard PRIVATE pthread dl)
 # Output the final library name as libhoard.so/.dylib on most platforms
 set_target_properties(hoard PROPERTIES
   OUTPUT_NAME "hoard"
 )
+
