@@ -123,7 +123,8 @@ Now, to build Hoard from source, do the following:
 
 ```bash
     git clone https://github.com/emeryberger/Hoard
-    cd src
+    mkdir build && cd build
+    cmake ..
     make
 ```
 
