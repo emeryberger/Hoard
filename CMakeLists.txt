@@ -15,7 +15,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # Write a version map to enable replacing direct libc allocation calls.
 set(VERS_SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/vers.map)
 file(WRITE ${VERS_SCRIPT}
-"GLIBC_2.2.5 {\n  global:\n    __libc_malloc;\n    __libc_free;\n    __libc_realloc;\n    __libc_calloc;\n    __libc_memalign;\n  local: *;\n};\n")
+"GLIBC_2.2.5 {\n  global:\n    __libc_malloc;\n    __libc_free;\n    __libc_realloc;\n    __libc_calloc;\n    __libc_memalign;\n    local: custom*;\n      xx*;\n};\n")
 
 # Ensure that the compiler doesn't replace anything with malloc/free
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-builtin-malloc -fno-builtin-free")
@@ -64,12 +64,13 @@ endif()
 
 set(CMAKE_BUILD_TYPE RelWithDebInfo)
 
+add_library(hoard SHARED ${HOARD_SOURCES})
+
 # For Linux, link with the version script declared above.
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_link_options(hoard PRIVATE "LINKER:--version-script=${VERS_SCRIPT}")
 endif()
 
-add_library(hoard SHARED ${HOARD_SOURCES})
 target_compile_definitions(hoard
     PRIVATE
     _REENTRANT=1
