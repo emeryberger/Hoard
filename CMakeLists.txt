@@ -87,3 +87,6 @@ set_target_properties(hoard PROPERTIES
   OUTPUT_NAME "hoard"
 )
 
+install(TARGETS hoard
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib)
