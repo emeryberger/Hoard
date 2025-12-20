@@ -81,21 +81,20 @@ if(WIN32)
   if(USE_SYSTEM_DETOURS)
     find_package(Detours REQUIRED)
   else()
-    # Fetch and build Microsoft Detours automatically
+    # Fetch Microsoft Detours from main branch (v4.0.1 has ARM64 bugs)
     FetchContent_Declare(
       Detours
       GIT_REPOSITORY https://github.com/microsoft/Detours.git
-      GIT_TAG        v4.0.1
+      GIT_TAG        main
+      GIT_SHALLOW    TRUE
     )
     FetchContent_GetProperties(Detours)
     if(NOT detours_POPULATED)
       FetchContent_Populate(Detours)
     endif()
 
-    # Build Detours as a static library
-    # Note: disasm.cpp #includes the architecture-specific disolXXX.cpp files
-    # based on preprocessor defines set in detours.h (_M_IX86, _M_X64, _M_ARM, _M_ARM64)
-    add_library(detours STATIC
+    # Core Detours sources
+    set(DETOURS_SOURCES
       "${detours_SOURCE_DIR}/src/creatwth.cpp"
       "${detours_SOURCE_DIR}/src/detours.cpp"
       "${detours_SOURCE_DIR}/src/modules.cpp"
@@ -103,24 +102,29 @@ if(WIN32)
       "${detours_SOURCE_DIR}/src/disasm.cpp"
     )
 
-    target_include_directories(detours PUBLIC "${detours_SOURCE_DIR}/src")
-
-    # Detours requires these definitions
-    # Also explicitly set architecture defines to ensure correct code paths
+    # Add architecture-specific disassembler (required alongside disasm.cpp)
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "ARM64|aarch64")
-      set(DETOURS_ARCH_DEF DETOURS_ARM64=1)
+      list(APPEND DETOURS_SOURCES "${detours_SOURCE_DIR}/src/disolarm64.cpp")
+      message(STATUS "Detours: Building for ARM64")
     elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "ARM")
-      set(DETOURS_ARCH_DEF DETOURS_ARM=1)
+      list(APPEND DETOURS_SOURCES "${detours_SOURCE_DIR}/src/disolarm.cpp")
+      message(STATUS "Detours: Building for ARM")
     elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
-      set(DETOURS_ARCH_DEF DETOURS_X64=1)
+      list(APPEND DETOURS_SOURCES "${detours_SOURCE_DIR}/src/disolx64.cpp")
+      message(STATUS "Detours: Building for x64")
     else()
-      set(DETOURS_ARCH_DEF DETOURS_X86=1)
+      list(APPEND DETOURS_SOURCES "${detours_SOURCE_DIR}/src/disolx86.cpp")
+      message(STATUS "Detours: Building for x86")
     endif()
+
+    # Build Detours as a static library
+    add_library(detours STATIC ${DETOURS_SOURCES})
+
+    target_include_directories(detours PUBLIC "${detours_SOURCE_DIR}/src")
 
     target_compile_definitions(detours PRIVATE
       WIN32_LEAN_AND_MEAN
       _WIN32_WINNT=0x0600
-      ${DETOURS_ARCH_DEF}
     )
 
     # Suppress warnings in Detours code
