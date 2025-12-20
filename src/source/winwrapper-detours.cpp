@@ -568,9 +568,10 @@ extern "C" void InitializeWinWrapper() {
 }
 
 extern "C" void FinalizeWinWrapper() {
-  // Don't try to remove detours - just terminate cleanly.
-  // Removing detours during process exit can cause issues.
-  TerminateProcess(GetCurrentProcess(), 0);
+  // Don't try to remove detours during process exit - it can cause issues.
+  // Just let the process exit normally; the OS will clean up.
+  // Note: We explicitly do NOT call TerminateProcess here because it
+  // prevents stdout from being flushed and cleanup code from running.
 }
 
 //
