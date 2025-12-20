@@ -75,8 +75,62 @@ if(WIN32)
   set(HOARD_SOURCES ${WINDOWS_SOURCES})
   add_definitions(-DNDEBUG -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN)
 
-  # Find Microsoft Detours
-  find_package(Detours REQUIRED)
+  # Option to use system-installed Detours instead of fetching
+  option(USE_SYSTEM_DETOURS "Use system-installed Detours instead of fetching" OFF)
+
+  if(USE_SYSTEM_DETOURS)
+    find_package(Detours REQUIRED)
+  else()
+    # Fetch and build Microsoft Detours automatically
+    FetchContent_Declare(
+      Detours
+      GIT_REPOSITORY https://github.com/microsoft/Detours.git
+      GIT_TAG        v4.0.1
+    )
+    FetchContent_GetProperties(Detours)
+    if(NOT detours_POPULATED)
+      FetchContent_Populate(Detours)
+    endif()
+
+    # Determine architecture-specific disassembler source
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "ARM64|aarch64")
+      set(DETOURS_DISASM_SRC "${detours_SOURCE_DIR}/src/disasm.cpp"
+                             "${detours_SOURCE_DIR}/src/disolarm64.cpp")
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "ARM")
+      set(DETOURS_DISASM_SRC "${detours_SOURCE_DIR}/src/disasm.cpp"
+                             "${detours_SOURCE_DIR}/src/disolarm.cpp")
+    elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
+      set(DETOURS_DISASM_SRC "${detours_SOURCE_DIR}/src/disasm.cpp"
+                             "${detours_SOURCE_DIR}/src/disolx64.cpp")
+    else()
+      set(DETOURS_DISASM_SRC "${detours_SOURCE_DIR}/src/disasm.cpp"
+                             "${detours_SOURCE_DIR}/src/disolx86.cpp")
+    endif()
+
+    # Build Detours as a static library
+    add_library(detours STATIC
+      "${detours_SOURCE_DIR}/src/creatwth.cpp"
+      "${detours_SOURCE_DIR}/src/detours.cpp"
+      "${detours_SOURCE_DIR}/src/modules.cpp"
+      "${detours_SOURCE_DIR}/src/image.cpp"
+      ${DETOURS_DISASM_SRC}
+    )
+
+    target_include_directories(detours PUBLIC "${detours_SOURCE_DIR}/src")
+
+    # Detours requires these definitions
+    target_compile_definitions(detours PRIVATE
+      WIN32_LEAN_AND_MEAN
+      _WIN32_WINNT=0x0600
+    )
+
+    # Suppress warnings in Detours code
+    target_compile_options(detours PRIVATE /W3 /WX-)
+
+    # Create an alias to match the find_package target name
+    add_library(Detours::Detours ALIAS detours)
+    set(Detours_INCLUDE_DIR "${detours_SOURCE_DIR}/src")
+  endif()
 
 elseif(APPLE)
   set(HOARD_SOURCES ${MACOS_SOURCES})

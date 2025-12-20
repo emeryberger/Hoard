@@ -20,41 +20,30 @@ Output: `build/libhoard.dylib` (macOS) or `build/libhoard.so` (Linux)
 
 ### Building the Library (Windows)
 
-Windows builds use Microsoft Detours for function interposition. First, install Detours:
+Windows builds use Microsoft Detours for function interposition. Detours is automatically fetched and built by CMake:
 
-**Option 1: vcpkg (recommended)**
-```powershell
-# For x64:
-vcpkg install detours:x64-windows
-
-# For ARM64:
-vcpkg install detours:arm64-windows
-
-# For 32-bit x86:
-vcpkg install detours:x86-windows
-```
-
-**Option 2: Build from source**
-```powershell
-git clone https://github.com/microsoft/Detours.git
-cd Detours
-nmake
-```
-
-Then build Hoard:
 ```powershell
 mkdir build && cd build
-
-# If using vcpkg:
-cmake .. -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake
-
-# If Detours built from source:
-cmake .. -DDETOURS_ROOT=C:/path/to/Detours
-
+cmake ..
 cmake --build . --config Release
 ```
 
 Output: `build/Release/hoard.dll`
+
+**Using a pre-installed Detours (optional):**
+
+If you prefer to use a system-installed Detours (via vcpkg or manual build):
+
+```powershell
+# Install via vcpkg
+vcpkg install detours:x64-windows      # or arm64-windows, x86-windows
+
+# Build with system Detours
+cmake .. -DUSE_SYSTEM_DETOURS=ON -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake
+
+# Or if built from source
+cmake .. -DUSE_SYSTEM_DETOURS=ON -DDETOURS_ROOT=C:/path/to/Detours
+```
 
 ### Building Benchmarks
 
