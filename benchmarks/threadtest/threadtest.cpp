@@ -49,29 +49,35 @@ int nthreads = 1;	// Default number of threads.
 int work = 0;		// Default number of loop iterations.
 int objSize = 1;
 
+#include "wrappers/macinterpose.h"
 
 class Foo {
 public:
-  Foo (void)
+  Foo()
+#if 1
     : x (14),
       y (29)
+#endif
     {}
 
   int x;
   int y;
 };
 
-
 void worker ()
 {
-  int i, j;
+  volatile int i, j;
   Foo ** a;
+#if !defined(NOMALLOC)
   a = new Foo * [nobjects / nthreads];
-
+#endif
+  
   for (j = 0; j < niterations; j++) {
 
     for (i = 0; i < (nobjects / nthreads); i ++) {
+#if !defined(NOMALLOC)
       a[i] = new Foo[objSize];
+#endif
 #if 1
       for (volatile int d = 0; d < work; d++) {
 	volatile int f = 1;
@@ -81,11 +87,13 @@ void worker ()
 	f = f * f;
       }
 #endif
-      assert (a[i]);
+      //      assert (a[i]);
     }
     
     for (i = 0; i < (nobjects / nthreads); i ++) {
+#if !defined(NOMALLOC)
       delete[] a[i];
+#endif
 #if 1
       for (volatile int d = 0; d < work; d++) {
 	volatile int f = 1;
@@ -98,7 +106,9 @@ void worker ()
     }
   }
 
+#if !defined(NOMALLOC)
   delete [] a;
+#endif
 }
 
 int main (int argc, char * argv[])
@@ -146,7 +156,7 @@ int main (int argc, char * argv[])
 
   cout << "Time elapsed = " << elapsed.count() << endl;
 
-  delete [] threads;
+  ///  delete [] threads;
 
   return 0;
 }
