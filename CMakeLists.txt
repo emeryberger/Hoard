@@ -7,19 +7,27 @@ project(hoard LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_OSX_ARCHITECTURES arm64 arm64e x86_64)
+
+# Add cmake modules path
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+if(APPLE)
+  set(CMAKE_OSX_ARCHITECTURES arm64 arm64e x86_64)
+endif()
 
 # Generate position-independent code; required for shared libraries on many platforms
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# Write a version map to enable replacing direct libc allocation calls.
-set(VERS_SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/vers.map)
-file(WRITE ${VERS_SCRIPT}
-"GLIBC_2.2.5 {\n  global:\n    __libc_malloc;\n    __libc_free;\n    __libc_realloc;\n    __libc_calloc;\n    __libc_memalign;\n    local: custom*;\n      xx*;\n};\n")
+if(NOT WIN32)
+  # Write a version map to enable replacing direct libc allocation calls (Linux only).
+  set(VERS_SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/vers.map)
+  file(WRITE ${VERS_SCRIPT}
+  "GLIBC_2.2.5 {\n  global:\n    __libc_malloc;\n    __libc_free;\n    __libc_realloc;\n    __libc_calloc;\n    __libc_memalign;\n    local: custom*;\n      xx*;\n};\n")
 
-# Ensure that the compiler doesn't replace anything with malloc/free
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility=hidden -fno-builtin-malloc -fno-builtin-free")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden -fno-builtin-malloc -fno-builtin-free")
+  # Ensure that the compiler doesn't replace anything with malloc/free
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility=hidden -fno-builtin-malloc -fno-builtin-free")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden -fno-builtin-malloc -fno-builtin-free")
+endif()
 
 #
 # ─── INCLUDE DIRECTORIES ──────────────────────────────────────────────
@@ -54,7 +62,23 @@ set(MACOS_SOURCES
   src/source/libhoard.cpp
 )
 
-if(APPLE)
+set(WINDOWS_SOURCES
+  src/source/winwrapper-detours.cpp
+  src/source/wintls.cpp
+  src/source/libhoard.cpp
+)
+
+if(WIN32)
+  #
+  # ─── WINDOWS BUILD WITH DETOURS ─────────────────────────────────────
+  #
+  set(HOARD_SOURCES ${WINDOWS_SOURCES})
+  add_definitions(-DNDEBUG -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN)
+
+  # Find Microsoft Detours
+  find_package(Detours REQUIRED)
+
+elseif(APPLE)
   set(HOARD_SOURCES ${MACOS_SOURCES})
   add_compile_options(-DNDEBUG -ftls-model=initial-exec -ftemplate-depth=1024)
 else()
@@ -66,27 +90,37 @@ set(CMAKE_BUILD_TYPE RelWithDebInfo)
 
 add_library(hoard SHARED ${HOARD_SOURCES})
 
-# For Linux, link with the version script declared above.
-if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+# Platform-specific linking
+if(WIN32)
+  # Link with Detours and Windows libraries
+  target_link_libraries(hoard PRIVATE Detours::Detours psapi)
+  target_include_directories(hoard PRIVATE ${Detours_INCLUDE_DIR})
+
+  # Disable some MSVC warnings
+  target_compile_options(hoard PRIVATE /W3 /WX-)
+
+  # Set Windows-specific properties
+  set_target_properties(hoard PROPERTIES
+    OUTPUT_NAME "hoard"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+  )
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  # For Linux, link with the version script declared above.
   target_link_options(hoard PRIVATE "LINKER:--version-script=${VERS_SCRIPT}")
+  target_link_libraries(hoard PRIVATE pthread dl)
+  set_target_properties(hoard PROPERTIES OUTPUT_NAME "hoard")
+else()
+  # macOS
+  target_link_libraries(hoard PRIVATE pthread dl)
+  set_target_properties(hoard PROPERTIES OUTPUT_NAME "hoard")
 endif()
 
 target_compile_definitions(hoard
     PRIVATE
     _REENTRANT=1
 )
-# Add threading support if needed
-#find_package(Threads)
-#if(Threads_FOUND)
-#    target_link_libraries(hoard Threads::Threads)
-#endif()
-# Link with pthread/dl on Unix-like systems; on Windows, CMake will adjust automatically
-target_link_libraries(hoard PRIVATE pthread dl)
-# Output the final library name as libhoard.so/.dylib on most platforms
-set_target_properties(hoard PROPERTIES
-  OUTPUT_NAME "hoard"
-)
 
 install(TARGETS hoard
         LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib)
+        ARCHIVE DESTINATION lib
+        RUNTIME DESTINATION bin)
