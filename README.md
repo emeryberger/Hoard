@@ -153,29 +153,28 @@ cmake ..
 cmake --build . --config Release
 ```
 
-This produces `build\Release\hoard.dll`. Supports x86, x64, ARM, and ARM64 architectures.
+This produces `build\Release\hoard.dll` along with `withdll.exe` and `setdll.exe` tools. Supports x86, x64, ARM, and ARM64 architectures.
 
 #### Using Hoard on Windows
 
 **With unmodified executables (recommended):**
 
-Use Detours' `withdll.exe` tool to inject Hoard into any program at runtime, similar to `LD_PRELOAD` on Linux:
+Use `withdll.exe` (built automatically) to inject Hoard into any program at runtime, similar to `LD_PRELOAD` on Linux:
 
 ```powershell
-# Download withdll.exe from Microsoft Detours releases, or build from source
-withdll.exe /d:C:\path\to\hoard.dll yourapp.exe [args...]
+build\Release\withdll.exe /d:build\Release\hoard.dll yourapp.exe [args...]
 ```
 
 **Permanent modification:**
 
-Use Detours' `setdll.exe` to modify an executable's import table:
+Use `setdll.exe` (built automatically) to modify an executable's import table:
 
 ```powershell
 # Add Hoard to executable (creates backup as .exe~)
-setdll.exe /d:hoard.dll yourapp.exe
+build\Release\setdll.exe /d:build\Release\hoard.dll yourapp.exe
 
 # Remove Hoard from executable
-setdll.exe /r:hoard.dll yourapp.exe
+build\Release\setdll.exe /r:hoard.dll yourapp.exe
 ```
 
 **Linking at build time:**

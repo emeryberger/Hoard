@@ -28,7 +28,7 @@ cmake ..
 cmake --build . --config Release
 ```
 
-Output: `build/Release/hoard.dll`
+Output: `build/Release/hoard.dll`, `build/Release/withdll.exe`, `build/Release/setdll.exe`
 
 **Using a pre-installed Detours (optional):**
 
@@ -72,18 +72,11 @@ DYLD_INSERT_LIBRARIES=/path/to/libhoard.dylib ./myprogram
 
 **Windows (unmodified binaries):**
 
-Windows uses DLL injection via Detours' `withdll.exe` tool, which is the equivalent of `LD_PRELOAD`:
+Windows uses DLL injection via `withdll.exe` (built automatically with Hoard):
 
 ```powershell
-# Using withdll.exe from Detours
-# Located in: bin.X64/, bin.X86/, bin.ARM64/, or bin.ARM/
-withdll.exe /d:C:\path\to\hoard.dll myprogram.exe [args...]
-
-# Example with full paths (x64):
-C:\Detours\bin.X64\withdll.exe /d:C:\Hoard\build\Release\hoard.dll myapp.exe
-
-# Example for ARM64 Windows:
-C:\Detours\bin.ARM64\withdll.exe /d:C:\Hoard\build\Release\hoard.dll myapp.exe
+# From the build directory:
+build\Release\withdll.exe /d:build\Release\hoard.dll myprogram.exe [args...]
 ```
 
 The `/d:` flag specifies the DLL to inject. Multiple DLLs can be injected:
@@ -93,13 +86,13 @@ withdll.exe /d:hoard.dll /d:other.dll myprogram.exe
 
 **Alternative Windows methods:**
 
-1. **SetDll (permanent modification):** Modifies the executable's import table to always load Hoard:
+1. **setdll.exe (permanent modification):** Modifies the executable's import table to always load Hoard (also built automatically):
    ```powershell
    # Add Hoard to executable (creates backup as .exe~)
-   setdll.exe /d:hoard.dll myprogram.exe
+   build\Release\setdll.exe /d:build\Release\hoard.dll myprogram.exe
 
    # Remove Hoard from executable
-   setdll.exe /r:hoard.dll myprogram.exe
+   build\Release\setdll.exe /r:hoard.dll myprogram.exe
    ```
 
 2. **AppInit_DLLs (system-wide, requires admin):** Registry-based injection for all processes:
@@ -107,12 +100,6 @@ withdll.exe /d:hoard.dll /d:other.dll myprogram.exe
    # Not recommended for production - affects all processes
    reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Windows" /v AppInit_DLLs /t REG_SZ /d "C:\path\to\hoard.dll"
    reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Windows" /v LoadAppInit_DLLs /t REG_DWORD /d 1
-   ```
-
-3. **Image File Execution Options (per-application):**
-   ```powershell
-   # Requires a wrapper that loads hoard.dll then executes the real program
-   reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\myprogram.exe" /v Debugger /t REG_SZ /d "C:\path\to\hoard_launcher.exe"
    ```
 
 ### Running Benchmarks

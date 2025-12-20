@@ -133,6 +133,22 @@ if(WIN32)
     # Create an alias to match the find_package target name
     add_library(Detours::Detours ALIAS detours)
     set(Detours_INCLUDE_DIR "${detours_SOURCE_DIR}/src")
+
+    # Build Detours tools (withdll.exe and setdll.exe)
+    add_executable(withdll "${detours_SOURCE_DIR}/samples/withdll/withdll.cpp")
+    target_link_libraries(withdll PRIVATE detours)
+    target_include_directories(withdll PRIVATE "${detours_SOURCE_DIR}/src")
+    target_compile_definitions(withdll PRIVATE WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0600)
+    target_compile_options(withdll PRIVATE /W3 /WX-)
+
+    add_executable(setdll "${detours_SOURCE_DIR}/samples/setdll/setdll.cpp")
+    target_link_libraries(setdll PRIVATE detours)
+    target_include_directories(setdll PRIVATE "${detours_SOURCE_DIR}/src")
+    target_compile_definitions(setdll PRIVATE WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0600)
+    target_compile_options(setdll PRIVATE /W3 /WX-)
+
+    # Install the tools alongside the library
+    install(TARGETS withdll setdll RUNTIME DESTINATION bin)
   endif()
 
 elseif(APPLE)
