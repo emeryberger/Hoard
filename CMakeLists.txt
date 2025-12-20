@@ -106,9 +106,21 @@ if(WIN32)
     target_include_directories(detours PUBLIC "${detours_SOURCE_DIR}/src")
 
     # Detours requires these definitions
+    # Also explicitly set architecture defines to ensure correct code paths
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "ARM64|aarch64")
+      set(DETOURS_ARCH_DEF DETOURS_ARM64=1)
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "ARM")
+      set(DETOURS_ARCH_DEF DETOURS_ARM=1)
+    elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
+      set(DETOURS_ARCH_DEF DETOURS_X64=1)
+    else()
+      set(DETOURS_ARCH_DEF DETOURS_X86=1)
+    endif()
+
     target_compile_definitions(detours PRIVATE
       WIN32_LEAN_AND_MEAN
       _WIN32_WINNT=0x0600
+      ${DETOURS_ARCH_DEF}
     )
 
     # Suppress warnings in Detours code
