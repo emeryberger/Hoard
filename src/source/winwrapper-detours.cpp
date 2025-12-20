@@ -483,27 +483,44 @@ static bool InstallDetours() {
   const DWORD MaxModules = 8192;
   HMODULE hMods[MaxModules];
 
+  int modulesPatched = 0;
+  int functionsAttached = 0;
+
   if (EnumProcessModules(hProcess, hMods, sizeof(hMods), &cbNeeded)) {
     for (DWORD i = 0; i < (cbNeeded / sizeof(HMODULE)); i++) {
       TCHAR szModName[MAX_PATH] = { 0 };
       if (GetModuleFileName(hMods[i], szModName, MAX_PATH)) {
-        // Only patch CRT libraries
+        // Patch CRT and C++ runtime libraries
         if (!(_tcsstr(szModName, _T("CRT")) || _tcsstr(szModName, _T("crt")) ||
               _tcsstr(szModName, _T("ucrt")) || _tcsstr(szModName, _T("UCRT")) ||
               _tcsstr(szModName, _T("msvcr")) || _tcsstr(szModName, _T("MSVCR")) ||
+              _tcsstr(szModName, _T("msvcp")) || _tcsstr(szModName, _T("MSVCP")) ||
               _tcsstr(szModName, _T("vcruntime")) || _tcsstr(szModName, _T("VCRUNTIME")))) {
           continue;
         }
 
         HMODULE hCRT = hMods[i];
+        int moduleAttached = 0;
         for (size_t j = 0; j < sizeof(g_CRTDetours) / sizeof(g_CRTDetours[0]); j++) {
           if (AttachDetour(hCRT, &g_CRTDetours[j])) {
             anyAttached = true;
+            moduleAttached++;
+            functionsAttached++;
           }
+        }
+        if (moduleAttached > 0) {
+          modulesPatched++;
+#ifdef HOARD_DEBUG
+          fprintf(stderr, "Hoard: Patched %d functions in %ls\n", moduleAttached, szModName);
+#endif
         }
       }
     }
   }
+
+#ifdef HOARD_DEBUG
+  fprintf(stderr, "Hoard: Total %d modules patched, %d functions attached\n", modulesPatched, functionsAttached);
+#endif
 
   // Attach kernel32 detours
   if (hKernel32) {
@@ -564,12 +581,19 @@ static void RemoveDetours() {
 //
 
 extern "C" void InitializeWinWrapper() {
+  // CRITICAL: Must call DetourRestoreAfterWith for withdll.exe injection to work
+  DetourRestoreAfterWith();
+
   // Allocate (and leak) something from the old Windows heap first.
   // This ensures the Windows heap is initialized before we take over.
   HeapAlloc(GetProcessHeap(), 0, 1);
 
   // Install all detours
-  InstallDetours();
+  bool success = InstallDetours();
+
+  // Always print diagnostic - user needs to know if interposition worked
+  fprintf(stderr, "Hoard: Memory allocator %s\n", success ? "active" : "FAILED TO INITIALIZE");
+  fflush(stderr);
 }
 
 extern "C" void FinalizeWinWrapper() {
