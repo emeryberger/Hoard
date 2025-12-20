@@ -157,6 +157,8 @@ This produces `build\Release\hoard.dll` along with `withdll.exe` and `setdll.exe
 
 #### Using Hoard on Windows
 
+**Important:** Programs must be compiled with `/MD` (dynamic C runtime) for Hoard to intercept allocations. Programs compiled with `/MT` (static C runtime) have allocation functions embedded directly in the executable, which Hoard cannot intercept.
+
 **With unmodified executables (recommended):**
 
 Use `withdll.exe` (built automatically) to inject Hoard into any program at runtime, similar to `LD_PRELOAD` on Linux:

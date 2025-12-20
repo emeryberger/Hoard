@@ -72,6 +72,8 @@ DYLD_INSERT_LIBRARIES=/path/to/libhoard.dylib ./myprogram
 
 **Windows (unmodified binaries):**
 
+**Important:** Programs must be compiled with `/MD` (dynamic C runtime) for Hoard to intercept allocations. Programs compiled with `/MT` (static C runtime) have allocation functions embedded directly in the executable, which Hoard cannot intercept.
+
 Windows uses DLL injection via `withdll.exe` (built automatically with Hoard):
 
 ```powershell

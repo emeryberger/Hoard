@@ -147,7 +147,20 @@ static void executeRegisteredFunctions() {
 // Replacement functions (detours)
 //
 
+// Debug: Uncomment HOARD_VERIFY_DELAY to add artificial delay for verification
+// #define HOARD_VERIFY_DELAY 1
+
+#ifdef HOARD_VERIFY_DELAY
+static volatile long g_allocCount = 0;
+#endif
+
 static void * __cdecl Detour_malloc(size_t sz) {
+#ifdef HOARD_VERIFY_DELAY
+  // Add 1ms delay every 1000 allocations to verify interception
+  if (InterlockedIncrement(&g_allocCount) % 1000 == 0) {
+    Sleep(1);
+  }
+#endif
   return xxmalloc(sz);
 }
 
@@ -522,23 +535,18 @@ static bool InstallDetours() {
   fprintf(stderr, "Hoard: Total %d modules patched, %d functions attached\n", modulesPatched, functionsAttached);
 #endif
 
-  // Attach kernel32 detours
-  if (hKernel32) {
-    for (size_t i = 0; i < sizeof(g_KernelDetours) / sizeof(g_KernelDetours[0]); i++) {
-      if (AttachDetour(hKernel32, &g_KernelDetours[i])) {
-        anyAttached = true;
-      }
-    }
-  }
-
-  // Attach ntdll detours
-  if (hNtdll) {
-    for (size_t i = 0; i < sizeof(g_NtdllDetours) / sizeof(g_NtdllDetours[0]); i++) {
-      if (AttachDetour(hNtdll, &g_NtdllDetours[i])) {
-        anyAttached = true;
-      }
-    }
-  }
+  // NOTE: We intentionally do NOT hook kernel32 (HeapAlloc/HeapFree) or
+  // ntdll (RtlAllocateHeap/RtlFreeHeap) functions. These low-level Windows
+  // heap functions are used internally by the CRT and Windows during DLL
+  // unload. Hooking them causes crashes at process exit because:
+  // 1. When hoard.dll unloads, the trampolines become invalid
+  // 2. Other DLLs may still have cached pointers to the trampolines
+  // 3. The cleanup code in ntdll/kernel32 tries to free memory using
+  //    the now-invalid trampolines, causing a segfault
+  //
+  // Hooking at the CRT level (malloc/free/new/delete) is sufficient for
+  // user code - the CRT's internal use of HeapAlloc will use the original
+  // Windows heap, which is fine.
 
   // Commit the transaction
   LONG error = DetourTransactionCommit();
@@ -563,15 +571,8 @@ static void RemoveDetours() {
     DetachDetour(&g_CRTDetours[i]);
   }
 
-  // Detach kernel32 detours
-  for (size_t i = 0; i < sizeof(g_KernelDetours) / sizeof(g_KernelDetours[0]); i++) {
-    DetachDetour(&g_KernelDetours[i]);
-  }
-
-  // Detach ntdll detours
-  for (size_t i = 0; i < sizeof(g_NtdllDetours) / sizeof(g_NtdllDetours[0]); i++) {
-    DetachDetour(&g_NtdllDetours[i]);
-  }
+  // NOTE: We don't attach kernel32/ntdll detours anymore (see InstallDetours),
+  // so no need to detach them here.
 
   DetourTransactionCommit();
 }
@@ -592,8 +593,16 @@ extern "C" void InitializeWinWrapper() {
   bool success = InstallDetours();
 
   // Always print diagnostic - user needs to know if interposition worked
-  fprintf(stderr, "Hoard: Memory allocator %s\n", success ? "active" : "FAILED TO INITIALIZE");
-  fflush(stderr);
+  // Use multiple output methods to ensure visibility:
+  // 1. stdout (most programs have this)
+  // 2. OutputDebugString (visible in debugger/DebugView)
+  const char * msg = success ? "Hoard: Memory allocator active\n" : "Hoard: FAILED TO INITIALIZE\n";
+  printf("%s", msg);
+  fflush(stdout);
+
+  char debugMsg[256];
+  snprintf(debugMsg, sizeof(debugMsg), "%s", msg);
+  OutputDebugStringA(debugMsg);
 }
 
 extern "C" void FinalizeWinWrapper() {
