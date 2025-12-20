@@ -143,18 +143,48 @@ or, in Mac OS X:
 ------------------------
 ### Building Hoard (Windows)
 
-Change into the `src` directory and build the Windows version:
+Hoard uses Microsoft Detours for function interposition on Windows. Detours is automatically downloaded and built by CMake.
 
-    C:\hoard\src> nmake
+```powershell
+git clone https://github.com/emeryberger/Hoard
+cd Hoard
+mkdir build && cd build
+cmake ..
+cmake --build . --config Release
+```
 
-To use Hoard, link your executable with `source\uselibhoard.cpp` and `libhoard.lib`.
-You *must* use the `/MD` flag.
+This produces `build\Release\hoard.dll`. Supports x86, x64, ARM, and ARM64 architectures.
 
-Example:
+#### Using Hoard on Windows
 
-    C:\hoard\src> cl /Ox /MD yourapp.cpp source\uselibhoard.cpp libhoard.lib
+**With unmodified executables (recommended):**
 
-To run `yourapp.exe`, you will need to have `libhoard.dll` in your path.
+Use Detours' `withdll.exe` tool to inject Hoard into any program at runtime, similar to `LD_PRELOAD` on Linux:
+
+```powershell
+# Download withdll.exe from Microsoft Detours releases, or build from source
+withdll.exe /d:C:\path\to\hoard.dll yourapp.exe [args...]
+```
+
+**Permanent modification:**
+
+Use Detours' `setdll.exe` to modify an executable's import table:
+
+```powershell
+# Add Hoard to executable (creates backup as .exe~)
+setdll.exe /d:hoard.dll yourapp.exe
+
+# Remove Hoard from executable
+setdll.exe /r:hoard.dll yourapp.exe
+```
+
+**Linking at build time:**
+
+You can also link Hoard directly into your application:
+
+```powershell
+cl /Ox /MD yourapp.cpp /link hoard.lib
+```
 
 Benchmarks
 ----------
