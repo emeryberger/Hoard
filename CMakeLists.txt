@@ -169,6 +169,9 @@ if(WIN32)
   target_link_libraries(hoard PRIVATE Detours::Detours psapi)
   target_include_directories(hoard PRIVATE ${Detours_INCLUDE_DIR})
 
+  # Export DetourFinishHelperProcess at ordinal #1 (required for withdll.exe)
+  target_link_options(hoard PRIVATE "/export:DetourFinishHelperProcess,@1,NONAME")
+
   # Disable some MSVC warnings
   target_compile_options(hoard PRIVATE /W3 /WX-)
 
