@@ -429,13 +429,8 @@ static DetourEntry g_CRTDetours[] = {
   DETOUR_ENTRY_MANGLED("_expand_dbg", Real_expand_dbg, Detour_expand_dbg),
   DETOUR_ENTRY_MANGLED("_recalloc_dbg", Real_recalloc_dbg, Detour_recalloc_dbg),
 
-  // Exit functions
-  DETOUR_ENTRY(exit, Detour_exit),
-  DETOUR_ENTRY_MANGLED("_exit", Real__exit, Detour__exit),
-  DETOUR_ENTRY(atexit, Detour_atexit),
-  DETOUR_ENTRY_MANGLED("_onexit", Real__onexit, Detour__onexit),
-  DETOUR_ENTRY_MANGLED("_cexit", Real__cexit, Detour__cexit),
-  DETOUR_ENTRY_MANGLED("_c_exit", Real__c_exit, Detour__c_exit),
+  // NOTE: Exit functions are NOT intercepted - they cause intermittent hangs
+  // and are not needed for memory allocation replacement.
 
   // C++ operators - 64-bit
   DETOUR_ENTRY_MANGLED("??2@YAPEAX_K@Z", Real_new_64, Detour_malloc),          // operator new(size_t)
