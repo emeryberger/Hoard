@@ -92,28 +92,15 @@ if(WIN32)
       FetchContent_Populate(Detours)
     endif()
 
-    # Determine architecture-specific disassembler source
-    if(CMAKE_SYSTEM_PROCESSOR MATCHES "ARM64|aarch64")
-      set(DETOURS_DISASM_SRC "${detours_SOURCE_DIR}/src/disasm.cpp"
-                             "${detours_SOURCE_DIR}/src/disolarm64.cpp")
-    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "ARM")
-      set(DETOURS_DISASM_SRC "${detours_SOURCE_DIR}/src/disasm.cpp"
-                             "${detours_SOURCE_DIR}/src/disolarm.cpp")
-    elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
-      set(DETOURS_DISASM_SRC "${detours_SOURCE_DIR}/src/disasm.cpp"
-                             "${detours_SOURCE_DIR}/src/disolx64.cpp")
-    else()
-      set(DETOURS_DISASM_SRC "${detours_SOURCE_DIR}/src/disasm.cpp"
-                             "${detours_SOURCE_DIR}/src/disolx86.cpp")
-    endif()
-
     # Build Detours as a static library
+    # Note: disasm.cpp #includes the architecture-specific disolXXX.cpp files
+    # based on preprocessor defines set in detours.h (_M_IX86, _M_X64, _M_ARM, _M_ARM64)
     add_library(detours STATIC
       "${detours_SOURCE_DIR}/src/creatwth.cpp"
       "${detours_SOURCE_DIR}/src/detours.cpp"
       "${detours_SOURCE_DIR}/src/modules.cpp"
       "${detours_SOURCE_DIR}/src/image.cpp"
-      ${DETOURS_DISASM_SRC}
+      "${detours_SOURCE_DIR}/src/disasm.cpp"
     )
 
     target_include_directories(detours PUBLIC "${detours_SOURCE_DIR}/src")
