@@ -38,7 +38,9 @@
 #undef __GXX_WEAK__ 
 
 #if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
 
 // Maximize the degree of inlining.
 #pragma inline_depth(255)
@@ -94,10 +96,10 @@ extern bool isCustomHeapInitialized();
 
 extern "C" {
 
-#if defined(__GNUG__)
-  void * xxmalloc (size_t sz)
+#if defined(__GNUG__) || defined(__clang__)
+  void * __attribute__((flatten)) xxmalloc (size_t sz) __attribute__((alloc_size(1))) __attribute__((malloc))
 #else
-  void * __attribute__((flatten)) xxmalloc (size_t sz) __attribute__((alloc_size(1))) __attribute((malloc))
+  void * xxmalloc (size_t sz)
 #endif
   {
     if (isCustomHeapInitialized()) {

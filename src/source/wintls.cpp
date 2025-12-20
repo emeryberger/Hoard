@@ -107,7 +107,7 @@ void debugMessage(const wchar_t * lpBuff) {
     AllocConsole();
   }
   DWORD dwSize = 0;
-  WriteConsole(GetStdHandle(STD_OUTPUT_HANDLE), lpBuff, lstrlen(lpBuff), &dwSize, NULL);
+  WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), lpBuff, lstrlenW(lpBuff), &dwSize, NULL);
 }
 
 extern "C" void _CRT_INIT();

@@ -40,7 +40,9 @@ extern "C" {
 #error "This library must be compiled in release mode."
 #endif
 
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
 
 #if (_WIN32_WINNT < 0x0500)
 #define _WIN32_WINNT 0x0500
