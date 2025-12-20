@@ -309,11 +309,21 @@ static ULONG NTAPI Detour_RtlSizeHeap(PVOID HeapHandle, ULONG Flags, PVOID Memor
 // Exit function replacements
 static void __cdecl Detour_exit(int status) {
   executeRegisteredFunctions();
-  TerminateProcess(GetCurrentProcess(), status);
+  // Call the original exit to properly flush buffers and run cleanup
+  if (Real_exit) {
+    Real_exit(status);
+  }
+  // Fallback if Real_exit wasn't set
+  ExitProcess(status);
 }
 
 static void __cdecl Detour__exit(int status) {
-  TerminateProcess(GetCurrentProcess(), status);
+  // Call the original _exit to properly flush buffers
+  if (Real__exit) {
+    Real__exit(status);
+  }
+  // Fallback if Real__exit wasn't set
+  ExitProcess(status);
 }
 
 static int __cdecl Detour_atexit(void (*fn)(void)) {
