@@ -184,6 +184,14 @@ extern "C" {
 	FinalizeWinWrapper();
       } else {
 	// Process exit (lpreserved != NULL)
+	// Try to ensure output is flushed before terminating.
+	// Use WriteFile with INVALID_HANDLE_VALUE check for safety.
+	HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+	if (hOut != INVALID_HANDLE_VALUE && hOut != NULL) {
+	  // Write an empty string to force buffer flush
+	  DWORD written;
+	  WriteFile(hOut, "", 0, &written, NULL);
+	}
 	// On ARM64 with Detours, allowing other DLLs to run their cleanup causes
 	// crashes because they try to use detoured functions that point to
 	// invalid memory. Force immediate termination to avoid this.

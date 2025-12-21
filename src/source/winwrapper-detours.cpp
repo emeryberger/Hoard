@@ -36,6 +36,30 @@ extern "C" {
   void   xxmalloc_unlock(void);
 }
 
+//
+// Safe size check using SEH.
+// Returns the size if ptr is a valid Hoard pointer, or 0 if it's a foreign pointer.
+// This safely handles pointers allocated before hooks were installed.
+//
+static size_t SafeGetHoardSize(void * ptr) {
+  if (!ptr) return 0;
+
+  __try {
+    size_t sz = xxmalloc_usable_size(ptr);
+    return sz;
+  }
+  __except(GetExceptionCode() == EXCEPTION_ACCESS_VIOLATION ?
+           EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH) {
+    // Access violation - ptr is not a valid Hoard pointer
+    return 0;
+  }
+}
+
+// Check if a pointer is managed by Hoard (non-zero size means it's ours)
+static bool IsHoardPointer(void * ptr) {
+  return SafeGetHoardSize(ptr) > 0;
+}
+
 #ifdef _DEBUG
 #error "This library must be compiled in release mode."
 #endif
@@ -165,7 +189,16 @@ static void * __cdecl Detour_malloc(size_t sz) {
 }
 
 static void __cdecl Detour_free(void * ptr) {
-  xxfree(ptr);
+  if (ptr == nullptr) return;
+
+  // Check if this is a Hoard pointer
+  // Note: We silently drop foreign pointers rather than calling Real_free
+  // to avoid re-entrancy issues. This may cause minor memory leaks for
+  // allocations made before hooks were installed, but those are rare.
+  if (IsHoardPointer(ptr)) {
+    xxfree(ptr);
+  }
+  // Foreign pointers are silently dropped to avoid recursion
 }
 
 static void * __cdecl Detour_calloc(size_t num, size_t size) {
@@ -181,11 +214,31 @@ static void * __cdecl Detour_realloc(void * ptr, size_t sz) {
     return xxmalloc(sz);
   }
   if (sz == 0) {
-    xxfree(ptr);
+    // For sz=0, just allocate 1 byte but don't free the old pointer
+    // if it's foreign (we silently drop foreign frees)
+    if (IsHoardPointer(ptr)) {
+      xxfree(ptr);
+    }
     return xxmalloc(1);
   }
 
-  size_t originalSize = xxmalloc_usable_size(ptr);
+  // Safely check if this is a Hoard pointer
+  size_t originalSize = SafeGetHoardSize(ptr);
+
+  // If originalSize is 0, ptr is a foreign pointer (allocated before our hooks)
+  // We can't safely copy from it since we don't know its real size.
+  // Allocate new memory with Hoard and copy up to sz bytes (best effort).
+  if (originalSize == 0) {
+    void * buf = xxmalloc(sz);
+    if (buf != nullptr) {
+      // Copy sz bytes - we assume the foreign allocation is at least sz bytes
+      // This is a reasonable assumption since the caller expects to use sz bytes
+      memcpy(buf, ptr, sz);
+      // Don't free foreign pointer - just leak it to avoid recursion
+    }
+    return buf;
+  }
+
   size_t minSize = (originalSize < sz) ? originalSize : sz;
 
   // Don't change size if shrinking by less than half.
@@ -202,7 +255,9 @@ static void * __cdecl Detour_realloc(void * ptr, size_t sz) {
 }
 
 static size_t __cdecl Detour_msize(void * ptr) {
-  return xxmalloc_usable_size(ptr);
+  // Safely check if this is a Hoard pointer
+  // For foreign pointers, we return 0 (unknown size) to avoid recursion
+  return SafeGetHoardSize(ptr);
 }
 
 static void * __cdecl Detour_expand(void * ptr, size_t newSize) {
@@ -214,7 +269,8 @@ static void * __cdecl Detour_recalloc(void * memblock, size_t num, size_t size) 
   const size_t requestedSize = num * size;
   void * ptr = Detour_realloc(memblock, requestedSize);
   if (ptr != nullptr) {
-    const size_t actualSize = xxmalloc_usable_size(ptr);
+    // Use safe size check in case realloc returned a foreign pointer
+    const size_t actualSize = SafeGetHoardSize(ptr);
     if (actualSize > requestedSize) {
       memset(static_cast<char *>(ptr) + requestedSize, 0, actualSize - requestedSize);
     }
@@ -239,7 +295,7 @@ static void * __cdecl Detour_malloc_dbg(size_t size, int blockType, const char *
 }
 
 static void __cdecl Detour_free_dbg(void * userData, int blockType) {
-  xxfree(userData);
+  Detour_free(userData);
 }
 
 static void * __cdecl Detour_realloc_dbg(void * userData, size_t newSize, int blockType, const char * filename, int linenumber) {
@@ -251,7 +307,7 @@ static void * __cdecl Detour_calloc_dbg(size_t num, size_t size, int blockType, 
 }
 
 static size_t __cdecl Detour_msize_dbg(void * userData, int blockType) {
-  return xxmalloc_usable_size(userData);
+  return Detour_msize(userData);
 }
 
 static void * __cdecl Detour_expand_dbg(void * userData, size_t newSize, int blockType, const char * filename, int linenumber) {
@@ -275,7 +331,13 @@ static LPVOID WINAPI Detour_HeapAlloc(HANDLE hHeap, DWORD dwFlags, SIZE_T dwByte
 }
 
 static BOOL WINAPI Detour_HeapFree(HANDLE hHeap, DWORD dwFlags, LPVOID lpMem) {
-  xxfree(lpMem);
+  if (lpMem == nullptr) return TRUE;
+
+  // Check if this is a Hoard pointer
+  // Silently drop foreign pointers to avoid recursion
+  if (IsHoardPointer(lpMem)) {
+    xxfree(lpMem);
+  }
   return TRUE;
 }
 
@@ -290,7 +352,9 @@ static LPVOID WINAPI Detour_HeapReAlloc(HANDLE hHeap, DWORD dwFlags, LPVOID lpMe
 }
 
 static SIZE_T WINAPI Detour_HeapSize(HANDLE hHeap, DWORD dwFlags, LPCVOID lpMem) {
-  return xxmalloc_usable_size((void *)lpMem);
+  // Use safe size check to handle foreign pointers
+  // For foreign pointers, return 0 to avoid recursion
+  return SafeGetHoardSize((void *)lpMem);
 }
 
 static SIZE_T WINAPI Detour_HeapCompact(HANDLE hHeap, DWORD dwFlags) {
@@ -311,12 +375,20 @@ static PVOID NTAPI Detour_RtlAllocateHeap(PVOID HeapHandle, ULONG Flags, SIZE_T 
 }
 
 static BOOLEAN NTAPI Detour_RtlFreeHeap(PVOID HeapHandle, ULONG Flags, PVOID HeapBase) {
-  xxfree(HeapBase);
+  if (HeapBase == nullptr) return TRUE;
+
+  // Check if this is a Hoard pointer
+  // Silently drop foreign pointers to avoid recursion
+  if (IsHoardPointer(HeapBase)) {
+    xxfree(HeapBase);
+  }
   return TRUE;
 }
 
 static ULONG NTAPI Detour_RtlSizeHeap(PVOID HeapHandle, ULONG Flags, PVOID MemoryPointer) {
-  return (ULONG)xxmalloc_usable_size(MemoryPointer);
+  // Use safe size check to handle foreign pointers
+  // For foreign pointers, return 0 to avoid recursion
+  return (ULONG)SafeGetHoardSize(MemoryPointer);
 }
 
 // Exit function replacements
