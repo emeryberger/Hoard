@@ -159,7 +159,18 @@ else()
   add_definitions(-DNDEBUG)
 endif()
 
-set(CMAKE_BUILD_TYPE RelWithDebInfo)
+# Force Release build type for optimal performance (memory allocators need aggressive inlining)
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
+# Enable maximum optimization for MSVC
+if(MSVC)
+  # /O2 = maximize speed, /Ob2 = inline any suitable function, /Oi = enable intrinsics
+  # /Ot = favor fast code, /GL = whole program optimization
+  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Ob2 /Oi /Ot")
+  set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /Ob2 /Oi /Ot")
+endif()
 
 add_library(hoard SHARED ${HOARD_SOURCES})
 
