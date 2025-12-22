@@ -107,7 +107,7 @@ void debugMessage(const wchar_t * lpBuff) {
     AllocConsole();
   }
   DWORD dwSize = 0;
-  WriteConsole(GetStdHandle(STD_OUTPUT_HANDLE), lpBuff, lstrlen(lpBuff), &dwSize, NULL);
+  WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), lpBuff, lstrlenW(lpBuff), &dwSize, NULL);
 }
 
 extern "C" void _CRT_INIT();
@@ -123,6 +123,13 @@ extern "C" {
       
     case DLL_PROCESS_ATTACH:
       {
+	// Pin this DLL in memory to prevent unloading. This is critical because
+	// we patch CRT DLLs with detours - if our DLL unloads before the CRT,
+	// the trampolines become invalid and cause crashes during process exit.
+	HMODULE hSelf = nullptr;
+	GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
+			   (LPCWSTR)DllMain, &hSelf);
+
 	// Before we do anything, force initialization of the C++
 	// library. Without this pre-initialization, the Windows heap
 	// and the Hoard heaps get mixed up, and then nothing
@@ -172,7 +179,24 @@ extern "C" {
       break;
       
     case DLL_PROCESS_DETACH:
-      FinalizeWinWrapper();
+      if (lpreserved == NULL) {
+	// Dynamic unload (FreeLibrary) - shouldn't happen since we pinned the DLL
+	FinalizeWinWrapper();
+      } else {
+	// Process exit (lpreserved != NULL)
+	// Try to ensure output is flushed before terminating.
+	// Use WriteFile with INVALID_HANDLE_VALUE check for safety.
+	HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+	if (hOut != INVALID_HANDLE_VALUE && hOut != NULL) {
+	  // Write an empty string to force buffer flush
+	  DWORD written;
+	  WriteFile(hOut, "", 0, &written, NULL);
+	}
+	// On ARM64 with Detours, allowing other DLLs to run their cleanup causes
+	// crashes because they try to use detoured functions that point to
+	// invalid memory. Force immediate termination to avoid this.
+	TerminateProcess(GetCurrentProcess(), 0);
+      }
       break;
       
     default:
