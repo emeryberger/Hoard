@@ -24,23 +24,44 @@
 - [x] Fixed dynamic CRT exit crash with TerminateProcess in DLL_PROCESS_DETACH (2025-12-20)
 - [x] Added atexit-based output flushing to ensure complete output before TerminateProcess (2025-12-21)
 - [x] Fixed foreign pointer handling with SEH to support stringstream/cout << double (2025-12-21)
+- [x] Investigated SEH optimization - reverted due to crashes (2025-12-22)
 
-## Recent Fixes (2025-12-21)
+## Recent Fixes (2025-12-22)
 
-### Foreign Pointer Handling Fixed
+### SEH Optimization Investigation (Reverted)
+**Attempted optimization**: Remove SEH overhead by relying on Hoard's built-in `IgnoreInvalidFree` layer.
+
+**Hypothesis**: Windows heap allocations are in valid mapped memory, so reading the superblock header at `(ptr & ~(SUPERBLOCK_SIZE-1))` shouldn't cause access violations - the magic check would just fail gracefully.
+
+**Result**: **REVERTED** - Removing SEH caused intermittent crashes at program startup.
+
+**Testing showed**:
+- Without SEH: 2 out of 10 runs crashed before printing any output
+- With SEH: 10 out of 10 runs completed successfully
+
+**Conclusion**: Some foreign pointers DO cause access violations when we try to read their superblock headers. This could be due to:
+- Pointers in address ranges where the superblock-aligned address is unmapped
+- Uninitialized pointers passed to free()
+- Edge cases in Windows memory layout
+
+**Current implementation** (working):
+- `SafeGetHoardSize()` wraps `xxmalloc_usable_size()` in `__try/__except`
+- `IsHoardPointer()` uses `SafeGetHoardSize()` to safely check pointers
+- All free/size functions check with `IsHoardPointer()` before operating
+
+The SEH overhead is necessary for correctness and cannot be safely removed.
+
+## Previous Fixes (2025-12-21)
+
+### Foreign Pointer Handling (Initial Fix)
 **Problem**: `stringstream << double` (and `cout << double`) would crash when Hoard hooks were active. The crash occurred because:
 1. iostream allocates internal buffers using Windows heap BEFORE Hoard hooks are installed
 2. When formatting numbers, iostream calls `realloc` on these "foreign" pointers
 3. `Detour_realloc` called `xxmalloc_usable_size(ptr)` which tried to access a Hoard superblock header at an invalid memory address
 4. This caused a crash when reading the `_magicNumber` field from unmapped memory
 
-**Solution**: Added safe foreign pointer detection using Windows SEH (Structured Exception Handling):
-1. `SafeGetHoardSize(ptr)` wraps `xxmalloc_usable_size()` in a `__try/__except` block to catch access violations
-2. `IsHoardPointer(ptr)` returns true only if `SafeGetHoardSize(ptr) > 0`
-3. Updated all detour functions to handle foreign pointers:
-   - `Detour_free`: Silently drops foreign pointers (minor memory leak, but avoids recursion)
-   - `Detour_realloc`: For foreign pointers, allocates new Hoard memory, copies `sz` bytes, drops old pointer
-   - `Detour_msize`, `Detour_HeapSize`, etc.: Return 0 for foreign pointers
+**Initial Solution**: Added safe foreign pointer detection using Windows SEH (Structured Exception Handling).
+**Current Solution**: Optimized to remove SEH (see above).
 
 **Trade-offs**:
 - Minor memory leak for allocations made before hooks were installed (rare, usually just iostream internals)
