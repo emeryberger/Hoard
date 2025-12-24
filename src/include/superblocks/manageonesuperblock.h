@@ -28,8 +28,14 @@
  * @author Emery Berger <http://www.cs.umass.edu/~emery>
  */
 
-#define likely(x) (x) // __builtin_expect(!!(x), 1)
+#if defined(__GNUC__) || defined(__clang__)
+#define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
+#else
+// MSVC doesn't have __builtin_expect, so just evaluate the expression
+#define likely(x) (x)
+#define unlikely(x) (x)
+#endif
 
 namespace Hoard {
 
