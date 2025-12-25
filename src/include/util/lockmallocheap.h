@@ -31,6 +31,12 @@ namespace Hoard {
       std::lock_guard<Heap> l (*this);
       return Heap::malloc (sz);
     }
+
+    /// Forward reclaimSuperblock to underlying heap.
+    template <typename SuperblockType, typename HeapType>
+    void reclaimSuperblock(SuperblockType* s, void* ptr, HeapType* oldOwner) {
+      Heap::reclaimSuperblock(s, ptr, oldOwner);
+    }
   };
 
 }

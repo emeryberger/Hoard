@@ -18,6 +18,15 @@
 
 #include "heaplayers.h"
 
+// Branch prediction hints (mimalloc-style optimization)
+#if defined(__GNUC__) || defined(__clang__)
+#define RF_LIKELY(x) __builtin_expect(!!(x), 1)
+#define RF_UNLIKELY(x) __builtin_expect(!!(x), 0)
+#else
+#define RF_LIKELY(x) (x)
+#define RF_UNLIKELY(x) (x)
+#endif
+
 namespace Hoard {
 
   /**
@@ -54,44 +63,45 @@ namespace Hoard {
       return Heap::getSuperblock (ptr);
     }
 
-    /// Free the given object, obeying the required locking protocol.
-    static inline void free (void * ptr) {
-      // Get the superblock header.
+    /// Drain all delayed frees (passthrough to underlying heap).
+    /// Called on thread exit to ensure pending frees are processed.
+    void drainAllDelayedFrees() {
+      _theHeap.drainAllDelayedFrees();
+    }
+
+    /// Check if this heap is active (passthrough to underlying heap).
+    bool isActive() const {
+      return _theHeap.isActive();
+    }
+
+    /// Mark this heap as active or inactive (passthrough to underlying heap).
+    void setActive(bool active) {
+      _theHeap.setActive(active);
+    }
+
+    /// Free the given object using delayed queue for cross-thread frees.
+    ///
+    /// This implements mimalloc-style delayed frees:
+    /// - Push to lock-free queue (single atomic CAS, no locks)
+    /// - Owner thread drains queue during malloc
+    /// - When heap becomes active again, pending frees are drained
+    ///
+    /// Note: This is the slow path. Fast path for small objects is in TLAB.
+    inline void free (void * ptr) {
+      // Get the superblock header via bitmask (fast O(1) lookup).
       SuperblockType * s = reinterpret_cast<SuperblockType *>(Heap::getSuperblock (ptr));
 
-      assert (s->isValidSuperblock());
-
-      // Find out who the owner is.
-
-      typedef BaseHoardManager<SuperblockType> * baseHeapType;
-      baseHeapType owner;
-
-      s->lock();
-
-      // By acquiring the lock on the superblock (above),
-      // we prevent it from moving up to a higher heap.
-      // This eventually pins it down in one heap,
-      // so this loop is guaranteed to terminate.
-      // (It should generally take no more than two iterations.)
-
-      for (;;) {
-	owner = reinterpret_cast<baseHeapType>(s->getOwner());
-	assert (owner != nullptr);
-	assert (owner->isValid());
-	// Lock the owner. If ownership changed between these two lines,
-	// we'll detect it and try again.
-	owner->lock();
-	if (owner == reinterpret_cast<baseHeapType>(s->getOwner())) {
-	  owner->free (ptr);
-	  owner->unlock();
-	  s->unlock();
-	  return;
-	}
-	owner->unlock();
-
-	// Sleep a little.
-	HL::Fred::yield();
+      if (RF_UNLIKELY(!s || !s->isValidSuperblock())) {
+        return; // Invalid pointer, ignore
       }
+
+      // Normalize pointer to handle interior pointers.
+      ptr = s->normalize(ptr);
+
+      // Push to delayed free queue (lock-free!)
+      // The owner thread will drain this queue during its next malloc.
+      // If owner is inactive, frees accumulate until heap is reactivated.
+      s->pushDelayedFree(ptr);
     }
 
   private:

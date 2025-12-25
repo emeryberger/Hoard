@@ -5,8 +5,8 @@ project(hoard LANGUAGES CXX)
 # ─── OPTIONS ──────────────────────────────────────────────────────────
 #
 
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED OFF)
 
 # Add cmake modules path
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
@@ -164,12 +164,25 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
 
+# Enable Link-Time Optimization (LTO) for better cross-translation-unit inlining
+include(CheckIPOSupported)
+check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)
+if(ipo_supported)
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+  message(STATUS "LTO enabled")
+else()
+  message(STATUS "LTO not supported: ${ipo_error}")
+endif()
+
 # Enable maximum optimization for MSVC
 if(MSVC)
   # /O2 = maximize speed, /Ob2 = inline any suitable function, /Oi = enable intrinsics
-  # /Ot = favor fast code, /GL = whole program optimization
-  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Ob2 /Oi /Ot")
-  set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /Ob2 /Oi /Ot")
+  # /Ot = favor fast code, /GL = whole program optimization (LTO)
+  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Ob2 /Oi /Ot /GL")
+  set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /Ob2 /Oi /Ot /GL")
+  # Enable link-time code generation (required for /GL)
+  set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /LTCG")
+  set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /LTCG")
 endif()
 
 add_library(hoard SHARED ${HOARD_SOURCES})

@@ -53,10 +53,10 @@ namespace Hoard {
     int findUnusedHeap() {
 
       std::lock_guard<LockType> g (heapLock);
-      
+
       auto tid_original = HL::CPUInfo::getThreadId();
       auto tid = tid_original % HeapType::MaxThreads;
-      
+
       int i = 0;
       while ((i < HeapType::MaxHeaps) && (HeapType::getInusemap(i)))
 	i++;
@@ -72,25 +72,35 @@ namespace Hoard {
 
       HeapType::setInusemap (i, 1);
       HeapType::setTidMap ((int) tid, i);
-      
+
+      // Mark the heap as active (for superblock reclaim optimization).
+      HeapType::setHeapActive(i, true);
+
+      // Drain any pending delayed frees from previous owner.
+      // This ensures cross-thread frees from dead threads are processed.
+      HeapType::getHeapByIndex(i).drainAllDelayedFrees();
+
       return i;
     }
 
     void releaseHeap() {
       // Decrement the ref-count on the current heap.
-      
+
       std::lock_guard<LockType> g (heapLock);
-      
+
       // Statically ensure that the number of threads is a power of two.
       enum { VerifyPowerOfTwo = 1 / ((HeapType::MaxThreads & ~(HeapType::MaxThreads-1))) };
-      
+
       auto tid = (int) (HL::CPUInfo::getThreadId() & (HeapType::MaxThreads - 1));
       auto heapIndex = HeapType::getTidMap (tid);
-      
+
       HeapType::setInusemap (heapIndex, 0);
-      
+
+      // Mark the heap as inactive (for superblock reclaim optimization).
+      HeapType::setHeapActive(heapIndex, false);
+
       // Prevent underruns (defensive programming).
-      
+
       if (HeapType::getInusemap (heapIndex) < 0) {
 	HeapType::setInusemap (heapIndex, 0);
       }

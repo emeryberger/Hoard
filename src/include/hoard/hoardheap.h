@@ -57,6 +57,7 @@ using namespace HL;
 #include "alignedsuperblockheap.h"
 #include "alignedmmap.h"
 #include "globalheap.h"
+#include "hoardconstants.h"
 
 #include "thresholdsegheap.h"
 #include "geometricsizeclass.h"
@@ -187,16 +188,15 @@ namespace Hoard {
 
   //
   // Each thread has its own heap for small objects.
+  // Aligned to cache line to prevent false sharing between per-thread heaps.
   //
-  class PerThreadHoardHeap :
+  class alignas(CACHE_LINE_SIZE) PerThreadHoardHeap :
     public RedirectFree<LockMallocHeap<SmallHeap>,
 			SmallSuperblockType> {
   private:
-    void nothing() {
-      _dummy[0] = _dummy[0];
-    }
-    // Avoid false sharing.
-    char _dummy[64];
+    // Padding to ensure each heap occupies at least one cache line,
+    // preventing false sharing when heaps are stored in arrays.
+    char _padding[CACHE_LINE_SIZE];
   };
   
 

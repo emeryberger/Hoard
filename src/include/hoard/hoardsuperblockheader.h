@@ -25,8 +25,18 @@
 #endif
 
 #include "heaplayers.h"
+#include "../util/atomicfreelist.h"
 
 #include <cstdlib>
+
+// Branch prediction hints for hot paths
+#if defined(__GNUC__) || defined(__clang__)
+#define HOARD_LIKELY(x) __builtin_expect(!!(x), 1)
+#define HOARD_UNLIKELY(x) __builtin_expect(!!(x), 0)
+#else
+#define HOARD_LIKELY(x) (x)
+#define HOARD_UNLIKELY(x) (x)
+#endif
 
 #if defined(__clang__)
 #pragma clang diagnostic push
@@ -85,13 +95,15 @@ namespace Hoard {
 
     inline void * malloc() {
       assert (isValid());
+      // Fast path: bump-pointer allocation from reapable region.
       void * ptr = reapAlloc();
       assert ((ptr == nullptr) || ((size_t) ptr % Alignment == 0));
-      if (!ptr) {
+      if (HOARD_UNLIKELY(!ptr)) {
+	// Slow path: allocation from freelist (previously freed objects).
 	ptr = freeListAlloc();
 	assert ((ptr == nullptr) || ((size_t) ptr % Alignment == 0));
       }
-      if (ptr != nullptr) {
+      if (HOARD_LIKELY(ptr != nullptr)) {
 	assert (getSize(ptr) >= _objectSize);
 	assert ((size_t) ptr % Alignment == 0);
       }
@@ -162,12 +174,25 @@ namespace Hoard {
       return _objectsFree;
     }
 
-    HeapType * getOwner() const {
-      return _owner;
+    /// Get current owner (atomic acquire for visibility).
+    HeapType* getOwner() const {
+      return _owner.load(std::memory_order_acquire);
     }
 
-    void setOwner (HeapType * o) {
-      _owner = o;
+    /// Set owner (atomic release for visibility).
+    void setOwner(HeapType* o) {
+      _owner.store(o, std::memory_order_release);
+    }
+
+    /// Try to atomically claim ownership (for lock-free reclaim).
+    /// @param expected Current expected owner
+    /// @param newOwner New owner to set if expected matches
+    /// @return true if ownership was successfully transferred
+    bool tryClaimOwnership(HeapType* expected, HeapType* newOwner) {
+      return _owner.compare_exchange_strong(
+        expected, newOwner,
+        std::memory_order_acq_rel,
+        std::memory_order_acquire);
     }
 
     bool isValid() const {
@@ -203,8 +228,9 @@ namespace Hoard {
     MALLOC_FUNCTION INLINE void * reapAlloc() {
       assert (isValid());
       assert (_position);
-      // Reap mode.
-      if (_reapableObjects > 0) {
+      // Reap mode - fast path for bump-pointer allocation.
+      // Most allocations succeed here (reapable objects available).
+      if (HOARD_LIKELY(_reapableObjects > 0)) {
 	auto * ptr = _position;
 	_position = ptr + _objectSize;
 	_reapableObjects--;
@@ -244,8 +270,8 @@ namespace Hoard {
     /// The lock.
     LockType _theLock;
 
-    /// The owner of this superblock.
-    HeapType * _owner;
+    /// The owner of this superblock (atomic for lock-free ownership transfer).
+    std::atomic<HeapType*> _owner;
 
     /// The preceding superblock in a linked list.
     BlockType* _prev;
@@ -267,6 +293,59 @@ namespace Hoard {
 
     /// The list of freed objects.
     FreeSLList _freeList;
+
+    /// Lock-free queue for delayed cross-thread frees (mimalloc-style optimization).
+    AtomicFreeList _delayedFreeList;
+
+  public:
+    // ========== Delayed Free Queue API (for cross-thread frees) ==========
+
+    /**
+     * @brief Push object to delayed free queue (cross-thread, lock-free).
+     * @param ptr Pointer to free (must be valid object in this superblock).
+     *
+     * Called by non-owner threads to defer free to owner thread.
+     * Owner thread drains during malloc via drainDelayedFrees().
+     */
+    inline void pushDelayedFree(void* ptr) {
+      _delayedFreeList.push(ptr);
+    }
+
+    /**
+     * @brief Check if delayed frees are pending (fast check for drain trigger).
+     * @return true if items likely pending, false if likely empty.
+     *
+     * Uses relaxed memory ordering - false negatives acceptable.
+     */
+    inline bool hasDelayedFrees() const {
+      return !_delayedFreeList.isEmpty();
+    }
+
+    /**
+     * @brief Drain all delayed frees to local freelist.
+     * @return Number of objects freed.
+     *
+     * Called by owner thread during malloc to process cross-thread frees.
+     * Atomically pops entire queue and processes each item.
+     * Updates _objectsFree count and may trigger clear() if superblock empties.
+     */
+    inline unsigned int drainDelayedFrees() {
+      auto* list = _delayedFreeList.popAll();
+      unsigned int count = 0;
+      while (list != nullptr) {
+        auto* next = list->next.load(std::memory_order_relaxed);
+        // Free to local freelist (same as normal free path)
+        _freeList.insert(reinterpret_cast<FreeSLList::Entry*>(list));
+        _objectsFree++;
+        count++;
+        list = reinterpret_cast<AtomicFreeList::Entry*>(next);
+      }
+      // Check if superblock is now completely free
+      if (count > 0 && _objectsFree == _totalObjects) {
+        clear();
+      }
+      return count;
+    }
   };
 
   // A helper class that pads the header to the desired alignment.

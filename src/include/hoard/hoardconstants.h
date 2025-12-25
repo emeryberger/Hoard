@@ -17,7 +17,11 @@
 #define HOARD_HOARDCONSTANTS_H
 
 namespace Hoard {
-  
+
+  /// Cache line size for false sharing prevention.
+  /// 64 bytes is standard for x86/x64 and ARM64.
+  enum { CACHE_LINE_SIZE = 64 };
+
   /// The maximum amount of memory that each TLAB may hold, in bytes.
   enum { MAX_MEMORY_PER_TLAB = 16 * 1024 * 1024UL }; // 16MB
   

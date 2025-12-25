@@ -91,8 +91,18 @@ namespace Hoard {
     int getInusemap (int index) const {
       return _inUseMap(index);
     }
-    
-    
+
+    /// @brief Mark a heap as active or inactive (for superblock reclaim).
+    void setHeapActive(int index, bool active) {
+      _heap(index).setActive(active);
+    }
+
+    /// @brief Get a heap by index (for superblock reclaim).
+    PerThreadHeap& getHeapByIndex(int index) {
+      return _heap(index);
+    }
+
+
   private:
     
     /// Which heap is assigned to which thread, indexed by thread.

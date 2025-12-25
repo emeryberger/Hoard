@@ -16,8 +16,11 @@
 #ifndef HOARD_EMPTYCLASS_H
 #define HOARD_EMPTYCLASS_H
 
+#include <mutex>
+
 #include "check.h"
 #include "array.h"
+#include "heaplayers.h"
 
 /**
  * @class EmptyClass
@@ -183,6 +186,87 @@ namespace Hoard {
       return SuperblockType::getSuperblock (ptr);
     }
 
+    /**
+     * @brief Drain delayed frees from all superblocks (opportunistic).
+     * @param inUseCount Pointer to in-use count to decrement (or nullptr).
+     * @return Total number of objects freed from all superblocks.
+     *
+     * Called during malloc to process cross-thread frees pushed to
+     * superblocks via pushDelayedFree(). Iterates through emptiness
+     * classes and drains any pending delayed frees.
+     */
+    inline unsigned int drainDelayedFrees(unsigned int* inUseCount) {
+      unsigned int totalFreed = 0;
+      // Iterate from fullest to emptiest (matching malloc order)
+      for (int i = EmptinessClasses; i >= 0; i--) {
+        SuperblockType * s = _available(i);
+        while (s) {
+          // Save next pointer before potential transfer
+          SuperblockType * nextSb = s->getNext();
+
+          if (s->hasDelayedFrees()) {
+            auto oldCl = getFullness(s);
+            unsigned int freed = s->drainDelayedFrees();
+            if (freed > 0) {
+              totalFreed += freed;
+              // Update in-use count if provided
+              if (inUseCount) {
+                *inUseCount -= freed;
+              }
+              // Check if emptiness class changed
+              auto newCl = getFullness(s);
+              if (oldCl != newCl) {
+                transfer(s, oldCl, newCl);
+              }
+            }
+          }
+          s = nextSb;
+        }
+      }
+      return totalFreed;
+    }
+
+    /**
+     * @brief Remove a superblock from this EmptyClass's bins.
+     * @param s The superblock to remove.
+     * @return true if successfully removed, false if not found.
+     *
+     * Used for superblock reclaim when transferring ownership from
+     * an inactive heap to an active one.
+     */
+    bool removeSuperblock(SuperblockType* s) {
+      if (!s) return false;
+
+      // Find which emptiness class it's in
+      int cl = getFullness(s);
+
+      // Verify it's actually in our bins by walking the list
+      SuperblockType* cur = _available(cl);
+      bool found = false;
+      while (cur) {
+        if (cur == s) {
+          found = true;
+          break;
+        }
+        cur = cur->getNext();
+      }
+
+      if (!found) return false;
+
+      // Unlink from the doubly-linked list
+      auto* prev = s->getPrev();
+      auto* next = s->getNext();
+      if (prev) { prev->setNext(next); }
+      if (next) { next->setPrev(prev); }
+      if (s == _available(cl)) {
+        _available(cl) = next;
+      }
+      s->setPrev(nullptr);
+      s->setNext(nullptr);
+
+      return true;
+    }
+
   private:
 
     void transfer (SuperblockType * s, int oldCl, int newCl)
@@ -246,9 +330,54 @@ namespace Hoard {
       }
     }
 
+    /// Per-bin lock for thread-safe list operations.
+    HL::SpinLock _listLock;
+
     /// The bins of superblocks, by emptiness class.
     /// @note index 0 = completely empty, EmptinessClasses + 1 = full
     Array<EmptinessClasses + 2, SuperblockType *> _available;
+
+  public:
+    // ========== Thread-Safe Operations (with internal locking) ==========
+
+    /// Acquire the bin lock.
+    void lock() { _listLock.lock(); }
+
+    /// Release the bin lock.
+    void unlock() { _listLock.unlock(); }
+
+    /// Thread-safe put (acquires lock internally).
+    void putLocked(SuperblockType* s) {
+      std::lock_guard<HL::SpinLock> l(_listLock);
+      put(s);
+    }
+
+    /// Thread-safe get (acquires lock internally).
+    SuperblockType* getLocked() {
+      std::lock_guard<HL::SpinLock> l(_listLock);
+      return get();
+    }
+
+    /// Transfer superblock between emptiness classes (caller must hold lock).
+    void transferUnlocked(SuperblockType* s, int oldCl, int newCl) {
+      transfer(s, oldCl, newCl);
+    }
+
+    /// Free to superblock and handle transfer (caller must hold lock).
+    void freeUnlocked(void* ptr) {
+      auto* s = getSuperblock(ptr);
+      auto oldCl = getFullness(s);
+      s->free(ptr);
+      auto newCl = getFullness(s);
+      if (oldCl != newCl) {
+        transfer(s, oldCl, newCl);
+      }
+    }
+
+    /// Get fullness class of superblock (for external use).
+    static int getFullnessClass(SuperblockType* s) {
+      return getFullness(s);
+    }
 
   };
 

@@ -28,11 +28,20 @@
  * @author Emery Berger <http://www.cs.umass.edu/~emery>
  */
 
+// Branch prediction hints for hot paths
 #if defined(__GNUC__) || defined(__clang__)
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
+#elif defined(_MSC_VER) && _MSC_VER >= 1925 && defined(__cplusplus) && __cplusplus >= 202002L
+// MSVC 2019 16.5+ with C++20: use standard attributes (must be used differently)
+// Note: C++20 [[likely]]/[[unlikely]] are statement attributes, not expression wrappers
+// For MSVC, we fall back to assume intrinsic for critical paths
+#define likely(x) (x)
+#define unlikely(x) (x)
+// Use __assume for optimizer hints in critical sections where applicable:
+// if (cond) { __assume(cond); ... }
 #else
-// MSVC doesn't have __builtin_expect, so just evaluate the expression
+// Fallback: no hints available
 #define likely(x) (x)
 #define unlikely(x) (x)
 #endif
