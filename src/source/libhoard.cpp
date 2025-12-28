@@ -102,8 +102,10 @@ extern "C" {
   void * xxmalloc (size_t sz)
 #endif
   {
-    if (isCustomHeapInitialized()) {
-      void * ptr = getCustomHeap()->malloc (sz);
+    // Single TLS lookup - getCustomHeap returns nullptr if not initialized
+    auto * heap = getCustomHeap();
+    if (heap != nullptr) {
+      void * ptr = heap->malloc(sz);
       if (ptr == nullptr) {
 	fprintf(stderr, "INTERNAL FAILURE.\n");
 	abort();
