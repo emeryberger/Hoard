@@ -137,7 +137,15 @@ extern "C" {
   void xxfree (void * ptr)
 #endif
   {
-    getCustomHeap()->free (ptr);
+    // Don't free init buffer allocations
+    if (ptr >= initBuffer && ptr < initBuffer + MAX_LOCAL_BUFFER_SIZE) {
+      return;
+    }
+    auto * heap = getCustomHeap();
+    if (heap != nullptr) {
+      heap->free(ptr);
+    }
+    // If heap is null, we're in early init - just leak
   }
 
  
@@ -150,7 +158,15 @@ extern "C" {
   }
     
   size_t xxmalloc_usable_size (void * ptr) {
-    return getCustomHeap()->getSize (ptr);
+    // Handle init buffer pointers
+    if (ptr >= initBuffer && ptr < initBuffer + MAX_LOCAL_BUFFER_SIZE) {
+      return static_cast<size_t>((initBuffer + MAX_LOCAL_BUFFER_SIZE) - (char*)ptr);
+    }
+    auto * heap = getCustomHeap();
+    if (heap != nullptr) {
+      return heap->getSize(ptr);
+    }
+    return 0;
   }
 
   void xxmalloc_lock() {
