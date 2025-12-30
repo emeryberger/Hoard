@@ -1,0 +1,10 @@
+GLIBC_2.2.5 {
+  global:
+    __libc_malloc;
+    __libc_free;
+    __libc_realloc;
+    __libc_calloc;
+    __libc_memalign;
+    local: custom*;
+      xx*;
+};
