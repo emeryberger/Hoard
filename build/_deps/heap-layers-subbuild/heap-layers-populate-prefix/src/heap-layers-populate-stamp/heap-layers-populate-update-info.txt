@@ -1,7 +1,0 @@
-# This is a generated file and its contents are an internal implementation detail.
-# The patch step will be re-executed if anything in this file changes.
-# No other meaning or use of this file is supported.
-
-command (connected)=/usr/local/bin/cmake;-Dcan_fetch=YES;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;/home/runner/work/Hoard/Hoard/build/_deps/heap-layers-subbuild/heap-layers-populate-prefix/tmp/heap-layers-populate-gitupdate.cmake
-command (disconnected)=/usr/local/bin/cmake;-Dcan_fetch=NO;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;/home/runner/work/Hoard/Hoard/build/_deps/heap-layers-subbuild/heap-layers-populate-prefix/tmp/heap-layers-populate-gitupdate.cmake
-work_dir=/home/runner/work/Hoard/Hoard/build/_deps/heap-layers-src
