@@ -257,6 +257,9 @@ install(EXPORT ${HOARD_EXPORT_NAME}
 # Create an alias for use from build tree
 add_library(Hoard::Hoard ALIAS hoard)
 
+# Set export name to maintain consistent Hoard::Hoard naming after installation
+set_target_properties(hoard PROPERTIES EXPORT_NAME Hoard)
+
 # Configure the package config file
 configure_package_config_file(
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake/HoardConfig.cmake.in"
