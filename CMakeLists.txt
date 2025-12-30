@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.15)
-project(hoard LANGUAGES CXX)
+project(hoard
+  VERSION 3.2
+  LANGUAGES CXX
+  DESCRIPTION "High-performance scalable memory allocator"
+)
 
 #
 # ─── OPTIONS ──────────────────────────────────────────────────────────
@@ -225,7 +229,54 @@ target_compile_definitions(hoard
     _REENTRANT=1
 )
 
+#
+# ─── EXPORT AND INSTALL ────────────────────────────────────────────────
+#
+
+include(CMakePackageConfigHelpers)
+include(GNUInstallDirs)
+
+# Set up the export name
+set(HOARD_EXPORT_NAME HoardTargets)
+
+# Install the library with export
 install(TARGETS hoard
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib
-        RUNTIME DESTINATION bin)
+  EXPORT ${HOARD_EXPORT_NAME}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+# Export target with namespace
+install(EXPORT ${HOARD_EXPORT_NAME}
+  FILE HoardTargets.cmake
+  NAMESPACE Hoard::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Hoard
+)
+
+# Create an alias for use from build tree
+add_library(Hoard::Hoard ALIAS hoard)
+
+# Set export name to maintain consistent Hoard::Hoard naming after installation
+set_target_properties(hoard PROPERTIES EXPORT_NAME Hoard)
+
+# Configure the package config file
+configure_package_config_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/HoardConfig.cmake.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/HoardConfig.cmake"
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Hoard
+)
+
+# Generate version file
+write_basic_package_version_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/HoardConfigVersion.cmake"
+  VERSION ${PROJECT_VERSION}
+  COMPATIBILITY SameMajorVersion
+)
+
+# Install the config files
+install(FILES
+  "${CMAKE_CURRENT_BINARY_DIR}/HoardConfig.cmake"
+  "${CMAKE_CURRENT_BINARY_DIR}/HoardConfigVersion.cmake"
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Hoard
+)

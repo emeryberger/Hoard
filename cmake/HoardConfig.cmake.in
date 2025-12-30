@@ -1,0 +1,36 @@
+@PACKAGE_INIT@
+
+# HoardConfig.cmake - Package configuration for Hoard memory allocator
+#
+# This file provides the following imported targets:
+#   Hoard::Hoard - The main Hoard shared library
+#
+# Usage:
+#   find_package(Hoard CONFIG REQUIRED)
+#   target_link_libraries(myapp PRIVATE Hoard::Hoard)
+#
+# Note: Hoard is typically used via LD_PRELOAD (Linux), DYLD_INSERT_LIBRARIES
+# (macOS), or withdll.exe (Windows), not direct linking. However, this package
+# is provided for projects that want to explicitly link against Hoard.
+
+include(CMakeFindDependencyMacro)
+
+# Platform-specific dependencies
+if(WIN32)
+  # Windows builds require Detours (bundled into the DLL)
+elseif(UNIX)
+  find_dependency(Threads REQUIRED)
+endif()
+
+# Include the exported targets
+if(NOT TARGET Hoard::Hoard)
+  include("${CMAKE_CURRENT_LIST_DIR}/HoardTargets.cmake")
+endif()
+
+# Provide legacy variables for compatibility
+set(HOARD_FOUND TRUE)
+set(Hoard_FOUND TRUE)
+set(HOARD_LIBRARIES Hoard::Hoard)
+set(Hoard_LIBRARIES Hoard::Hoard)
+
+check_required_components(Hoard)
