@@ -97,13 +97,16 @@ extern bool isCustomHeapInitialized();
 extern "C" {
 
 #if defined(__GNUG__) || defined(__clang__)
-  void * __attribute__((flatten)) xxmalloc (size_t sz) __attribute__((alloc_size(1))) __attribute__((malloc))
+  __attribute__((flatten)) __attribute__((alloc_size(1))) __attribute__((malloc))
+  void * xxmalloc (size_t sz)
 #else
   void * xxmalloc (size_t sz)
 #endif
   {
-    if (isCustomHeapInitialized()) {
-      void * ptr = getCustomHeap()->malloc (sz);
+    // Single TLS lookup - getCustomHeap returns nullptr if not initialized
+    auto * heap = getCustomHeap();
+    if (heap != nullptr) {
+      void * ptr = heap->malloc(sz);
       if (ptr == nullptr) {
 	fprintf(stderr, "INTERNAL FAILURE.\n");
 	abort();
@@ -135,7 +138,15 @@ extern "C" {
   void xxfree (void * ptr)
 #endif
   {
-    getCustomHeap()->free (ptr);
+    // Don't free init buffer allocations
+    if (ptr >= initBuffer && ptr < initBuffer + MAX_LOCAL_BUFFER_SIZE) {
+      return;
+    }
+    auto * heap = getCustomHeap();
+    if (heap != nullptr) {
+      heap->free(ptr);
+    }
+    // If heap is null, we're in early init - just leak
   }
 
  
@@ -148,7 +159,15 @@ extern "C" {
   }
     
   size_t xxmalloc_usable_size (void * ptr) {
-    return getCustomHeap()->getSize (ptr);
+    // Handle init buffer pointers
+    if (ptr >= initBuffer && ptr < initBuffer + MAX_LOCAL_BUFFER_SIZE) {
+      return static_cast<size_t>((initBuffer + MAX_LOCAL_BUFFER_SIZE) - (char*)ptr);
+    }
+    auto * heap = getCustomHeap();
+    if (heap != nullptr) {
+      return heap->getSize(ptr);
+    }
+    return 0;
   }
 
   void xxmalloc_lock() {

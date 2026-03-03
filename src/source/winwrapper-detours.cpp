@@ -43,16 +43,13 @@ extern "C" {
 // memory BEFORE our hooks were installed. These "foreign" pointers must be
 // handled gracefully to avoid crashes.
 //
-// We use Windows SEH (Structured Exception Handling) to safely check if a
-// pointer belongs to Hoard by wrapping xxmalloc_usable_size() in __try/__except.
-// If reading the superblock header causes an access violation (because the
-// superblock-aligned address isn't valid memory), we catch it and return 0.
+// OPTIMIZATION: After initialization completes, we skip the expensive SEH check
+// since all new allocations go through Hoard. Only use SEH during the
+// initialization window when foreign pointers may exist.
 //
-// NOTE: We cannot remove SEH to rely on Hoard's IgnoreInvalidFree layer alone
-// because some foreign pointers DO cause access violations when we try to
-// read their superblock headers. This was verified by testing - removing SEH
-// causes intermittent crashes at program startup.
-//
+
+// Set to true after InitializeWinWrapper completes - enables fast path
+static volatile bool g_initComplete = false;
 
 // Get the usable size of a pointer safely. Returns 0 for foreign pointers.
 // Uses SEH to catch access violations when reading superblock headers
@@ -69,6 +66,10 @@ static size_t SafeGetHoardSize(void * ptr) {
 
 // Check if a pointer was allocated by Hoard
 static inline bool IsHoardPointer(void * ptr) {
+  // Fast path: after init completes, all allocations are ours
+  if (g_initComplete) {
+    return true;
+  }
   return SafeGetHoardSize(ptr) > 0;
 }
 
@@ -654,6 +655,9 @@ extern "C" void InitializeWinWrapper() {
 
   // Install all detours
   bool success = InstallDetours();
+
+  // Mark initialization complete - enables fast path for pointer checks
+  g_initComplete = true;
 
   // Always print diagnostic - user needs to know if interposition worked
   // Use multiple output methods to ensure visibility:

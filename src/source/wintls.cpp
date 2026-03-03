@@ -43,7 +43,7 @@ using namespace Hoard;
 #if USE_DECLSPEC_THREADLOCAL
 __declspec(thread) TheCustomHeapType * threadLocalHeap = NULL;
 #else
-DWORD LocalTLABIndex;
+DWORD LocalTLABIndex = TLS_OUT_OF_INDEXES;
 #endif
 
 extern HoardHeapType * getMainHoardHeap();
@@ -73,6 +73,9 @@ bool isCustomHeapInitialized() {
 #endif
 }
 
+// Track if TLS is ready (set in DLL_PROCESS_ATTACH after TlsAlloc)
+static bool g_tlsReady = false;
+
 TheCustomHeapType * getCustomHeap() {
 #if USE_DECLSPEC_THREADLOCAL
   if (threadLocalHeap != NULL)
@@ -80,6 +83,10 @@ TheCustomHeapType * getCustomHeap() {
   initializeCustomHeap();
   return threadLocalHeap;
 #else
+  // Fast path: check if TLS is ready
+  if (!g_tlsReady) {
+    return nullptr;
+  }
   auto p = TlsGetValue(LocalTLABIndex);
   if (p == NULL) {
     initializeCustomHeap();
@@ -137,6 +144,15 @@ extern "C" {
 	// -- Emery Berger, 24/1/2019
 	cout << "";
 
+#if !USE_DECLSPEC_THREADLOCAL
+	// Allocate TLS index for per-thread heap pointer
+	LocalTLABIndex = TlsAlloc();
+	if (LocalTLABIndex == TLS_OUT_OF_INDEXES) {
+	  return FALSE;
+	}
+	g_tlsReady = true;
+#endif
+
 	// Now we are good to go.
 	InitializeWinWrapper();
 	// Force creation of the heap.
@@ -182,6 +198,13 @@ extern "C" {
       if (lpreserved == NULL) {
 	// Dynamic unload (FreeLibrary) - shouldn't happen since we pinned the DLL
 	FinalizeWinWrapper();
+#if !USE_DECLSPEC_THREADLOCAL
+	if (LocalTLABIndex != TLS_OUT_OF_INDEXES) {
+	  TlsFree(LocalTLABIndex);
+	  LocalTLABIndex = TLS_OUT_OF_INDEXES;
+	}
+	g_tlsReady = false;
+#endif
       } else {
 	// Process exit (lpreserved != NULL)
 	// Try to ensure output is flushed before terminating.

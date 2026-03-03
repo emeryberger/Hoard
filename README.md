@@ -48,8 +48,8 @@ Twister servers), Pervasive Software, Plath GmbH, Quest Software,
 Reuters, Royal Bank of Canada, SAP, Sonus Networks, Tata
 Communications, and Verite Group.
 
-Open source projects using Hoard include the Asterisk Open Source
-Telephony Project, Bayonne GNU telephony server, the Cilk parallel
+Open source projects using Hoard include the [Asterisk Open Source
+Telephony Project](https://www.asterisk.org/), Bayonne GNU telephony server, the Cilk parallel
 programming language, the GNU Common C++ system, the OpenFOAM
 computational fluid dynamics toolkit, and the SafeSquid web proxy.
 

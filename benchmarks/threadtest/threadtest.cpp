@@ -49,8 +49,6 @@ int nthreads = 1;	// Default number of threads.
 int work = 0;		// Default number of loop iterations.
 int objSize = 1;
 
-#include "wrappers/macinterpose.h"
-
 class Foo {
 public:
   Foo()

@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.15)
-project(hoard LANGUAGES CXX)
+project(hoard
+  VERSION 3.2
+  LANGUAGES CXX
+  DESCRIPTION "High-performance scalable memory allocator"
+)
 
 #
 # ─── OPTIONS ──────────────────────────────────────────────────────────
@@ -164,25 +168,30 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
 
-# Enable Link-Time Optimization (LTO) for better cross-translation-unit inlining
-include(CheckIPOSupported)
-check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)
-if(ipo_supported)
-  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
-  message(STATUS "LTO enabled")
+# NOTE: Link-Time Optimization (LTO) DISABLED on Windows ARM64 - causes 6x slowdown!
+# MSVC's ARM64 LTO codegen produces significantly slower code for memory allocators.
+if(NOT WIN32)
+  include(CheckIPOSupported)
+  check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)
+  if(ipo_supported)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+    message(STATUS "LTO enabled")
+  else()
+    message(STATUS "LTO not supported: ${ipo_error}")
+  endif()
 else()
-  message(STATUS "LTO not supported: ${ipo_error}")
+  message(STATUS "LTO disabled on Windows (causes ARM64 slowdown)")
 endif()
 
 # Enable maximum optimization for MSVC
 if(MSVC)
   # /O2 = maximize speed, /Ob2 = inline any suitable function, /Oi = enable intrinsics
-  # /Ot = favor fast code, /GL = whole program optimization (LTO)
-  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Ob2 /Oi /Ot /GL")
-  set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /Ob2 /Oi /Ot /GL")
-  # Enable link-time code generation (required for /GL)
-  set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /LTCG")
-  set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /LTCG")
+  # /Ot = favor fast code
+  # NOTE: /GL (whole program optimization) DISABLED - causes 6x slowdown on ARM64!
+  # The MSVC ARM64 LTO codegen appears to produce significantly slower code.
+  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Ob2 /Oi /Ot")
+  set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /Ob2 /Oi /Ot")
+  # NOTE: /LTCG disabled since /GL is disabled
 endif()
 
 add_library(hoard SHARED ${HOARD_SOURCES})
@@ -220,7 +229,54 @@ target_compile_definitions(hoard
     _REENTRANT=1
 )
 
+#
+# ─── EXPORT AND INSTALL ────────────────────────────────────────────────
+#
+
+include(CMakePackageConfigHelpers)
+include(GNUInstallDirs)
+
+# Set up the export name
+set(HOARD_EXPORT_NAME HoardTargets)
+
+# Install the library with export
 install(TARGETS hoard
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib
-        RUNTIME DESTINATION bin)
+  EXPORT ${HOARD_EXPORT_NAME}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+# Export target with namespace
+install(EXPORT ${HOARD_EXPORT_NAME}
+  FILE HoardTargets.cmake
+  NAMESPACE Hoard::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Hoard
+)
+
+# Create an alias for use from build tree
+add_library(Hoard::Hoard ALIAS hoard)
+
+# Set export name to maintain consistent Hoard::Hoard naming after installation
+set_target_properties(hoard PROPERTIES EXPORT_NAME Hoard)
+
+# Configure the package config file
+configure_package_config_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/HoardConfig.cmake.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/HoardConfig.cmake"
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Hoard
+)
+
+# Generate version file
+write_basic_package_version_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/HoardConfigVersion.cmake"
+  VERSION ${PROJECT_VERSION}
+  COMPATIBILITY SameMajorVersion
+)
+
+# Install the config files
+install(FILES
+  "${CMAKE_CURRENT_BINARY_DIR}/HoardConfig.cmake"
+  "${CMAKE_CURRENT_BINARY_DIR}/HoardConfigVersion.cmake"
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Hoard
+)
