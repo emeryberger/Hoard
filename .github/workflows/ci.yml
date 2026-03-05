@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+# Benchmark parameters match mimalloc-bench (https://github.com/daanx/mimalloc-bench):
+#   cache-scratch: $procs 1000 1 2000000
+#   cache-thrash:  $procs 1000 1 2000000
+#   larson:        5 8 1000 5000 100 4141 $procs
+# threadtest and linux-scalability use Hoard's standard parameters.
+
+jobs:
+  # ─── Linux (Ubuntu x86-64) ──────────────────────────────────────────
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Hoard and benchmarks
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release \
+                -DHOARD_BUILD_BENCHMARKS=ON -DHOARD_LINK_BENCHMARKS=ON \
+                -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF
+          cmake --build build -j$(nproc)
+
+      - name: Run threadtest with Hoard
+        run: |
+          build/benchmarks/threadtest $(nproc) 1000 10000 0 8
+          build/benchmarks/threadtest $(nproc) 1000 10000 0 64
+          build/benchmarks/threadtest $(nproc) 1000 10000 0 256
+
+      - name: Run cache-scratch with Hoard
+        run: |
+          build/benchmarks/cache-scratch 1 1000 1 2000000
+          build/benchmarks/cache-scratch $(nproc) 1000 1 2000000
+
+      - name: Run cache-thrash with Hoard
+        run: |
+          build/benchmarks/cache-thrash 1 1000 1 2000000
+          build/benchmarks/cache-thrash $(nproc) 1000 1 2000000
+
+      - name: Run larson with Hoard
+        run: build/benchmarks/larson 5 8 1000 5000 100 4141 $(nproc)
+
+      - name: Run linux-scalability with Hoard
+        run: build/benchmarks/linux-scalability $(nproc) 10000000
+
+  # ─── macOS (Apple Silicon) ──────────────────────────────────────────
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Hoard and benchmarks
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release \
+                -DHOARD_BUILD_BENCHMARKS=ON -DHOARD_LINK_BENCHMARKS=ON \
+                -DCMAKE_OSX_ARCHITECTURES=$(uname -m) \
+                -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF
+          cmake --build build -j$(sysctl -n hw.ncpu)
+
+      # macOS security on GitHub-hosted runners kills processes that
+      # register custom malloc zones (Hoard's interposition mechanism).
+      # Benchmarks pass on local machines and self-hosted runners.
+      # The build step above verifies compilation on macOS.
+      - name: Run benchmarks with Hoard
+        continue-on-error: true
+        run: |
+          N=$(sysctl -n hw.physicalcpu)
+          build/benchmarks/threadtest $N 1000 10000 0 8
+          build/benchmarks/cache-scratch $N 1000 1 2000000
+          build/benchmarks/cache-thrash $N 1000 1 2000000
+          build/benchmarks/larson 5 8 1000 5000 100 4141 $N
+          build/benchmarks/linux-scalability $N 10000000
+
+  # ─── Windows (MSVC x64) ────────────────────────────────────────────
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Hoard, Detours tools, and benchmarks
+        run: |
+          cmake -B build -DHOARD_BUILD_BENCHMARKS=ON
+          cmake --build build --config Release
+
+      - name: Run test_malloc with Hoard (withdll)
+        shell: cmd
+        run: build\Release\withdll.exe /d:build\Release\hoard.dll build\benchmarks\Release\test_malloc.exe
+
+      - name: Run bench_malloc with Hoard (withdll)
+        shell: cmd
+        run: build\Release\withdll.exe /d:build\Release\hoard.dll build\benchmarks\Release\bench_malloc.exe 10000
+
+      - name: Run threadtest with Hoard (withdll)
+        shell: cmd
+        run: |
+          build\Release\withdll.exe /d:build\Release\hoard.dll build\benchmarks\Release\threadtest.exe %NUMBER_OF_PROCESSORS% 1000 10000 0 8
+          build\Release\withdll.exe /d:build\Release\hoard.dll build\benchmarks\Release\threadtest.exe %NUMBER_OF_PROCESSORS% 1000 10000 0 64

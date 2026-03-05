@@ -18,6 +18,17 @@
 
 #include <mutex>
 
+#if defined(_MSC_VER)
+#include <intrin.h>
+static inline int hoard_clz(unsigned int x) {
+  unsigned long idx;
+  _BitScanReverse(&idx, x);
+  return 31 - (int)idx;
+}
+#else
+#define hoard_clz(x) __builtin_clz(x)
+#endif
+
 #include "check.h"
 #include "array.h"
 #include "heaplayers.h"
@@ -40,6 +51,7 @@ namespace Hoard {
     typedef SuperblockType_ SuperblockType;
 
     EmptyClass()
+      : _binmap(0)
     {
       for (auto i = 0; i <= EmptinessClasses + 1; i++) {
 	_available(i) = 0;
@@ -62,12 +74,14 @@ namespace Hoard {
     SuperblockType * getEmpty() {
       Check<EmptyClass, MyChecker> check (this);
       auto * s = _available(0);
-      if (s && 
+      if (s &&
 	  (s->getObjectsFree() == s->getTotalObjects())) {
 	// Got an empty one. Remove it.
 	_available(0) = s->getNext();
 	if (_available(0)) {
 	  _available(0)->setPrev (0);
+	} else {
+	  _binmap &= ~(1U << 0);
 	}
 	s->setPrev (0);
 	s->setNext (0);
@@ -88,6 +102,8 @@ namespace Hoard {
 	  _available(n) = s->getNext();
 	  if (_available(n)) {
 	    _available(n)->setPrev (0);
+	  } else {
+	    _binmap &= ~(1U << n);
 	  }
 	  s->setPrev (0);
 	  s->setNext (0);
@@ -138,20 +154,24 @@ namespace Hoard {
       // Put on the appropriate available list.
       auto cl = getFullness (s);
 
-      //    printf ("put %x, cl = %d\n", s, cl);
       s->setPrev (0);
       s->setNext (_available(cl));
       if (_available(cl)) {
 	_available(cl)->setPrev (s);
       }
       _available(cl) = s;
+      _binmap |= (1U << cl);
     }
 
     INLINE MALLOC_FUNCTION void * malloc (size_t sz) {
       // Malloc from the fullest superblock first.
-      for (auto i = EmptinessClasses; i >= 0; i--) {
+      // Use bitmap to find the fullest non-empty class in O(1).
+      // Mask out the "full" bin (EmptinessClasses+1) and any higher bits.
+      auto allocBits = _binmap & ((1U << (EmptinessClasses + 1)) - 1);
+      while (allocBits) {
+	// Find the highest set bit = fullest non-empty class.
+	int i = 31 - hoard_clz(allocBits);
 	SuperblockType * s = _available(i);
-	// printf ("i\n");
 	if (s) {
 	  auto oldCl = getFullness (s);
 	  void * ptr = s->malloc (sz);
@@ -164,6 +184,8 @@ namespace Hoard {
 	    return ptr;
 	  }
 	}
+	// This class didn't yield an allocation; clear the bit and try next.
+	allocBits &= ~(1U << i);
       }
       return nullptr;
     }
@@ -260,6 +282,9 @@ namespace Hoard {
       if (next) { next->setPrev(prev); }
       if (s == _available(cl)) {
         _available(cl) = next;
+        if (!next) {
+          _binmap &= ~(1U << cl);
+        }
       }
       s->setPrev(nullptr);
       s->setNext(nullptr);
@@ -278,11 +303,15 @@ namespace Hoard {
       if (s == _available(oldCl)) {
 	assert (prev == 0);
 	_available(oldCl) = next;
+	if (!next) {
+	  _binmap &= ~(1U << oldCl);
+	}
       }
       s->setNext (_available(newCl));
       s->setPrev (0);
       if (_available(newCl)) { _available(newCl)->setPrev (s); }
       _available(newCl) = s;
+      _binmap |= (1U << newCl);
     }
 
     static INLINE int getFullness (SuperblockType * s) {
@@ -329,6 +358,10 @@ namespace Hoard {
 	}
       }
     }
+
+    /// Bitmap for O(1) lookup of non-empty bins.
+    /// Bit i is set iff _available(i) != nullptr.
+    unsigned int _binmap;
 
     /// Per-bin lock for thread-safe list operations.
     HL::SpinLock _listLock;
