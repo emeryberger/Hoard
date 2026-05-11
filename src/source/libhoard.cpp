@@ -157,7 +157,11 @@ extern "C" {
 #endif
     return generic_xxmemalign(alignment, sz);
   }
-    
+
+  extern "C" void xxfree_sized(void* ptr, size_t) {
+    xxfree(ptr);
+  }
+
   size_t xxmalloc_usable_size (void * ptr) {
     // Handle init buffer pointers
     if (ptr >= initBuffer && ptr < initBuffer + MAX_LOCAL_BUFFER_SIZE) {
