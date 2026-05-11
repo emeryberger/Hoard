@@ -149,17 +149,20 @@ extern "C" {
     // If heap is null, we're in early init - just leak
   }
 
- 
+  void xxfree_sized(void * ptr, size_t) {
+    xxfree(ptr);
+  }
+
+  void xxfree_aligned_sized(void * ptr, size_t, size_t) {
+    xxfree(ptr);
+  }
+
 #if defined(__GNUG__)
   void * xxmemalign (size_t alignment, size_t sz) {
 #else
   void * xxmemalign (size_t alignment, size_t sz) {
 #endif
     return generic_xxmemalign(alignment, sz);
-  }
-
-  extern "C" void xxfree_sized(void* ptr, size_t) {
-    xxfree(ptr);
   }
 
   size_t xxmalloc_usable_size (void * ptr) {
