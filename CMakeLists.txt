@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 project(hoard
   VERSION 3.2
-  LANGUAGES CXX
+  LANGUAGES C CXX
   DESCRIPTION "High-performance scalable memory allocator"
 )
 
@@ -157,7 +157,11 @@ if(WIN32)
 
 elseif(APPLE)
   set(HOARD_SOURCES ${MACOS_SOURCES})
-  add_compile_options(-DNDEBUG -ftls-model=initial-exec -ftemplate-depth=1024)
+  add_definitions(-DNDEBUG)
+  # initial-exec TLS and deep template depth are only for the Hoard library;
+  # they are added as target-specific options below (not globally) to avoid
+  # breaking benchmark executables linked against libhoard.
+  set(HOARD_APPLE_COMPILE_OPTIONS -ftls-model=initial-exec -ftemplate-depth=1024)
 else()
   set(HOARD_SOURCES ${UNIX_SOURCES})
   add_definitions(-DNDEBUG)
@@ -171,13 +175,18 @@ endif()
 # NOTE: Link-Time Optimization (LTO) DISABLED on Windows ARM64 - causes 6x slowdown!
 # MSVC's ARM64 LTO codegen produces significantly slower code for memory allocators.
 if(NOT WIN32)
-  include(CheckIPOSupported)
-  check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)
-  if(ipo_supported)
-    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
-    message(STATUS "LTO enabled")
+  # Respect command-line -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF
+  if(NOT DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION)
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)
+    if(ipo_supported)
+      set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+      message(STATUS "LTO enabled")
+    else()
+      message(STATUS "LTO not supported: ${ipo_error}")
+    endif()
   else()
-    message(STATUS "LTO not supported: ${ipo_error}")
+    message(STATUS "LTO: user-specified CMAKE_INTERPROCEDURAL_OPTIMIZATION=${CMAKE_INTERPROCEDURAL_OPTIMIZATION}")
   endif()
 else()
   message(STATUS "LTO disabled on Windows (causes ARM64 slowdown)")
@@ -195,6 +204,11 @@ if(MSVC)
 endif()
 
 add_library(hoard SHARED ${HOARD_SOURCES})
+
+# Apply macOS-specific compile options to the hoard target only
+if(APPLE AND DEFINED HOARD_APPLE_COMPILE_OPTIONS)
+  target_compile_options(hoard PRIVATE ${HOARD_APPLE_COMPILE_OPTIONS})
+endif()
 
 # Platform-specific linking
 if(WIN32)
@@ -280,3 +294,129 @@ install(FILES
   "${CMAKE_CURRENT_BINARY_DIR}/HoardConfigVersion.cmake"
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Hoard
 )
+
+#
+# ─── BENCHMARKS (opt-in) ────────────────────────────────────────────
+#
+
+option(HOARD_BUILD_BENCHMARKS "Build benchmark programs" OFF)
+option(HOARD_LINK_BENCHMARKS "Link benchmarks directly against libhoard (for CI where LD_PRELOAD/DYLD_INSERT may be unavailable)" OFF)
+
+if(HOARD_BUILD_BENCHMARKS)
+  set(BENCH_DIR ${CMAKE_CURRENT_SOURCE_DIR}/benchmarks)
+  set(BENCH_COMMON ${BENCH_DIR}/common)
+
+  # Build a static archive of Hoard for linking into benchmarks.
+  # This avoids dylib code-signing issues on macOS CI and LD_PRELOAD
+  # symbol issues on Linux.
+  if(HOARD_LINK_BENCHMARKS AND NOT WIN32)
+    add_library(hoard_static STATIC ${HOARD_SOURCES})
+    target_include_directories(hoard_static PRIVATE
+      ${PROJECT_SOURCE_DIR}
+      ${PROJECT_SOURCE_DIR}/src/include
+      ${PROJECT_SOURCE_DIR}/src/include/hoard
+      ${PROJECT_SOURCE_DIR}/src/include/superblocks
+      ${PROJECT_SOURCE_DIR}/src/include/util
+      ${heap-layers_SOURCE_DIR})
+    target_compile_definitions(hoard_static PRIVATE _REENTRANT=1 NDEBUG)
+    if(APPLE AND DEFINED HOARD_APPLE_COMPILE_OPTIONS)
+      target_compile_options(hoard_static PRIVATE ${HOARD_APPLE_COMPILE_OPTIONS})
+    endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+      target_link_libraries(hoard_static PRIVATE pthread dl)
+    else()
+      target_link_libraries(hoard_static PRIVATE pthread dl)
+    endif()
+  endif()
+
+  # Helper: optionally link a benchmark target against hoard (static).
+  # On macOS, -force_load is needed so the linker keeps the
+  # __DATA,__interpose sections that replace malloc/free.
+  macro(maybe_link_hoard target)
+    if(HOARD_LINK_BENCHMARKS AND NOT WIN32)
+      if(APPLE)
+        add_dependencies(${target} hoard_static)
+        target_link_libraries(${target} PRIVATE "-force_load $<TARGET_FILE:hoard_static>" "-lc++")
+      else()
+        target_link_libraries(${target} PRIVATE hoard_static)
+      endif()
+    endif()
+  endmacro()
+
+  # threadtest
+  add_executable(bench-threadtest ${BENCH_DIR}/threadtest/threadtest.cpp)
+  target_include_directories(bench-threadtest PRIVATE ${BENCH_COMMON}
+    ${PROJECT_SOURCE_DIR}/src/Heap-Layers ${heap-layers_SOURCE_DIR})
+  target_compile_definitions(bench-threadtest PRIVATE NDEBUG)
+  target_compile_options(bench-threadtest PRIVATE $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-O3>)
+  set_target_properties(bench-threadtest PROPERTIES
+    CXX_STANDARD 17 OUTPUT_NAME threadtest
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/benchmarks)
+  if(NOT WIN32)
+    target_link_libraries(bench-threadtest PRIVATE pthread)
+  endif()
+  maybe_link_hoard(bench-threadtest)
+
+  # The following benchmarks use POSIX threading APIs that don't compile
+  # cleanly on MSVC. They are built only on Unix/macOS.
+  if(NOT WIN32)
+    # cache-scratch
+    add_executable(bench-cache-scratch ${BENCH_DIR}/cache-scratch/cache-scratch.cpp)
+    target_include_directories(bench-cache-scratch PRIVATE ${BENCH_COMMON})
+    target_compile_definitions(bench-cache-scratch PRIVATE NDEBUG)
+    target_compile_options(bench-cache-scratch PRIVATE -O3)
+    set_target_properties(bench-cache-scratch PROPERTIES
+      OUTPUT_NAME cache-scratch
+      RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/benchmarks)
+    target_link_libraries(bench-cache-scratch PRIVATE pthread)
+    maybe_link_hoard(bench-cache-scratch)
+
+    # cache-thrash
+    add_executable(bench-cache-thrash ${BENCH_DIR}/cache-thrash/cache-thrash.cpp)
+    target_include_directories(bench-cache-thrash PRIVATE ${BENCH_COMMON})
+    target_compile_definitions(bench-cache-thrash PRIVATE NDEBUG)
+    target_compile_options(bench-cache-thrash PRIVATE -O3)
+    set_target_properties(bench-cache-thrash PROPERTIES
+      OUTPUT_NAME cache-thrash
+      RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/benchmarks)
+    target_link_libraries(bench-cache-thrash PRIVATE pthread)
+    maybe_link_hoard(bench-cache-thrash)
+
+    # larson
+    add_executable(bench-larson ${BENCH_DIR}/larson/larson.cpp)
+    target_include_directories(bench-larson PRIVATE ${BENCH_COMMON})
+    target_compile_definitions(bench-larson PRIVATE NDEBUG)
+    target_compile_options(bench-larson PRIVATE -O3)
+    set_target_properties(bench-larson PROPERTIES
+      OUTPUT_NAME larson
+      RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/benchmarks)
+    target_link_libraries(bench-larson PRIVATE pthread)
+    maybe_link_hoard(bench-larson)
+
+    # linux-scalability (C, uses POSIX barriers)
+    add_executable(bench-linux-scalability ${BENCH_DIR}/linux-scalability/linux-scalability.c)
+    target_include_directories(bench-linux-scalability PRIVATE ${BENCH_COMMON})
+    target_compile_definitions(bench-linux-scalability PRIVATE NDEBUG)
+    target_compile_options(bench-linux-scalability PRIVATE -O3)
+    set_target_properties(bench-linux-scalability PROPERTIES
+      OUTPUT_NAME linux-scalability
+      RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/benchmarks)
+    target_link_libraries(bench-linux-scalability PRIVATE pthread m)
+    maybe_link_hoard(bench-linux-scalability)
+  endif()
+
+  # Windows test programs
+  if(WIN32)
+    add_executable(test-malloc ${CMAKE_CURRENT_SOURCE_DIR}/test_malloc.cpp)
+    target_compile_definitions(test-malloc PRIVATE NDEBUG)
+    set_target_properties(test-malloc PROPERTIES
+      OUTPUT_NAME test_malloc
+      RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/benchmarks)
+
+    add_executable(bench-malloc ${CMAKE_CURRENT_SOURCE_DIR}/bench_malloc.cpp)
+    target_compile_definitions(bench-malloc PRIVATE NDEBUG)
+    set_target_properties(bench-malloc PROPERTIES
+      OUTPUT_NAME bench_malloc
+      RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/benchmarks)
+  endif()
+endif()

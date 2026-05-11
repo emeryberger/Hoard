@@ -177,6 +177,14 @@ extern "C" {
     return 0;
   }
 
+  void xxfree_sized (void * ptr, size_t) {
+    xxfree(ptr);
+  }
+
+  void xxfree_aligned_sized (void * ptr, size_t, size_t) {
+    xxfree(ptr);
+  }
+
   void xxmalloc_lock() {
     // Undefined for Hoard.
   }

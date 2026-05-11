@@ -17,6 +17,9 @@
 #define HOARD_STATISTICS_H
 
 #include <atomic>
+#include <cstddef>
+
+#include "hoardconstants.h"
 
 namespace Hoard {
 
@@ -27,8 +30,13 @@ namespace Hoard {
    * Uses relaxed memory ordering for eventual consistency. This is safe
    * because the threshold function has hysteresis (2*SUPERBLOCK_SIZE objects)
    * which far exceeds any temporary inconsistency from concurrent operations.
+   *
+   * Padded to 64 bytes to prevent false sharing between adjacent bins'
+   * statistics in the per-bin array. Uses 64 bytes (L1 cache line size)
+   * on all platforms, since bins within a single HoardManager are
+   * typically accessed by the same thread.
    */
-  class Statistics {
+  class alignas(64) Statistics {
   public:
     Statistics()
       : _inUse(0),
@@ -87,6 +95,9 @@ namespace Hoard {
 
     /// The number of objects allocated (atomic for lock-free updates).
     std::atomic<unsigned int> _allocated;
+
+    /// Padding to fill one 64-byte L1 cache line, preventing false sharing.
+    char _pad[64 - 2 * sizeof(std::atomic<unsigned int>)];
   };
 
 }

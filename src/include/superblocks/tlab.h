@@ -24,6 +24,7 @@
 #define HOARD_TLAB_H
 
 #include "heaplayers.h"
+#include "hoardconstants.h"
 
 // Branch prediction hints for hot paths (mimalloc-style optimization)
 #if defined(__GNUC__) || defined(__clang__)
@@ -91,9 +92,9 @@ namespace Hoard {
       	}
       }
 
-      // Slow path: TLAB miss - get memory from parent heap.
+      // Slow path: TLAB miss - get from parent heap.
       auto * ptr = _parentHeap->malloc (sz);
-      assert ((size_t) ptr % Alignment == 0);
+      assert (ptr == nullptr || (size_t) ptr % Alignment == 0);
       return ptr;
     }
 
@@ -154,8 +155,9 @@ namespace Hoard {
     ThreadLocalAllocationBuffer (const ThreadLocalAllocationBuffer&);
     ThreadLocalAllocationBuffer& operator=(const ThreadLocalAllocationBuffer&);
 
-    /// Padding to prevent false sharing and ensure alignment.
-    double _pad[128 / sizeof(double)];
+    /// Padding to prevent cross-thread false sharing between TLABs.
+    /// Uses DESTRUCTIVE_INTERFERENCE_SIZE (128 on Apple Silicon, 64 on x86).
+    double _pad[Hoard::DESTRUCTIVE_INTERFERENCE_SIZE / sizeof(double)];
 
     /// This heap's 'parent' (where to go for more memory).
     ParentHeap * _parentHeap;

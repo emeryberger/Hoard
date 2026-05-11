@@ -26,6 +26,7 @@
 
 #include "heaplayers.h"
 #include "../util/atomicfreelist.h"
+#include "hoardconstants.h"
 
 #include <cstdlib>
 
@@ -76,13 +77,15 @@ namespace Hoard {
 	_objectSize (sz),
 	_objectSizeIsPowerOfTwo (!(sz & (sz - 1)) && sz),
 	_totalObjects ((unsigned int) (bufferSize / sz)),
-	_owner (nullptr),
-	_prev (nullptr),
-	_next (nullptr),
+	_magicMul (computeMagicMul(sz)),
+	_magicShift (computeMagicShift(sz)),
+	_start (start),
 	_reapableObjects (_totalObjects),
 	_objectsFree (_totalObjects),
-	_start (start),
-	_position (start)
+	_position (start),
+	_owner (nullptr),
+	_prev (nullptr),
+	_next (nullptr)
     {
       assert ((HL::align<Alignment>((size_t) start) == (size_t) start));
       assert (_objectSize >= Alignment);
@@ -136,15 +139,13 @@ namespace Hoard {
       auto offset = (size_t) ptr - (size_t) _start;
       void * p;
 
-      // Optimization note: the modulo operation (%) is *really* slow on
-      // some architectures (notably x86-64). To reduce its overhead, we
-      // optimize for the case when the size request is a power of two,
-      // which is often enough to make a difference.
-
       if (_objectSizeIsPowerOfTwo) {
 	p = (void *) ((size_t) ptr - (offset & (_objectSize - 1)));
       } else {
-	p = (void *) ((size_t) ptr - (offset % _objectSize));
+	// Use multiplicative inverse to replace expensive modulo.
+	// A multiply+shift (~4 cycles) instead of division (~30+ cycles).
+	auto remainder = fastModulo(offset);
+	p = (void *) ((size_t) ptr - remainder);
       }
       return p;
     }
@@ -157,7 +158,7 @@ namespace Hoard {
       if (_objectSizeIsPowerOfTwo) {
 	newSize = _objectSize - (offset & (_objectSize - 1));
       } else {
-	newSize = _objectSize - (offset % _objectSize);
+	newSize = _objectSize - fastModulo(offset);
       }
       return newSize;
     }
@@ -225,6 +226,41 @@ namespace Hoard {
 
   private:
 
+    /// Compute offset % _objectSize using precomputed multiplicative inverse.
+    /// A multiply+shift (~4 cycles) instead of division (~30+ cycles).
+    INLINE size_t fastModulo(size_t offset) const {
+#if defined(_MSC_VER) && !defined(__clang__)
+      // MSVC doesn't support __uint128_t; fall back to regular modulo.
+      return offset % _objectSize;
+#else
+      size_t quotient = (size_t)(((__uint128_t)offset * _magicMul) >> _magicShift);
+      return offset - quotient * _objectSize;
+#endif
+    }
+
+    /// Compute the multiplicative inverse for a given divisor.
+    static size_t computeMagicMul(size_t d) {
+      if (d == 0 || (!(d & (d - 1)) && d)) return 0;  // power of two or zero
+#if defined(_MSC_VER) && !defined(__clang__)
+      return 0;  // Not used on MSVC (fastModulo falls back to %)
+#else
+      unsigned s = computeMagicShift(d);
+      __uint128_t one = 1;
+      __uint128_t power = one << s;
+      return (size_t)((power + d - 1) / d);
+#endif
+    }
+
+    /// Compute the shift amount for the multiplicative inverse.
+    static unsigned computeMagicShift(size_t d) {
+      if (d == 0 || (!(d & (d - 1)) && d)) return 0;  // power of two or zero
+#if defined(_MSC_VER) && !defined(__clang__)
+      return 0;  // Not used on MSVC
+#else
+      return 64 + (63 - __builtin_clzll(d));
+#endif
+    }
+
     MALLOC_FUNCTION INLINE void * reapAlloc() {
       assert (isValid());
       assert (_position);
@@ -267,8 +303,36 @@ namespace Hoard {
     /// Total objects in the superblock.
     const unsigned int _totalObjects;
 
-    /// The lock.
-    LockType _theLock;
+    /// Multiplicative inverse of _objectSize for fast modulo computation.
+    const size_t _magicMul;
+
+    /// Shift amount for the multiplicative inverse.
+    const unsigned _magicShift;
+
+    /// The start of reap allocation (read-only after init).
+    const char * _start;
+
+    // ---- Cache line 2: mutable allocation-path fields ----
+    // Padding to push mutable fields to the next cache line boundary,
+    // separating read-only fields (accessed on normalize/getSize) from
+    // mutable fields (modified on every malloc/free).
+    char _cachePad1[CACHE_LINE_SIZE - ((sizeof(size_t) + sizeof(size_t) + sizeof(bool) +
+                           sizeof(unsigned int) + sizeof(size_t) +
+                           sizeof(unsigned) + sizeof(const char *)) % CACHE_LINE_SIZE)];
+
+    /// The number of objects available to be 'reap'ed.
+    unsigned int _reapableObjects;
+
+    /// The number of objects available for (re)use.
+    unsigned int _objectsFree;
+
+    /// The cursor into the buffer following the header.
+    char * _position;
+
+    /// The list of freed objects.
+    FreeSLList _freeList;
+
+    // ---- Cache line 3: ownership/linking (cross-thread access) ----
 
     /// The owner of this superblock (atomic for lock-free ownership transfer).
     std::atomic<HeapType*> _owner;
@@ -278,21 +342,9 @@ namespace Hoard {
 
     /// The succeeding superblock in a linked list.
     BlockType* _next;
-    
-    /// The number of objects available to be 'reap'ed.
-    unsigned int _reapableObjects;
 
-    /// The number of objects available for (re)use.
-    unsigned int _objectsFree;
-
-    /// The start of reap allocation.
-    const char * _start;
-
-    /// The cursor into the buffer following the header.
-    char * _position;
-
-    /// The list of freed objects.
-    FreeSLList _freeList;
+    /// The lock.
+    LockType _theLock;
 
     /// Lock-free queue for delayed cross-thread frees (mimalloc-style optimization).
     AtomicFreeList _delayedFreeList;

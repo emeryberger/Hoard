@@ -66,8 +66,23 @@ namespace Hoard {
     }
 
     /// Return the size class for a given size.
-    static int constexpr size2class (const size_t sz) {
-      // Do a binary search to find the right size class.
+    /// Uses CLZ to approximate the class from the bit position, then a
+    /// short linear scan (at most ~5 entries) instead of full binary search.
+    static int size2class (const size_t sz) {
+#if defined(__GNUC__) || defined(__clang__)
+      if (sz <= Alignment) return 0;
+      // Get the starting class for this bit position.
+      int bit = 63 - __builtin_clzll(sz);
+      int start = classForBit(bit);
+      // Linear scan from the approximate starting point (bounded by ~5 iterations).
+      while (start < NUM_SIZECLASSES - 1 && c2s(start) < sz) {
+	start++;
+      }
+      assert (c2s(start) >= sz);
+      assert ((start == 0) || (c2s(start-1) < sz));
+      return start;
+#else
+      // Fallback: binary search for compilers without __builtin_clzll.
       int left  = 0;
       int right = NUM_SIZECLASSES - 1;
       while (left < right) {
@@ -81,6 +96,7 @@ namespace Hoard {
       assert (c2s(left) >= sz);
       assert ((left == 0) || (c2s(left-1) < sz));
       return left;
+#endif
     }
 
     /// Return the maximum size for a given size class.
@@ -99,7 +115,7 @@ namespace Hoard {
   private:
 
     /// Verify that this class is working properly.
-    static bool constexpr test() {
+    static bool test() {
       // Iterate just up to 1MB for now.
       for (size_t sz = Alignment; sz < 1048576; sz += Alignment) {
 	int cl = size2class (sz);
@@ -122,6 +138,31 @@ namespace Hoard {
     enum { NUM_SIZECLASSES = ilog<100+MaxOverhead,
 	   100,
 	   MaxObjectSize>::VALUE };
+
+    /// For a given bit position, return the first size class whose
+    /// max size is >= 2^bit. Precomputed table, 64 entries.
+    static int classForBit(int bit) {
+      static int table[64];
+      static bool inited = initBitTable(table);
+      (void)inited;
+      return table[bit];
+    }
+
+    /// Build the bit-to-class lookup table.
+    static bool initBitTable(int * table) {
+      // Ensure the size table is initialized first.
+      (void) c2s(0);
+      for (int b = 0; b < 64; b++) {
+	size_t target = (size_t)1 << b;
+	// Find the first class whose size >= target.
+	int cl = 0;
+	while (cl < NUM_SIZECLASSES - 1 && c2s(cl) < target) {
+	  cl++;
+	}
+	table[b] = cl;
+      }
+      return true;
+    }
 
     /// Quickly compute the maximum size for a given size class.
     static unsigned long c2s (int cl) {
