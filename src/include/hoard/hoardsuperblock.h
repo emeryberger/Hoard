@@ -166,26 +166,9 @@ namespace Hoard {
       return ptr2;
     }
 
-    // ========== Delayed Free Queue API (forwarded to header) ==========
-
-    /// Push to delayed free queue (cross-thread, lock-free).
-    inline void pushDelayedFree(void* ptr) {
-      _header.pushDelayedFree(ptr);
-    }
-
-    /// Check if delayed frees are pending.
-    inline bool hasDelayedFrees() const {
-      return _header.hasDelayedFrees();
-    }
-
-    /// Drain all delayed frees to local freelist.
-    inline unsigned int drainDelayedFrees() {
-      return _header.drainDelayedFrees();
-    }
-
-    /// Try atomic ownership claim (for lock-free reclaim).
-    inline bool tryClaimOwnership(HeapType* expected, HeapType* newOwner) {
-      return _header.tryClaimOwnership(expected, newOwner);
+    /// Purge (decommit) the data region to reclaim physical RAM.
+    inline void purgeData() {
+      _header.purgeData();
     }
 
     typedef Header_<LockType, SuperblockSize, HeapType> Header;
