@@ -64,6 +64,12 @@ namespace Hoard {
       }
     }
 
+    /// Unchecked version - caller must ensure superblock is valid.
+    /// Use only on hot paths where validation is done separately.
+    constexpr INLINE size_t getObjectSizeUnchecked() const {
+      return _header.getObjectSize();
+    }
+
     MALLOC_FUNCTION INLINE void * malloc (size_t) {
       assert (_header.isValid());
       auto * ptr = _header.malloc();
@@ -129,6 +135,16 @@ namespace Hoard {
       assert (o != nullptr);
       _header.setOwner (o);
     }
+
+    constexpr inline size_t getOwnerTid() const {
+      assert (_header.isValid());
+      return _header.getOwnerTid();
+    }
+
+    inline void setOwnerTid (size_t tid) {
+      assert (_header.isValid());
+      _header.setOwnerTid (tid);
+    }
     
     constexpr inline HoardSuperblock * getNext() const {
       assert (_header.isValid());
@@ -169,6 +185,21 @@ namespace Hoard {
     /// Purge (decommit) the data region to reclaim physical RAM.
     inline void purgeData() {
       _header.purgeData();
+    }
+
+    /// Lock-free cross-thread free: push ptr for later processing by owner.
+    inline void crossThreadFree(void* ptr) {
+      _header.crossThreadFree(ptr);
+    }
+
+    /// Drain all pending cross-thread frees (single consumer).
+    inline auto drainCrossThreadFrees() {
+      return _header.drainCrossThreadFrees();
+    }
+
+    /// Check if there are pending cross-thread frees.
+    inline bool hasCrossThreadFrees() const {
+      return _header.hasCrossThreadFrees();
     }
 
     typedef Header_<LockType, SuperblockSize, HeapType> Header;
