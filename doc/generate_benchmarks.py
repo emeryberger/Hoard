@@ -128,12 +128,11 @@ phong_mem = {
 # PLOTTING FUNCTIONS
 # =============================================================================
 
-def plot_single_graph(threads, data, title, ylabel_left, unit_label, filename, show_legend=True):
-    """Create a single graph with dual y-axes."""
+def plot_single_graph(threads, data, title, ylabel_left, filename, show_legend=True):
+    """Create a single graph normalized to Hoard."""
     fig, ax = plt.subplots(figsize=(7, 5))
 
     norm_data = normalize_to_hoard(data)
-    hoard_vals = data['Hoard']
 
     for name in ALLOCATORS:
         ax.plot(threads, norm_data[name],
@@ -160,19 +159,6 @@ def plot_single_graph(threads, data, title, ylabel_left, unit_label, filename, s
     ax.set_xticklabels([str(t) for t in threads])
     ax.set_ylim(bottom=0)
 
-    # Create secondary y-axis with actual values
-    ax2 = ax.twinx()
-    y_min, y_max = ax.get_ylim()
-    avg_hoard = np.mean(hoard_vals)
-    ax2.set_ylim(y_min * avg_hoard, y_max * avg_hoard)
-    ax2.set_ylabel(unit_label, color='#666666')
-    ax2.tick_params(axis='y', colors='#666666')
-
-    if 'seconds' in unit_label.lower():
-        ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.2f}'))
-    else:
-        ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.0f}'))
-
     plt.tight_layout()
     save_fig(fig, filename)
     print(f'Generated {filename}.png')
@@ -184,34 +170,34 @@ def plot_single_graph(threads, data, title, ylabel_left, unit_label, filename, s
 # Larson
 plot_single_graph(larson_threads, larson_time,
                   'Larson - Execution Time\nHoard is 1.0 (green line). Above = slower.',
-                  'Time (relative to Hoard)', 'seconds', 'bench_larson_time')
+                  'Time (relative to Hoard)', 'bench_larson_time')
 plot_single_graph(larson_threads, larson_mem,
                   'Larson - Memory Usage\nHoard is 1.0 (green line). Above = more memory.',
-                  'Memory (relative to Hoard)', 'MB', 'bench_larson_mem')
+                  'Memory (relative to Hoard)', 'bench_larson_mem')
 
 # threadtest
 plot_single_graph(threadtest_threads, threadtest_time,
                   'threadtest - Execution Time\nHoard is 1.0 (green line). Above = slower.',
-                  'Time (relative to Hoard)', 'seconds', 'bench_threadtest_time')
+                  'Time (relative to Hoard)', 'bench_threadtest_time')
 plot_single_graph(threadtest_threads, threadtest_mem,
                   'threadtest - Memory Usage\nHoard is 1.0 (green line). Above = more memory.',
-                  'Memory (relative to Hoard)', 'MB', 'bench_threadtest_mem')
+                  'Memory (relative to Hoard)', 'bench_threadtest_mem')
 
 # linux-scalability
 plot_single_graph(linuxscal_threads, linuxscal_time,
                   'linux-scalability - Execution Time\nHoard is 1.0 (green line). Above = slower.',
-                  'Time (relative to Hoard)', 'seconds', 'bench_linuxscal_time')
+                  'Time (relative to Hoard)', 'bench_linuxscal_time')
 plot_single_graph(linuxscal_threads, linuxscal_mem,
                   'linux-scalability - Memory Usage\nHoard is 1.0 (green line). Above = more memory.',
-                  'Memory (relative to Hoard)', 'MB', 'bench_linuxscal_mem')
+                  'Memory (relative to Hoard)', 'bench_linuxscal_mem')
 
 # Phong
 plot_single_graph(phong_threads, phong_time,
                   'Phong - Execution Time\nHoard is 1.0 (green line). Above = slower.',
-                  'Time (relative to Hoard)', 'seconds', 'bench_phong_time')
+                  'Time (relative to Hoard)', 'bench_phong_time')
 plot_single_graph(phong_threads, phong_mem,
                   'Phong - Memory Usage\nHoard is 1.0 (green line). Above = more memory.',
-                  'Memory (relative to Hoard)', 'MB', 'bench_phong_mem')
+                  'Memory (relative to Hoard)', 'bench_phong_mem')
 
 # =============================================================================
 # SUMMARY GRAPH - Execution Time only (2x2 grid)
@@ -219,10 +205,9 @@ plot_single_graph(phong_threads, phong_mem,
 
 fig, axes = plt.subplots(2, 2, figsize=(12, 9))
 
-def plot_summary_panel(ax, threads, data, title, unit_label, show_legend=False):
+def plot_summary_panel(ax, threads, data, title):
     """Plot a single panel for the summary graph."""
     norm_data = normalize_to_hoard(data)
-    hoard_vals = data['Hoard']
 
     for name in ALLOCATORS:
         ax.plot(threads, norm_data[name],
@@ -243,22 +228,10 @@ def plot_summary_panel(ax, threads, data, title, unit_label, show_legend=False):
     ax.set_xticklabels([str(t) for t in threads], fontsize=9)
     ax.set_ylim(bottom=0)
 
-    # Secondary axis
-    ax2 = ax.twinx()
-    y_min, y_max = ax.get_ylim()
-    avg_hoard = np.mean(hoard_vals)
-    ax2.set_ylim(y_min * avg_hoard, y_max * avg_hoard)
-    ax2.set_ylabel(unit_label, color='#666666', fontsize=10)
-    ax2.tick_params(axis='y', colors='#666666', labelsize=9)
-    if 'seconds' in unit_label.lower():
-        ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.2f}'))
-    else:
-        ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.0f}'))
-
-plot_summary_panel(axes[0, 0], larson_threads, larson_time, 'Larson', 'seconds')
-plot_summary_panel(axes[0, 1], threadtest_threads, threadtest_time, 'threadtest', 'seconds')
-plot_summary_panel(axes[1, 0], linuxscal_threads, linuxscal_time, 'linux-scalability', 'seconds')
-plot_summary_panel(axes[1, 1], phong_threads, phong_time, 'Phong', 'seconds')
+plot_summary_panel(axes[0, 0], larson_threads, larson_time, 'Larson')
+plot_summary_panel(axes[0, 1], threadtest_threads, threadtest_time, 'threadtest')
+plot_summary_panel(axes[1, 0], linuxscal_threads, linuxscal_time, 'linux-scalability')
+plot_summary_panel(axes[1, 1], phong_threads, phong_time, 'Phong')
 
 # Shared legend at bottom
 handles = [plt.Line2D([0], [0], marker=MARKERS[name], color=COLORS[name],
@@ -281,10 +254,10 @@ print('Generated bench_summary_time.png')
 
 fig, axes = plt.subplots(2, 2, figsize=(12, 9))
 
-plot_summary_panel(axes[0, 0], larson_threads, larson_mem, 'Larson', 'MB')
-plot_summary_panel(axes[0, 1], threadtest_threads, threadtest_mem, 'threadtest', 'MB')
-plot_summary_panel(axes[1, 0], linuxscal_threads, linuxscal_mem, 'linux-scalability', 'MB')
-plot_summary_panel(axes[1, 1], phong_threads, phong_mem, 'Phong', 'MB')
+plot_summary_panel(axes[0, 0], larson_threads, larson_mem, 'Larson')
+plot_summary_panel(axes[0, 1], threadtest_threads, threadtest_mem, 'threadtest')
+plot_summary_panel(axes[1, 0], linuxscal_threads, linuxscal_mem, 'linux-scalability')
+plot_summary_panel(axes[1, 1], phong_threads, phong_mem, 'Phong')
 
 # Shared legend at bottom
 fig.legend(handles, ALLOCATORS, loc='upper center', ncol=4, bbox_to_anchor=(0.5, 0.02),
