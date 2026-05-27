@@ -193,6 +193,36 @@ Benchmarks
 The directory `benchmarks/` contains a number of benchmarks used to
 evaluate and tune Hoard.
 
+### Performance Comparison
+
+Hoard was benchmarked against mimalloc and jemalloc on a 192-core, 2-node NUMA system.
+
+![Benchmark Summary](doc/bench_summary.png)
+
+#### Larson (server workload simulation)
+
+Simulates a multithreaded server handling many short-lived allocations. Hoard uses 40-57% less memory than mimalloc and 23-48% less than jemalloc.
+
+![Larson Benchmark](doc/bench_larson.png)
+
+#### threadtest (malloc/free throughput)
+
+Measures raw allocation throughput. Hoard is fastest at low thread counts and competitive at high thread counts, while using significantly less memory.
+
+![threadtest Benchmark](doc/bench_threadtest.png)
+
+#### Phong (realloc-heavy workload)
+
+Tests realloc performance. Hoard is 30-69% faster at low-medium thread counts due to optimized realloc implementation.
+
+![Phong Benchmark](doc/bench_phong.png)
+
+#### linux-scalability
+
+Pure malloc/free pairs. jemalloc excels here; this workload is adversarial for Hoard's superblock design.
+
+![linux-scalability Benchmark](doc/bench_linuxscal.png)
+
 
 Technical Information
 ---------------------
