@@ -13,16 +13,18 @@ import matplotlib as mpl
 import seaborn as sns
 import numpy as np
 
-# Set up style with Helvetica font
-plt.rcParams['font.family'] = 'Helvetica'
-plt.rcParams['font.sans-serif'] = ['Helvetica', 'Arial', 'DejaVu Sans']
+# Set up style with clean sans-serif font
+plt.rcParams['font.family'] = 'sans-serif'
+plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Arial', 'Helvetica']
 plt.rcParams['figure.facecolor'] = 'white'
 plt.rcParams['axes.facecolor'] = 'white'
 plt.rcParams['axes.edgecolor'] = '#333333'
 plt.rcParams['axes.linewidth'] = 0.8
+plt.rcParams['axes.titleweight'] = 'bold'
 plt.rcParams['grid.color'] = '#cccccc'
 plt.rcParams['grid.linewidth'] = 0.5
-sns.set_theme(style="whitegrid", context="paper", font_scale=1.2)
+sns.set_theme(style="whitegrid", context="paper", font_scale=1.2,
+              rc={'font.family': 'sans-serif', 'font.sans-serif': ['DejaVu Sans', 'Arial', 'Helvetica']})
 
 # Color palette
 COLORS = {
@@ -120,7 +122,7 @@ phong_mem = {
 # PLOTTING FUNCTIONS
 # =============================================================================
 
-def plot_normalized_lines(ax, threads, data, ylabel_left, unit, show_legend=True):
+def plot_panel(ax, threads, data, ylabel_left, unit_label, show_legend=True):
     """Plot normalized line graph with dual y-axes.
 
     Left axis: normalized to Hoard (1.0)
@@ -142,8 +144,8 @@ def plot_normalized_lines(ax, threads, data, ylabel_left, unit, show_legend=True
     # Hoard reference line at 1.0
     ax.axhline(y=1.0, color=COLORS['Hoard'], linestyle='-', alpha=0.6, linewidth=2.5)
 
-    ax.set_xlabel('Threads', fontsize=12, fontweight='medium')
-    ax.set_ylabel(ylabel_left, fontsize=12, fontweight='medium')
+    ax.set_xlabel('Threads', fontsize=12, fontfamily='sans-serif')
+    ax.set_ylabel(ylabel_left, fontsize=12, fontfamily='sans-serif')
 
     if show_legend:
         ax.legend(loc='best', framealpha=0.95, edgecolor='#cccccc', fontsize=10)
@@ -161,31 +163,30 @@ def plot_normalized_lines(ax, threads, data, ylabel_left, unit, show_legend=True
     # Get the current y-axis limits and convert to actual values
     y_min, y_max = ax.get_ylim()
 
-    # Calculate what the actual values would be at those normalized points
     # Use the average Hoard value as reference for the right axis scale
     avg_hoard = np.mean(hoard_vals)
 
     ax2.set_ylim(y_min * avg_hoard, y_max * avg_hoard)
-    ax2.set_ylabel(f'Hoard baseline ({unit})', fontsize=11, fontweight='medium', color='#666666')
+    ax2.set_ylabel(unit_label, fontsize=11, fontfamily='sans-serif', color='#666666')
     ax2.tick_params(axis='y', labelsize=10, colors='#666666')
 
     # Format the right axis labels appropriately
-    if unit == 's':
+    if 'seconds' in unit_label.lower():
         ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.2f}'))
     else:  # MB
         ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.0f}'))
 
     return ax2
 
-def plot_benchmark(threads, time_data, mem_data, bench_name, filename, time_unit='s'):
+def plot_benchmark(threads, time_data, mem_data, bench_name, filename):
     """Create a two-panel figure with time and memory."""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
 
-    plot_normalized_lines(ax1, threads, time_data, 'Time (relative to Hoard)', time_unit, show_legend=False)
-    ax1.set_title('Execution Time', fontsize=13, fontweight='bold', pad=10)
+    plot_panel(ax1, threads, time_data, 'Time (relative to Hoard)', 'seconds', show_legend=False)
+    ax1.set_title('Execution Time', fontsize=13, fontfamily='sans-serif', fontweight='bold', pad=10)
 
-    plot_normalized_lines(ax2, threads, mem_data, 'Memory (relative to Hoard)', 'MB', show_legend=False)
-    ax2.set_title('Memory Usage', fontsize=13, fontweight='bold', pad=10)
+    plot_panel(ax2, threads, mem_data, 'Memory (relative to Hoard)', 'MB', show_legend=False)
+    ax2.set_title('Memory Usage', fontsize=13, fontfamily='sans-serif', fontweight='bold', pad=10)
 
     # Shared legend at bottom
     handles = [plt.Line2D([0], [0], marker=MARKERS[name], color=COLORS[name],
@@ -196,7 +197,7 @@ def plot_benchmark(threads, time_data, mem_data, bench_name, filename, time_unit
 
     # Main title with explanation
     fig.suptitle(f'{bench_name}\nHoard is the green line (1.0). Above = slower/more memory. Below = faster/less memory.',
-                 fontsize=13, fontweight='bold', y=0.98)
+                 fontsize=13, fontfamily='sans-serif', fontweight='bold', y=0.98)
 
     plt.tight_layout()
     plt.subplots_adjust(bottom=0.18, top=0.85)
@@ -207,16 +208,16 @@ def plot_benchmark(threads, time_data, mem_data, bench_name, filename, time_unit
 # GENERATE PLOTS
 # =============================================================================
 
-# Individual benchmark plots (all with time AND memory)
+# Individual benchmark plots - ALL with BOTH time AND memory
 plot_benchmark(larson_threads, larson_time, larson_mem, 'Larson (server workload)', 'bench_larson')
 plot_benchmark(threadtest_threads, threadtest_time, threadtest_mem, 'threadtest (malloc/free throughput)', 'bench_threadtest')
 plot_benchmark(linuxscal_threads, linuxscal_time, linuxscal_mem, 'linux-scalability', 'bench_linuxscal')
 plot_benchmark(phong_threads, phong_time, phong_mem, 'Phong (realloc-heavy)', 'bench_phong')
 
-# Summary plot - 2x2 grid showing key metrics
+# Summary plot - 2x2 grid showing key metrics for each benchmark
 fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
-def plot_summary_panel(ax, threads, data, title, unit):
+def plot_summary_panel(ax, threads, data, title, unit_label):
     """Plot a single panel for the summary graph."""
     norm_data = normalize_to_hoard(data)
     hoard_vals = data['Hoard']
@@ -232,9 +233,9 @@ def plot_summary_panel(ax, threads, data, title, unit):
                 markeredgewidth=0.8)
 
     ax.axhline(y=1.0, color=COLORS['Hoard'], linestyle='-', alpha=0.6, linewidth=2.5)
-    ax.set_xlabel('Threads', fontsize=11, fontweight='medium')
-    ax.set_ylabel('Relative to Hoard', fontsize=11, fontweight='medium')
-    ax.set_title(title, fontsize=12, fontweight='bold', pad=8)
+    ax.set_xlabel('Threads', fontsize=11, fontfamily='sans-serif')
+    ax.set_ylabel('Relative to Hoard', fontsize=11, fontfamily='sans-serif')
+    ax.set_title(title, fontsize=12, fontfamily='sans-serif', fontweight='bold', pad=8)
     ax.set_xscale('log', base=2)
     ax.set_xticks(threads)
     ax.set_xticklabels([str(t) for t in threads], fontsize=9)
@@ -247,17 +248,17 @@ def plot_summary_panel(ax, threads, data, title, unit):
     y_min, y_max = ax.get_ylim()
     avg_hoard = np.mean(hoard_vals)
     ax2.set_ylim(y_min * avg_hoard, y_max * avg_hoard)
-    ax2.set_ylabel(f'Hoard ({unit})', fontsize=10, color='#666666')
+    ax2.set_ylabel(unit_label, fontsize=10, fontfamily='sans-serif', color='#666666')
     ax2.tick_params(axis='y', labelsize=9, colors='#666666')
-    if unit == 's':
+    if 'seconds' in unit_label.lower():
         ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.2f}'))
     else:
         ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.0f}'))
 
 plot_summary_panel(axes[0, 0], larson_threads, larson_mem, 'Larson - Memory', 'MB')
-plot_summary_panel(axes[0, 1], threadtest_threads, threadtest_time, 'threadtest - Time', 's')
-plot_summary_panel(axes[1, 0], linuxscal_threads, linuxscal_time, 'linux-scalability - Time', 's')
-plot_summary_panel(axes[1, 1], phong_threads, phong_time, 'Phong - Time', 's')
+plot_summary_panel(axes[0, 1], threadtest_threads, threadtest_time, 'threadtest - Time', 'seconds')
+plot_summary_panel(axes[1, 0], linuxscal_threads, linuxscal_time, 'linux-scalability - Time', 'seconds')
+plot_summary_panel(axes[1, 1], phong_threads, phong_time, 'Phong - Time', 'seconds')
 
 # Shared legend
 handles = [plt.Line2D([0], [0], marker=MARKERS[name], color=COLORS[name],
@@ -267,7 +268,7 @@ fig.legend(handles, ALLOCATORS, loc='upper center', ncol=4, bbox_to_anchor=(0.5,
            framealpha=0.95, edgecolor='#cccccc', fontsize=11)
 
 fig.suptitle('Hoard Performance (192-core NUMA system)\nHoard is the green line (1.0). Above = slower/more memory. Below = faster/less memory.',
-             fontsize=14, fontweight='bold', y=0.98)
+             fontsize=14, fontfamily='sans-serif', fontweight='bold', y=0.98)
 
 plt.tight_layout()
 plt.subplots_adjust(bottom=0.08, top=0.88)
