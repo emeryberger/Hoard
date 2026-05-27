@@ -18,6 +18,10 @@
 
 #include <cassert>
 
+#if defined(__linux__)
+#include <sched.h>
+#endif
+
 #include "heaplayers.h"
 #include "array.h"
 //#include "cpuinfo.h"
@@ -54,6 +58,15 @@ namespace Hoard {
     }
     
     inline PerThreadHeap& getHeap (void) {
+#if defined(__linux__) && !defined(HOARD_DISABLE_CPU_HEAP_SELECTION)
+      // Use CPU-based selection for NUMA locality.
+      // Threads on the same CPU use the same heap, reducing cross-node traffic.
+      int cpu = sched_getcpu();
+      if (cpu >= 0) {
+        return _heap(cpu & NumHeapsMask);
+      }
+#endif
+      // Fallback: hash thread ID to heap
       auto tid = HL::CPUInfo::getThreadId();
       auto heapno = _tidMap(tid & NumThreadsMask);
       return _heap(heapno);
