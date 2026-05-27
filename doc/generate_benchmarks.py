@@ -4,6 +4,8 @@
 All results are normalized to Hoard (Hoard = 1.0, the green horizontal line).
 - Above the line = slower/more memory than Hoard
 - Below the line = faster/less memory than Hoard
+
+Left y-axis shows normalized values, right y-axis shows actual values.
 """
 
 import matplotlib.pyplot as plt
@@ -56,8 +58,6 @@ def normalize_to_hoard(data):
 
 # Larson: server workload simulation
 larson_threads = [16, 32, 64, 128, 192, 256]
-# Larson runs for fixed time, so "time" is roughly equal - use throughput inverted
-# Actually we'll show memory as the key metric since throughput is similar
 larson_time = {
     'Hoard': [10.08, 10.16, 10.34, 10.80, 11.09, 10.63],
     'mimalloc': [10.08, 10.18, 10.39, 10.96, 11.42, 10.31],
@@ -120,9 +120,14 @@ phong_mem = {
 # PLOTTING FUNCTIONS
 # =============================================================================
 
-def plot_normalized_lines(ax, threads, data, ylabel, show_legend=True):
-    """Plot normalized line graph. Hoard = 1.0 (green line)."""
+def plot_normalized_lines(ax, threads, data, ylabel_left, unit, show_legend=True):
+    """Plot normalized line graph with dual y-axes.
+
+    Left axis: normalized to Hoard (1.0)
+    Right axis: actual values in specified unit
+    """
     norm_data = normalize_to_hoard(data)
+    hoard_vals = data['Hoard']
 
     for name in ALLOCATORS:
         ax.plot(threads, norm_data[name],
@@ -138,7 +143,7 @@ def plot_normalized_lines(ax, threads, data, ylabel, show_legend=True):
     ax.axhline(y=1.0, color=COLORS['Hoard'], linestyle='-', alpha=0.6, linewidth=2.5)
 
     ax.set_xlabel('Threads', fontsize=12, fontweight='medium')
-    ax.set_ylabel(ylabel, fontsize=12, fontweight='medium')
+    ax.set_ylabel(ylabel_left, fontsize=12, fontweight='medium')
 
     if show_legend:
         ax.legend(loc='best', framealpha=0.95, edgecolor='#cccccc', fontsize=10)
@@ -150,14 +155,36 @@ def plot_normalized_lines(ax, threads, data, ylabel, show_legend=True):
     ax.grid(True, alpha=0.4, linestyle='-')
     ax.set_ylim(bottom=0)
 
-def plot_benchmark(threads, time_data, mem_data, bench_name, filename):
+    # Create secondary y-axis with actual values
+    ax2 = ax.twinx()
+
+    # Get the current y-axis limits and convert to actual values
+    y_min, y_max = ax.get_ylim()
+
+    # Calculate what the actual values would be at those normalized points
+    # Use the average Hoard value as reference for the right axis scale
+    avg_hoard = np.mean(hoard_vals)
+
+    ax2.set_ylim(y_min * avg_hoard, y_max * avg_hoard)
+    ax2.set_ylabel(f'Hoard baseline ({unit})', fontsize=11, fontweight='medium', color='#666666')
+    ax2.tick_params(axis='y', labelsize=10, colors='#666666')
+
+    # Format the right axis labels appropriately
+    if unit == 's':
+        ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.2f}'))
+    else:  # MB
+        ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.0f}'))
+
+    return ax2
+
+def plot_benchmark(threads, time_data, mem_data, bench_name, filename, time_unit='s'):
     """Create a two-panel figure with time and memory."""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
 
-    plot_normalized_lines(ax1, threads, time_data, 'Time (relative to Hoard)', show_legend=False)
+    plot_normalized_lines(ax1, threads, time_data, 'Time (relative to Hoard)', time_unit, show_legend=False)
     ax1.set_title('Execution Time', fontsize=13, fontweight='bold', pad=10)
 
-    plot_normalized_lines(ax2, threads, mem_data, 'Memory (relative to Hoard)', show_legend=False)
+    plot_normalized_lines(ax2, threads, mem_data, 'Memory (relative to Hoard)', 'MB', show_legend=False)
     ax2.set_title('Memory Usage', fontsize=13, fontweight='bold', pad=10)
 
     # Shared legend at bottom
@@ -189,17 +216,48 @@ plot_benchmark(phong_threads, phong_time, phong_mem, 'Phong (realloc-heavy)', 'b
 # Summary plot - 2x2 grid showing key metrics
 fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
-plot_normalized_lines(axes[0, 0], larson_threads, larson_mem, 'Memory (relative to Hoard)', show_legend=False)
-axes[0, 0].set_title('Larson - Memory', fontsize=12, fontweight='bold', pad=8)
+def plot_summary_panel(ax, threads, data, title, unit):
+    """Plot a single panel for the summary graph."""
+    norm_data = normalize_to_hoard(data)
+    hoard_vals = data['Hoard']
 
-plot_normalized_lines(axes[0, 1], threadtest_threads, threadtest_time, 'Time (relative to Hoard)', show_legend=False)
-axes[0, 1].set_title('threadtest - Time', fontsize=12, fontweight='bold', pad=8)
+    for name in ALLOCATORS:
+        ax.plot(threads, norm_data[name],
+                marker=MARKERS[name],
+                color=COLORS[name],
+                linewidth=2.5,
+                markersize=8,
+                label=name,
+                markeredgecolor='white',
+                markeredgewidth=0.8)
 
-plot_normalized_lines(axes[1, 0], linuxscal_threads, linuxscal_time, 'Time (relative to Hoard)', show_legend=False)
-axes[1, 0].set_title('linux-scalability - Time', fontsize=12, fontweight='bold', pad=8)
+    ax.axhline(y=1.0, color=COLORS['Hoard'], linestyle='-', alpha=0.6, linewidth=2.5)
+    ax.set_xlabel('Threads', fontsize=11, fontweight='medium')
+    ax.set_ylabel('Relative to Hoard', fontsize=11, fontweight='medium')
+    ax.set_title(title, fontsize=12, fontweight='bold', pad=8)
+    ax.set_xscale('log', base=2)
+    ax.set_xticks(threads)
+    ax.set_xticklabels([str(t) for t in threads], fontsize=9)
+    ax.tick_params(axis='y', labelsize=9)
+    ax.grid(True, alpha=0.4, linestyle='-')
+    ax.set_ylim(bottom=0)
 
-plot_normalized_lines(axes[1, 1], phong_threads, phong_time, 'Time (relative to Hoard)', show_legend=False)
-axes[1, 1].set_title('Phong - Time', fontsize=12, fontweight='bold', pad=8)
+    # Secondary axis
+    ax2 = ax.twinx()
+    y_min, y_max = ax.get_ylim()
+    avg_hoard = np.mean(hoard_vals)
+    ax2.set_ylim(y_min * avg_hoard, y_max * avg_hoard)
+    ax2.set_ylabel(f'Hoard ({unit})', fontsize=10, color='#666666')
+    ax2.tick_params(axis='y', labelsize=9, colors='#666666')
+    if unit == 's':
+        ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.2f}'))
+    else:
+        ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.0f}'))
+
+plot_summary_panel(axes[0, 0], larson_threads, larson_mem, 'Larson - Memory', 'MB')
+plot_summary_panel(axes[0, 1], threadtest_threads, threadtest_time, 'threadtest - Time', 's')
+plot_summary_panel(axes[1, 0], linuxscal_threads, linuxscal_time, 'linux-scalability - Time', 's')
+plot_summary_panel(axes[1, 1], phong_threads, phong_time, 'Phong - Time', 's')
 
 # Shared legend
 handles = [plt.Line2D([0], [0], marker=MARKERS[name], color=COLORS[name],
