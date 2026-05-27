@@ -134,6 +134,14 @@ def plot_single_graph(threads, data, title, ylabel_left, filename, show_legend=T
 
     norm_data = normalize_to_hoard(data)
 
+    # Find max y value for shading
+    all_vals = [v for values in norm_data.values() for v in values]
+    y_max = max(all_vals) * 1.1
+
+    # Shade regions: above 1.0 = Hoard better (green), below 1.0 = Hoard worse (pink)
+    ax.axhspan(1.0, y_max, alpha=0.15, color='#2ecc71', zorder=0)  # Green above
+    ax.axhspan(0, 1.0, alpha=0.15, color='#e74c3c', zorder=0)      # Pink/red below
+
     for name in ALLOCATORS:
         ax.plot(threads, norm_data[name],
                 marker=MARKERS[name],
@@ -142,10 +150,11 @@ def plot_single_graph(threads, data, title, ylabel_left, filename, show_legend=T
                 markersize=7,
                 label=name,
                 markeredgecolor='white',
-                markeredgewidth=0.5)
+                markeredgewidth=0.5,
+                zorder=2)
 
     # Hoard reference line at 1.0
-    ax.axhline(y=1.0, color=COLORS['Hoard'], linestyle='-', alpha=0.6, linewidth=2)
+    ax.axhline(y=1.0, color=COLORS['Hoard'], linestyle='-', alpha=0.8, linewidth=2, zorder=1)
 
     ax.set_xlabel('Threads')
     ax.set_ylabel(ylabel_left)
@@ -157,7 +166,7 @@ def plot_single_graph(threads, data, title, ylabel_left, filename, show_legend=T
     ax.set_xscale('log', base=2)
     ax.set_xticks(threads)
     ax.set_xticklabels([str(t) for t in threads])
-    ax.set_ylim(bottom=0)
+    ax.set_ylim(bottom=0, top=y_max)
 
     plt.tight_layout()
     save_fig(fig, filename)
@@ -209,6 +218,14 @@ def plot_summary_panel(ax, threads, data, title):
     """Plot a single panel for the summary graph."""
     norm_data = normalize_to_hoard(data)
 
+    # Find max y value for shading
+    all_vals = [v for values in norm_data.values() for v in values]
+    y_max = max(all_vals) * 1.1
+
+    # Shade regions: above 1.0 = Hoard better (green), below 1.0 = Hoard worse (pink)
+    ax.axhspan(1.0, y_max, alpha=0.15, color='#2ecc71', zorder=0)  # Green above
+    ax.axhspan(0, 1.0, alpha=0.15, color='#e74c3c', zorder=0)      # Pink/red below
+
     for name in ALLOCATORS:
         ax.plot(threads, norm_data[name],
                 marker=MARKERS[name],
@@ -217,16 +234,17 @@ def plot_summary_panel(ax, threads, data, title):
                 markersize=6,
                 label=name,
                 markeredgecolor='white',
-                markeredgewidth=0.5)
+                markeredgewidth=0.5,
+                zorder=2)
 
-    ax.axhline(y=1.0, color=COLORS['Hoard'], linestyle='-', alpha=0.6, linewidth=2)
+    ax.axhline(y=1.0, color=COLORS['Hoard'], linestyle='-', alpha=0.8, linewidth=2, zorder=1)
     ax.set_xlabel('Threads')
     ax.set_ylabel('Relative to Hoard')
     ax.set_title(title, fontweight='bold', pad=8)
     ax.set_xscale('log', base=2)
     ax.set_xticks(threads)
     ax.set_xticklabels([str(t) for t in threads], fontsize=9)
-    ax.set_ylim(bottom=0)
+    ax.set_ylim(bottom=0, top=y_max)
 
 plot_summary_panel(axes[0, 0], larson_threads, larson_time, 'Larson')
 plot_summary_panel(axes[0, 1], threadtest_threads, threadtest_time, 'threadtest')
