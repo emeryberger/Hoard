@@ -57,7 +57,8 @@ using namespace HL;
 #include "alignedsuperblockheap.h"
 #include "alignedmmap.h"
 #include "globalheap.h"
-#include "hoardconstants.h"
+#include "shardedglobalheap.h"
+#include "../util/futexlock.h"
 
 #include "thresholdsegheap.h"
 #include "geometricsizeclass.h"
@@ -76,6 +77,10 @@ typedef HL::WinLockType TheLockType;
 typedef HL::MacLockType TheLockType;
 #elif defined(__SVR4)
 typedef HL::SpinLockType TheLockType;
+#elif defined(__linux__)
+// SpinLock performs best for Hoard's short critical sections.
+// Futex adds syscall overhead without benefit for brief holds.
+typedef HL::SpinLockType TheLockType;
 #else
 typedef HL::SpinLockType TheLockType;
 #endif
@@ -91,9 +96,10 @@ namespace Hoard {
   
   //
   // There is just one "global" heap, shared by all of the per-process heaps.
+  // We use a sharded global heap to reduce contention.
   //
 
-  typedef GlobalHeap<SUPERBLOCK_SIZE, HoardSuperblockHeader, EMPTINESS_CLASSES, MmapSource, TheLockType>
+  typedef ShardedGlobalHeap<SUPERBLOCK_SIZE, HoardSuperblockHeader, EMPTINESS_CLASSES, MmapSource, TheLockType>
   TheGlobalHeap;
   
   //
@@ -188,15 +194,16 @@ namespace Hoard {
 
   //
   // Each thread has its own heap for small objects.
-  // Aligned to cache line to prevent false sharing between per-thread heaps.
   //
-  class alignas(CACHE_LINE_SIZE) PerThreadHoardHeap :
+  class PerThreadHoardHeap :
     public RedirectFree<LockMallocHeap<SmallHeap>,
 			SmallSuperblockType> {
   private:
-    // Padding to ensure each heap occupies at least one cache line,
-    // preventing false sharing when heaps are stored in arrays.
-    char _padding[CACHE_LINE_SIZE];
+    void nothing() {
+      _dummy[0] = _dummy[0];
+    }
+    // Avoid false sharing.
+    char _dummy[64];
   };
   
 

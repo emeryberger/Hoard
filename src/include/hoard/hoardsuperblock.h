@@ -64,6 +64,12 @@ namespace Hoard {
       }
     }
 
+    /// Unchecked version - caller must ensure superblock is valid.
+    /// Use only on hot paths where validation is done separately.
+    constexpr INLINE size_t getObjectSizeUnchecked() const {
+      return _header.getObjectSize();
+    }
+
     MALLOC_FUNCTION INLINE void * malloc (size_t) {
       assert (_header.isValid());
       auto * ptr = _header.malloc();
@@ -129,6 +135,16 @@ namespace Hoard {
       assert (o != nullptr);
       _header.setOwner (o);
     }
+
+    constexpr inline size_t getOwnerTid() const {
+      assert (_header.isValid());
+      return _header.getOwnerTid();
+    }
+
+    inline void setOwnerTid (size_t tid) {
+      assert (_header.isValid());
+      _header.setOwnerTid (tid);
+    }
     
     constexpr inline HoardSuperblock * getNext() const {
       assert (_header.isValid());
@@ -166,26 +182,24 @@ namespace Hoard {
       return ptr2;
     }
 
-    // ========== Delayed Free Queue API (forwarded to header) ==========
-
-    /// Push to delayed free queue (cross-thread, lock-free).
-    inline void pushDelayedFree(void* ptr) {
-      _header.pushDelayedFree(ptr);
+    /// Purge (decommit) the data region to reclaim physical RAM.
+    inline void purgeData() {
+      _header.purgeData();
     }
 
-    /// Check if delayed frees are pending.
-    inline bool hasDelayedFrees() const {
-      return _header.hasDelayedFrees();
+    /// Lock-free cross-thread free: push ptr for later processing by owner.
+    inline void crossThreadFree(void* ptr) {
+      _header.crossThreadFree(ptr);
     }
 
-    /// Drain all delayed frees to local freelist.
-    inline unsigned int drainDelayedFrees() {
-      return _header.drainDelayedFrees();
+    /// Drain all pending cross-thread frees (single consumer).
+    inline auto drainCrossThreadFrees() {
+      return _header.drainCrossThreadFrees();
     }
 
-    /// Try atomic ownership claim (for lock-free reclaim).
-    inline bool tryClaimOwnership(HeapType* expected, HeapType* newOwner) {
-      return _header.tryClaimOwnership(expected, newOwner);
+    /// Check if there are pending cross-thread frees.
+    inline bool hasCrossThreadFrees() const {
+      return _header.hasCrossThreadFrees();
     }
 
     typedef Header_<LockType, SuperblockSize, HeapType> Header;

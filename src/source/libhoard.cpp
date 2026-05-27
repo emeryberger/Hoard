@@ -20,9 +20,13 @@
  */
 
 #include <cstddef>
+#include <cstring>
 #include <new>
 
 #include "VERSION.h"
+
+// Enable custom realloc implementation to avoid redundant size lookups
+#define HL_USE_XXREALLOC 1
 
 #define versionMessage "Using the Hoard memory allocator (http://www.hoard.org), version " HOARD_VERSION_STRING "\n"
 
@@ -132,6 +136,14 @@ extern "C" {
     return ptr;
   }
 
+  // Fast path for free - check common case first
+  __attribute__((always_inline)) inline void xxfree_fast (void * ptr) {
+    auto * heap = getCustomHeap();
+    if (HL_EXPECT_TRUE(heap != nullptr)) {
+      heap->free(ptr);
+    }
+  }
+
 #if defined(__GNUG__)
   void xxfree (void * ptr)
 #else
@@ -139,14 +151,10 @@ extern "C" {
 #endif
   {
     // Don't free init buffer allocations
-    if (ptr >= initBuffer && ptr < initBuffer + MAX_LOCAL_BUFFER_SIZE) {
+    if (HL_EXPECT_FALSE(ptr >= initBuffer && ptr < initBuffer + MAX_LOCAL_BUFFER_SIZE)) {
       return;
     }
-    auto * heap = getCustomHeap();
-    if (heap != nullptr) {
-      heap->free(ptr);
-    }
-    // If heap is null, we're in early init - just leak
+    xxfree_fast(ptr);
   }
 
   void xxfree_sized(void * ptr, size_t) {
@@ -175,6 +183,49 @@ extern "C" {
       return heap->getSize(ptr);
     }
     return 0;
+  }
+
+  void * xxrealloc(void * ptr, size_t sz) {
+    // Handle null pointer - just malloc
+    if (ptr == nullptr) {
+      return xxmalloc(sz);
+    }
+
+    // Handle zero size - free and return null (POSIX behavior)
+    if (sz == 0) {
+      xxfree(ptr);
+      return nullptr;
+    }
+
+    // Handle init buffer pointers specially
+    if (ptr >= initBuffer && ptr < initBuffer + MAX_LOCAL_BUFFER_SIZE) {
+      void * newPtr = xxmalloc(sz);
+      if (newPtr) {
+        size_t oldSize = static_cast<size_t>((initBuffer + MAX_LOCAL_BUFFER_SIZE) - (char*)ptr);
+        std::memcpy(newPtr, ptr, oldSize < sz ? oldSize : sz);
+      }
+      return newPtr;
+    }
+
+    // Get old size once
+    size_t oldSize = xxmalloc_usable_size(ptr);
+
+    // If new size fits in old allocation, return original pointer
+    if (sz <= oldSize) {
+      return ptr;
+    }
+
+    // Allocate new block
+    void * newPtr = xxmalloc(sz);
+    if (newPtr == nullptr) {
+      return nullptr;
+    }
+
+    // Copy old data and free old block
+    std::memcpy(newPtr, ptr, oldSize);
+    xxfree(ptr);
+
+    return newPtr;
   }
 
   void xxmalloc_lock() {
