@@ -205,9 +205,9 @@ Hoard was benchmarked against mimalloc, jemalloc, and glibc on a 192-core, 2-nod
 
 #### Larson (server workload simulation)
 
-Simulates a multithreaded server handling many short-lived allocations. Hoard uses 40-57% less memory than mimalloc, 23-48% less than jemalloc.
+Simulates a multithreaded server handling many short-lived allocations. Hoard achieves 1.3-1.5x higher throughput than all other allocators.
 
-![Larson - Time](doc/bench_larson_time.png)
+![Larson - Throughput](doc/bench_larson_throughput.png)
 ![Larson - Memory](doc/bench_larson_mem.png)
 
 #### threadtest (malloc/free throughput)
