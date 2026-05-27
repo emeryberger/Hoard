@@ -111,8 +111,10 @@ namespace Hoard {
         return s;
       }
 
-      // Fall back: try all shards sequentially.
-      for (int i = 0; i < NumShards; i++) {
+      // Fall back: try remaining shards starting from after our last random choice.
+      int start = (secondShard + 1) & (NumShards - 1);
+      for (int j = 0; j < NumShards; j++) {
+        int i = (start + j) & (NumShards - 1);
         if (i == localShard || i == shard1 || i == shard2) continue;
         s = tryGetFromShard(i, sz, dest);
         if (s) {
