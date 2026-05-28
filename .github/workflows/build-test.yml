@@ -1,0 +1,273 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake build-essential
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      - name: Build test program
+        run: |
+          cat > /tmp/malloc_test.c << 'EOF'
+          #include <stdlib.h>
+          #include <string.h>
+          #include <stdio.h>
+          #include <pthread.h>
+
+          #define NUM_THREADS 4
+          #define ALLOCS_PER_THREAD 10000
+          #define MAX_SIZE 4096
+
+          void* thread_func(void* arg) {
+              void* ptrs[100];
+              for (int i = 0; i < ALLOCS_PER_THREAD; i++) {
+                  size_t size = (rand() % MAX_SIZE) + 1;
+                  int idx = i % 100;
+                  if (ptrs[idx]) free(ptrs[idx]);
+                  ptrs[idx] = malloc(size);
+                  if (ptrs[idx]) memset(ptrs[idx], 0xAB, size);
+              }
+              for (int i = 0; i < 100; i++) {
+                  if (ptrs[i]) free(ptrs[i]);
+              }
+              return NULL;
+          }
+
+          int main() {
+              pthread_t threads[NUM_THREADS];
+
+              // Test basic allocation
+              void* p = malloc(100);
+              if (!p) { printf("FAIL: malloc returned NULL\n"); return 1; }
+              memset(p, 0, 100);
+              free(p);
+
+              // Test calloc
+              p = calloc(10, 10);
+              if (!p) { printf("FAIL: calloc returned NULL\n"); return 1; }
+              for (int i = 0; i < 100; i++) {
+                  if (((char*)p)[i] != 0) { printf("FAIL: calloc not zeroed\n"); return 1; }
+              }
+              free(p);
+
+              // Test realloc
+              p = malloc(50);
+              p = realloc(p, 200);
+              if (!p) { printf("FAIL: realloc returned NULL\n"); return 1; }
+              free(p);
+
+              // Test aligned allocation
+              if (posix_memalign(&p, 64, 128) != 0) { printf("FAIL: posix_memalign failed\n"); return 1; }
+              if ((size_t)p % 64 != 0) { printf("FAIL: alignment incorrect\n"); return 1; }
+              free(p);
+
+              // Test multithreaded
+              for (int i = 0; i < NUM_THREADS; i++) {
+                  pthread_create(&threads[i], NULL, thread_func, NULL);
+              }
+              for (int i = 0; i < NUM_THREADS; i++) {
+                  pthread_join(threads[i], NULL);
+              }
+
+              printf("PASS: All malloc tests passed\n");
+              return 0;
+          }
+          EOF
+          gcc -o /tmp/malloc_test /tmp/malloc_test.c -lpthread
+
+      - name: Test with Hoard
+        run: |
+          LD_PRELOAD=$PWD/build/libhoard.so /tmp/malloc_test
+
+      - name: Upload library
+        uses: actions/upload-artifact@v4
+        with:
+          name: libhoard-linux
+          path: build/libhoard.so
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build -j$(sysctl -n hw.ncpu)
+
+      - name: Build test program
+        run: |
+          cat > /tmp/malloc_test.c << 'EOF'
+          #include <stdlib.h>
+          #include <string.h>
+          #include <stdio.h>
+          #include <pthread.h>
+
+          #define NUM_THREADS 4
+          #define ALLOCS_PER_THREAD 10000
+          #define MAX_SIZE 4096
+
+          void* thread_func(void* arg) {
+              void* ptrs[100];
+              memset(ptrs, 0, sizeof(ptrs));
+              for (int i = 0; i < ALLOCS_PER_THREAD; i++) {
+                  size_t size = (rand() % MAX_SIZE) + 1;
+                  int idx = i % 100;
+                  if (ptrs[idx]) free(ptrs[idx]);
+                  ptrs[idx] = malloc(size);
+                  if (ptrs[idx]) memset(ptrs[idx], 0xAB, size);
+              }
+              for (int i = 0; i < 100; i++) {
+                  if (ptrs[i]) free(ptrs[i]);
+              }
+              return NULL;
+          }
+
+          int main() {
+              pthread_t threads[NUM_THREADS];
+
+              // Test basic allocation
+              void* p = malloc(100);
+              if (!p) { printf("FAIL: malloc returned NULL\n"); return 1; }
+              memset(p, 0, 100);
+              free(p);
+
+              // Test calloc
+              p = calloc(10, 10);
+              if (!p) { printf("FAIL: calloc returned NULL\n"); return 1; }
+              for (int i = 0; i < 100; i++) {
+                  if (((char*)p)[i] != 0) { printf("FAIL: calloc not zeroed\n"); return 1; }
+              }
+              free(p);
+
+              // Test realloc
+              p = malloc(50);
+              p = realloc(p, 200);
+              if (!p) { printf("FAIL: realloc returned NULL\n"); return 1; }
+              free(p);
+
+              // Test aligned allocation
+              if (posix_memalign(&p, 64, 128) != 0) { printf("FAIL: posix_memalign failed\n"); return 1; }
+              if ((size_t)p % 64 != 0) { printf("FAIL: alignment incorrect\n"); return 1; }
+              free(p);
+
+              // Test multithreaded
+              for (int i = 0; i < NUM_THREADS; i++) {
+                  pthread_create(&threads[i], NULL, thread_func, NULL);
+              }
+              for (int i = 0; i < NUM_THREADS; i++) {
+                  pthread_join(threads[i], NULL);
+              }
+
+              printf("PASS: All malloc tests passed\n");
+              return 0;
+          }
+          EOF
+          clang -o /tmp/malloc_test /tmp/malloc_test.c -lpthread
+
+      - name: Test with Hoard
+        run: |
+          DYLD_INSERT_LIBRARIES=$PWD/build/libhoard.dylib DYLD_FORCE_FLAT_NAMESPACE=1 /tmp/malloc_test
+
+      - name: Upload library
+        uses: actions/upload-artifact@v4
+        with:
+          name: libhoard-macos
+          path: build/libhoard.dylib
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release -j $env:NUMBER_OF_PROCESSORS
+
+      - name: Build test program
+        shell: cmd
+        run: |
+          echo #include ^<stdlib.h^> > malloc_test.c
+          echo #include ^<string.h^> >> malloc_test.c
+          echo #include ^<stdio.h^> >> malloc_test.c
+          echo #include ^<windows.h^> >> malloc_test.c
+          echo. >> malloc_test.c
+          echo #define NUM_THREADS 4 >> malloc_test.c
+          echo #define ALLOCS_PER_THREAD 10000 >> malloc_test.c
+          echo #define MAX_SIZE 4096 >> malloc_test.c
+          echo. >> malloc_test.c
+          echo DWORD WINAPI thread_func(LPVOID arg) { >> malloc_test.c
+          echo     void* ptrs[100] = {0}; >> malloc_test.c
+          echo     for (int i = 0; i ^< ALLOCS_PER_THREAD; i++) { >> malloc_test.c
+          echo         size_t size = (rand() %% MAX_SIZE) + 1; >> malloc_test.c
+          echo         int idx = i %% 100; >> malloc_test.c
+          echo         if (ptrs[idx]) free(ptrs[idx]); >> malloc_test.c
+          echo         ptrs[idx] = malloc(size); >> malloc_test.c
+          echo         if (ptrs[idx]) memset(ptrs[idx], 0xAB, size); >> malloc_test.c
+          echo     } >> malloc_test.c
+          echo     for (int i = 0; i ^< 100; i++) { >> malloc_test.c
+          echo         if (ptrs[i]) free(ptrs[i]); >> malloc_test.c
+          echo     } >> malloc_test.c
+          echo     return 0; >> malloc_test.c
+          echo } >> malloc_test.c
+          echo. >> malloc_test.c
+          echo int main() { >> malloc_test.c
+          echo     HANDLE threads[NUM_THREADS]; >> malloc_test.c
+          echo     void* p = malloc(100); >> malloc_test.c
+          echo     if (!p) { printf("FAIL: malloc returned NULL\n"); return 1; } >> malloc_test.c
+          echo     memset(p, 0, 100); >> malloc_test.c
+          echo     free(p); >> malloc_test.c
+          echo     p = calloc(10, 10); >> malloc_test.c
+          echo     if (!p) { printf("FAIL: calloc returned NULL\n"); return 1; } >> malloc_test.c
+          echo     for (int i = 0; i ^< 100; i++) { >> malloc_test.c
+          echo         if (((char*)p)[i] != 0) { printf("FAIL: calloc not zeroed\n"); return 1; } >> malloc_test.c
+          echo     } >> malloc_test.c
+          echo     free(p); >> malloc_test.c
+          echo     p = malloc(50); >> malloc_test.c
+          echo     p = realloc(p, 200); >> malloc_test.c
+          echo     if (!p) { printf("FAIL: realloc returned NULL\n"); return 1; } >> malloc_test.c
+          echo     free(p); >> malloc_test.c
+          echo     p = _aligned_malloc(128, 64); >> malloc_test.c
+          echo     if (!p) { printf("FAIL: _aligned_malloc failed\n"); return 1; } >> malloc_test.c
+          echo     if ((size_t)p %% 64 != 0) { printf("FAIL: alignment incorrect\n"); return 1; } >> malloc_test.c
+          echo     _aligned_free(p); >> malloc_test.c
+          echo     for (int i = 0; i ^< NUM_THREADS; i++) { >> malloc_test.c
+          echo         threads[i] = CreateThread(NULL, 0, thread_func, NULL, 0, NULL); >> malloc_test.c
+          echo     } >> malloc_test.c
+          echo     WaitForMultipleObjects(NUM_THREADS, threads, TRUE, INFINITE); >> malloc_test.c
+          echo     for (int i = 0; i ^< NUM_THREADS; i++) CloseHandle(threads[i]); >> malloc_test.c
+          echo     printf("PASS: All malloc tests passed\n"); >> malloc_test.c
+          echo     return 0; >> malloc_test.c
+          echo } >> malloc_test.c
+          cl /MD /O2 malloc_test.c /Fe:malloc_test.exe
+
+      - name: Test with Hoard
+        shell: cmd
+        run: |
+          build\Release\withdll.exe /d:build\Release\hoard.dll malloc_test.exe
+
+      - name: Upload library
+        uses: actions/upload-artifact@v4
+        with:
+          name: libhoard-windows
+          path: |
+            build/Release/hoard.dll
+            build/Release/withdll.exe
