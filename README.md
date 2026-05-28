@@ -190,46 +190,66 @@ cl /Ox /MD yourapp.cpp /link hoard.lib
 Benchmarks
 ----------
 
-The directory `benchmarks/` contains a number of benchmarks used to
-evaluate and tune Hoard.
+The directory `benchmarks/` contains a number of benchmarks used to evaluate and tune Hoard.
 
-### Performance Comparison
+All benchmarks were run on a **192-core, 2-node NUMA system** (AMD EPYC). Graphs are normalized to Hoard (1.0 = Hoard, shown as green line). Values above the line mean worse than Hoard.
 
-Hoard was benchmarked against mimalloc, jemalloc, and glibc on a 192-core, 2-node NUMA system. All graphs are normalized to Hoard (1.0 = Hoard, shown as green line). Values above the line mean worse than Hoard.
+### Summary
 
-#### Summary
+**Key findings:**
+- Hoard achieves **1.3-1.5x higher throughput** than mimalloc, jemalloc, and glibc on server workloads (Larson)
+- Hoard is **2-5x faster** on realloc-heavy workloads (Phong)
+- Hoard uses **less memory** than mimalloc and jemalloc at high thread counts
+- On NUMA systems, Hoard is **up to 1.6x faster** due to NUMA-aware memory management
 
 ![Execution Time Summary](doc/bench_summary_time.png)
 
 ![Memory Usage Summary](doc/bench_summary_mem.png)
 
-#### Larson (server workload simulation)
+### Larson (server workload simulation)
 
-Simulates a multithreaded server handling many short-lived allocations. Hoard achieves 1.3-1.5x higher throughput than all other allocators.
+Simulates a multithreaded server handling many short-lived allocations with object passing between threads.
+
+**Take-home:** Hoard achieves **1.3-1.5x higher throughput** than all other allocators across all thread counts. This benchmark is representative of real server workloads.
 
 ![Larson - Throughput](doc/bench_larson_throughput.png)
 ![Larson - Memory](doc/bench_larson_mem.png)
 
-#### threadtest (malloc/free throughput)
+### threadtest (malloc/free throughput)
 
-Measures raw allocation throughput. Hoard is fastest at low thread counts (16-32) and matches mimalloc at 256 threads.
+Measures raw allocation/deallocation throughput with minimal work between operations.
+
+**Take-home:** Hoard is **fastest at low-medium thread counts** (8-32 threads) and matches mimalloc at 256 threads. Hoard uses significantly less memory than jemalloc at high thread counts.
 
 ![threadtest - Time](doc/bench_threadtest_time.png)
 ![threadtest - Memory](doc/bench_threadtest_mem.png)
 
-#### Phong (realloc-heavy workload)
+### Phong (realloc-heavy workload)
 
-Tests realloc performance. Hoard is 2-5x faster than all other allocators at low-medium thread counts (4-64) due to optimized realloc implementation.
+Tests realloc performance with repeated grow/shrink patterns.
+
+**Take-home:** Hoard is **2-5x faster** than all other allocators at low-medium thread counts (4-64) due to its optimized in-place realloc implementation.
 
 ![Phong - Time](doc/bench_phong_time.png)
 ![Phong - Memory](doc/bench_phong_mem.png)
 
-#### linux-scalability
+### linux-scalability
 
-Pure malloc/free pairs. jemalloc excels here; this workload is adversarial for Hoard's superblock design.
+Pure malloc/free pairs with no work between operations. Tests raw allocator scalability.
+
+**Take-home:** jemalloc excels here; this workload is adversarial for Hoard's superblock design. However, jemalloc uses significantly more memory.
 
 ![linux-scalability - Time](doc/bench_linuxscal_time.png)
 ![linux-scalability - Memory](doc/bench_linuxscal_mem.png)
+
+### NUMA Performance
+
+On NUMA systems, memory locality matters. Hoard's NUMA-aware sharding keeps allocations on the same NUMA node as the allocating thread, reducing cross-node memory traffic.
+
+**Take-home:** At 128 threads on a 2-node NUMA system, Hoard is **1.4x faster than mimalloc**, **1.4x faster than jemalloc**, and **1.6x faster than glibc**. The advantage grows with thread count.
+
+![NUMA Throughput](doc/numa_throughput.png)
+![NUMA Speedup](doc/numa_speedup.png)
 
 
 Technical Information

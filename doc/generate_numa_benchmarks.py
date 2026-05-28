@@ -43,13 +43,14 @@ MARKERS = {
     'glibc': 'D',
 }
 
-# NUMA stress test throughput data (ops/sec, averaged over 3 runs)
-numa_threads = [8, 16, 32, 64, 128, 256]
+# NUMA stress test throughput data (M ops/sec, averaged over 3 runs)
+# 256B objects, 20 touches per object to isolate NUMA effects
+numa_threads = [16, 32, 64, 128]
 numa_throughput = {
-    'Hoard': [27.2, 41.8, 56.2, 72.7, 92.6, 99.4],
-    'mimalloc': [20.9, 35.3, 48.2, 60.5, 78.6, 73.2],
-    'jemalloc': [25.1, 42.2, 45.5, 53.1, 58.7, 64.2],
-    'glibc': [18.7, 27.1, 45.3, 66.4, 56.7, 85.5],
+    'Hoard': [2.76, 5.43, 10.9, 19.5],
+    'mimalloc': [2.42, 4.94, 10.1, 13.6],
+    'jemalloc': [2.40, 4.90, 10.0, 14.1],
+    'glibc': [2.42, 5.07, 9.9, 12.1],
 }
 
 # Perf counter data: remote memory access percentages (64 threads)
