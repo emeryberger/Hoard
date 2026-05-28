@@ -14,9 +14,12 @@
 #define HOARD_SHARDEDGLOBALHEAP_H
 
 #include <atomic>
+#include <cstdio>
 
 #if defined(__linux__)
 #include <sched.h>
+#include <sys/syscall.h>
+#include <unistd.h>
 #endif
 
 #include "hoardsuperblock.h"
@@ -147,20 +150,52 @@ namespace Hoard {
     }
 
     // Get a shard index with NUMA locality awareness.
-    // On Linux, uses sched_getcpu() to get current CPU, then maps to shard.
-    // Falls back to thread ID hash on other platforms.
+    // Uses syscall to get both CPU and NUMA node, then maps to a shard
+    // that preserves NUMA locality while spreading load within each node.
     static inline int getLocalShard(size_t tid) {
 #if defined(__linux__) && !defined(HOARD_DISABLE_NUMA_SHARDING)
-      // sched_getcpu() is fast (VDSO, no syscall) and gives NUMA locality.
-      // CPUs on the same NUMA node are typically numbered contiguously,
-      // so masking the CPU ID tends to group same-node threads.
-      int cpu = sched_getcpu();
-      if (cpu >= 0) {
-        return cpu & (NumShards - 1);
+      unsigned int cpu = 0;
+      unsigned int node = 0;
+      // getcpu() via syscall returns both CPU and NUMA node
+      if (syscall(SYS_getcpu, &cpu, &node, nullptr) == 0) {
+        // Combine NUMA node and CPU to get shard:
+        // - High bits from node ensure different nodes use different shard ranges
+        // - Low bits from CPU spread load within each node's range
+        // With 8 shards and 2 nodes: node 0 gets shards 0-3, node 1 gets shards 4-7
+        unsigned int shardsPerNode = NumShards / getNumaNodeCount();
+        if (shardsPerNode < 1) shardsPerNode = 1;
+        unsigned int nodeBase = (node * shardsPerNode) & (NumShards - 1);
+        unsigned int cpuOffset = cpu % shardsPerNode;
+        return (nodeBase + cpuOffset) & (NumShards - 1);
       }
 #endif
       // Fallback: hash thread ID
       return tid & (NumShards - 1);
+    }
+
+    // Cache the NUMA node count (queried once at startup)
+    static inline unsigned int getNumaNodeCount() {
+      static unsigned int count = 0;
+      if (count == 0) {
+        count = detectNumaNodeCount();
+        if (count == 0) count = 1;
+      }
+      return count;
+    }
+
+    static unsigned int detectNumaNodeCount() {
+#if defined(__linux__)
+      // Count NUMA nodes by checking /sys/devices/system/node/nodeN
+      unsigned int n = 0;
+      for (n = 0; n < 256; n++) {
+        char path[64];
+        snprintf(path, sizeof(path), "/sys/devices/system/node/node%u", n);
+        if (access(path, F_OK) != 0) break;
+      }
+      return n > 0 ? n : 1;
+#else
+      return 1;
+#endif
     }
 
     SuperHeap * _shards[NumShards];
