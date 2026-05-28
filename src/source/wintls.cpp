@@ -38,6 +38,17 @@
 
 using namespace Hoard;
 
+// Required by the replacement printf library (https://github.com/emeryberger/printf)
+extern "C" {
+  void _putchar(char ch) {
+    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (hOut != INVALID_HANDLE_VALUE && hOut != NULL) {
+      DWORD written;
+      WriteFile(hOut, &ch, 1, &written, NULL);
+    }
+  }
+}
+
 #define USE_DECLSPEC_THREADLOCAL 0
 
 #if USE_DECLSPEC_THREADLOCAL
