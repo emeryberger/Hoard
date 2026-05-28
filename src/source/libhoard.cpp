@@ -241,4 +241,16 @@ extern "C" {
 #if defined(__linux__) && !defined(__MUSL__)
 // include gnuwrapper here to aid inlining of xxmalloc + friends
 #include "wrappers/gnuwrapper.cpp"
+
+// Fix: gnuwrapper.cpp has a bug where aligned_alloc is not exported when
+// __USE_XOPEN2K is defined (which is true on modern systems). This causes
+// glibc's aligned_alloc to be called, but Hoard's free, leading to crashes.
+// Export it explicitly here.
+extern "C" __attribute__((visibility("default")))
+void * aligned_alloc(size_t alignment, size_t size) throw() {
+  if (alignment == 0 || (size % alignment) != 0) {
+    return nullptr;
+  }
+  return xxmemalign(alignment, size);
+}
 #endif
