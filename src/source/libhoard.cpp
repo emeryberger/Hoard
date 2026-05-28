@@ -236,21 +236,20 @@ extern "C" {
     // Undefined for Hoard.
   }
 
-} // namespace Hoard
-
-#if defined(__linux__) && !defined(__MUSL__)
-// include gnuwrapper here to aid inlining of xxmalloc + friends
-#include "wrappers/gnuwrapper.cpp"
-
-// Fix: gnuwrapper.cpp has a bug where aligned_alloc is not exported when
-// __USE_XOPEN2K is defined (which is true on modern systems). This causes
-// glibc's aligned_alloc to be called, but Hoard's free, leading to crashes.
-// Export it explicitly here.
-extern "C" __attribute__((visibility("default")))
-void * aligned_alloc(size_t alignment, size_t size) throw() {
-  if (alignment == 0 || (size % alignment) != 0) {
-    return nullptr;
+  // alloc8 expects xxcalloc
+  void * xxcalloc(size_t count, size_t size) {
+    // Overflow check
+    size_t total = count * size;
+    if (size != 0 && total / size != count) {
+      return nullptr;
+    }
+    void * ptr = xxmalloc(total);
+    if (ptr != nullptr) {
+      std::memset(ptr, 0, total);
+    }
+    return ptr;
   }
-  return xxmemalign(alignment, size);
-}
-#endif
+
+} // extern "C"
+
+// Note: alloc8 handles all malloc/free interposition via ALLOC8_INTERPOSE_SOURCES
