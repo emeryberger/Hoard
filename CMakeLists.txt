@@ -54,22 +54,35 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(Heap-Layers)
 include_directories(${heap-layers_SOURCE_DIR})
 
+# Allocation-free printf (compiled directly into Hoard, not as a library)
+FetchContent_Declare(
+  printf
+  GIT_REPOSITORY https://github.com/emeryberger/printf.git
+  GIT_TAG        master
+  GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(printf)
+include_directories(${printf_SOURCE_DIR})
+
 set(UNIX_SOURCES
 #  ${heap-layers_SOURCE_DIR}/wrappers/gnuwrapper.cpp
   src/source/unixtls.cpp
   src/source/libhoard.cpp
+  ${printf_SOURCE_DIR}/printf.cpp
 )
 
 set(MACOS_SOURCES
   ${heap-layers_SOURCE_DIR}/wrappers/macwrapper.cpp
   src/source/mactls.cpp
   src/source/libhoard.cpp
+  ${printf_SOURCE_DIR}/printf.cpp
 )
 
 set(WINDOWS_SOURCES
   src/source/winwrapper-detours.cpp
   src/source/wintls.cpp
   src/source/libhoard.cpp
+  ${printf_SOURCE_DIR}/printf.cpp
 )
 
 if(WIN32)

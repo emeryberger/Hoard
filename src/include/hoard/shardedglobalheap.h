@@ -15,6 +15,9 @@
 
 #include <atomic>
 
+// Allocation-free printf (github.com/emeryberger/printf)
+#include "printf.h"
+
 // Platform-specific includes for CPU/NUMA detection
 #if defined(__linux__)
 #include <sched.h>
@@ -243,30 +246,6 @@ namespace Hoard {
       return count;
     }
 
-    // Build path "/sys/devices/system/node/nodeN" without snprintf.
-    // Standard snprintf may allocate memory, causing recursion in the allocator.
-    static inline void buildNodePath(char* path, unsigned int n) {
-      // Copy prefix
-      const char* prefix = "/sys/devices/system/node/node";
-      char* p = path;
-      while (*prefix) {
-        *p++ = *prefix++;
-      }
-      // Convert n to decimal (max 3 digits for n < 256)
-      if (n >= 100) {
-        *p++ = static_cast<char>('0' + (n / 100));
-        n %= 100;
-        *p++ = static_cast<char>('0' + (n / 10));
-        *p++ = static_cast<char>('0' + (n % 10));
-      } else if (n >= 10) {
-        *p++ = static_cast<char>('0' + (n / 10));
-        *p++ = static_cast<char>('0' + (n % 10));
-      } else {
-        *p++ = static_cast<char>('0' + n);
-      }
-      *p = '\0';
-    }
-
     // Detect number of NUMA nodes (platform-specific).
     static unsigned int detectNumaNodeCount() {
 #if defined(__linux__)
@@ -274,7 +253,8 @@ namespace Hoard {
       unsigned int n = 0;
       for (n = 0; n < 256; n++) {
         char path[64];
-        buildNodePath(path, n);
+        // Use allocation-free snprintf_ from emeryberger/printf
+        snprintf_(path, sizeof(path), "/sys/devices/system/node/node%u", n);
         if (access(path, F_OK) != 0) break;
       }
       return n > 0 ? n : 1;
