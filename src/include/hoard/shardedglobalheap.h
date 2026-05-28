@@ -76,8 +76,8 @@ namespace Hoard {
       _shardSizes[shard].fetch_add(1, std::memory_order_relaxed);
     }
 
-    // Get a superblock using power-of-two random choices.
-    // This reduces contention while maintaining memory blowup bounds.
+    // Get a superblock using NUMA-aware power-of-two random choices.
+    // Prefers shards on the same NUMA node to minimize cross-node traffic.
     SuperblockType * get (size_t sz, void * dest) {
       // Try local shard first (based on CPU for NUMA locality).
       auto tid = HL::CPUInfo::getThreadId();
@@ -88,13 +88,18 @@ namespace Hoard {
         return s;
       }
 
-      // Power-of-two choices: pick two random shards, try the fuller one.
-      // This spreads load while avoiding the emptiest shards.
+      // Get NUMA topology info for this thread
+      unsigned int shardsPerNode = NumShards / getNumaNodeCount();
+      if (shardsPerNode < 1) shardsPerNode = 1;
+      int nodeBase = (localShard / shardsPerNode) * shardsPerNode;
+      int nodeEnd = nodeBase + shardsPerNode;
+
+      // Phase 1: Power-of-two choices WITHIN same NUMA node
       unsigned int r = fastRand(tid);
-      int shard1 = r & (NumShards - 1);
-      int shard2 = (r >> 16) & (NumShards - 1);
+      int shard1 = nodeBase + (r % shardsPerNode);
+      int shard2 = nodeBase + ((r >> 16) % shardsPerNode);
       if (shard2 == shard1) {
-        shard2 = (shard1 + 1) & (NumShards - 1);
+        shard2 = nodeBase + ((shard1 - nodeBase + 1) % shardsPerNode);
       }
 
       // Try the fuller shard first (heuristic to balance load).
@@ -104,25 +109,30 @@ namespace Hoard {
       int firstShard = (size1 >= size2) ? shard1 : shard2;
       int secondShard = (size1 >= size2) ? shard2 : shard1;
 
-      s = tryGetFromShard(firstShard, sz, dest);
-      if (s) {
-        return s;
+      if (firstShard != localShard) {
+        s = tryGetFromShard(firstShard, sz, dest);
+        if (s) return s;
       }
 
-      s = tryGetFromShard(secondShard, sz, dest);
-      if (s) {
-        return s;
+      if (secondShard != localShard) {
+        s = tryGetFromShard(secondShard, sz, dest);
+        if (s) return s;
       }
 
-      // Fall back: try remaining shards starting from after our last random choice.
-      int start = (secondShard + 1) & (NumShards - 1);
-      for (int j = 0; j < NumShards; j++) {
-        int i = (start + j) & (NumShards - 1);
+      // Phase 2: Try remaining shards on same NUMA node
+      int start = (secondShard + 1 - nodeBase) % shardsPerNode + nodeBase;
+      for (unsigned int j = 0; j < shardsPerNode; j++) {
+        int i = (start - nodeBase + j) % shardsPerNode + nodeBase;
         if (i == localShard || i == shard1 || i == shard2) continue;
         s = tryGetFromShard(i, sz, dest);
-        if (s) {
-          return s;
-        }
+        if (s) return s;
+      }
+
+      // Phase 3: Try shards on OTHER NUMA nodes (last resort)
+      for (int i = 0; i < NumShards; i++) {
+        if (i >= nodeBase && i < nodeEnd) continue;  // Skip same-node shards
+        s = tryGetFromShard(i, sz, dest);
+        if (s) return s;
       }
 
       return nullptr;
