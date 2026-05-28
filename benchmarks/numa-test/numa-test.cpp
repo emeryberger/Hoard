@@ -200,20 +200,19 @@ static void worker(int id, int targetCpu) {
 
     for (int iter = 0; iter < niterations && running.load(std::memory_order_relaxed); iter++) {
         // Allocate an object
-        void* obj = malloc(static_cast<size_t>(objSize));
-        if (!obj) continue;
+        auto* obj = new char[static_cast<size_t>(objSize)];
 
         // Touch the memory (establishes local NUMA ownership)
         touchMemory(obj, static_cast<size_t>(objSize));
 
         // Try to pass to partner (cross-node free)
         void* expected = nullptr;
-        if (queues[partner].slot.compare_exchange_strong(expected, obj,
+        if (queues[partner].slot.compare_exchange_strong(expected, static_cast<void*>(obj),
                 std::memory_order_release, std::memory_order_relaxed)) {
             // Successfully passed to partner
         } else {
             // Partner's slot full, free locally
-            free(obj);
+            delete[] obj;
         }
 
         // Check if we received an object from another thread
@@ -221,14 +220,14 @@ static void worker(int id, int targetCpu) {
         if (received) {
             // Process the memory (read-modify-write to exercise NUMA traffic)
             processReceivedMemory(received, static_cast<size_t>(objSize));
-            free(received);
+            delete[] static_cast<char*>(received);
         }
     }
 
     // Drain remaining objects
     void* remaining = queues[id].slot.exchange(nullptr, std::memory_order_acquire);
     if (remaining) {
-        free(remaining);
+        delete[] static_cast<char*>(remaining);
     }
 }
 
