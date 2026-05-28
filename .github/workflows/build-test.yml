@@ -6,9 +6,6 @@ on:
   pull_request:
     branches: [master, main]
 
-env:
-  PERF_REGRESSION_THRESHOLD: 50
-
 jobs:
   build-linux:
     runs-on: ubuntu-latest
@@ -18,126 +15,109 @@ jobs:
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y cmake build-essential time
 
-      - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
-
       - name: Build Hoard
-        run: cmake --build build -j$(nproc)
-
-      - name: Clone mimalloc-bench
-        run: git clone --depth 1 https://github.com/daanx/mimalloc-bench.git
-
-      - name: Build benchmarks
         run: |
-          cd mimalloc-bench/bench
-          mkdir -p ../../bench-out
-
-          # Build using CMake for consistency
           cmake -B build -DCMAKE_BUILD_TYPE=Release
           cmake --build build -j$(nproc)
 
-          # Copy executables
-          cp build/cfrac build/espresso build/barnes build/larson ../../bench-out/ 2>/dev/null || true
-          cp build/alloc-test build/cache-scratch build/cache-thrash ../../bench-out/ 2>/dev/null || true
-          cp build/mstress build/rptest build/xmalloc-test ../../bench-out/ 2>/dev/null || true
-          cp build/malloc-large build/sh6bench build/sh8bench ../../bench-out/ 2>/dev/null || true
-          cp build/glibc-simple build/glibc-thread ../../bench-out/ 2>/dev/null || true
+      - name: Build benchmarks
+        run: |
+          cmake -B benchmarks/ci/build -S benchmarks/ci -DCMAKE_BUILD_TYPE=Release
+          cmake --build benchmarks/ci/build -j$(nproc)
 
       - name: Run benchmarks with system allocator (baseline)
         run: |
-          cd bench-out
+          cd benchmarks/ci/build
           echo "=== System allocator baseline ===" | tee baseline.txt
 
           echo "--- cfrac (single-threaded) ---" | tee -a baseline.txt
-          /usr/bin/time -f "%e" ./cfrac 17545186520507317056371138836327483792789528 2>&1 | tee -a baseline.txt || true
+          ./cfrac 2>&1 | tee -a baseline.txt
 
-          echo "--- espresso (single-threaded) ---" | tee -a baseline.txt
-          /usr/bin/time -f "%e" ./espresso ../mimalloc-bench/bench/espresso/largest.espresso 2>&1 | tail -1 | tee -a baseline.txt || true
+          echo "--- larson (4 threads) ---" | tee -a baseline.txt
+          ./larson 4 2>&1 | tee -a baseline.txt
 
-          echo "--- larson (multi-threaded) ---" | tee -a baseline.txt
-          /usr/bin/time -f "%e" ./larson 5 8 1000 5000 100 4141 4 2>&1 | tail -1 | tee -a baseline.txt || true
+          echo "--- cache-scratch (4 threads) ---" | tee -a baseline.txt
+          ./cache_scratch 4 2>&1 | tee -a baseline.txt
 
-          echo "--- cache-scratch (multi-threaded) ---" | tee -a baseline.txt
-          /usr/bin/time -f "%e" ./cache-scratch 4 1000 1 1000000 2>&1 | tail -1 | tee -a baseline.txt || true
+          echo "--- cache-thrash (4 threads) ---" | tee -a baseline.txt
+          ./cache_thrash 4 2>&1 | tee -a baseline.txt
 
-          echo "--- mstress (multi-threaded) ---" | tee -a baseline.txt
-          /usr/bin/time -f "%e" ./mstress 4 50 25 2>&1 | tail -1 | tee -a baseline.txt || true
+          echo "--- mstress (4 threads) ---" | tee -a baseline.txt
+          ./mstress 4 2>&1 | tee -a baseline.txt
+
+          echo "--- alloc-test (4 threads) ---" | tee -a baseline.txt
+          ./alloc_test 4 2>&1 | tee -a baseline.txt
+
+          echo "--- malloc-large ---" | tee -a baseline.txt
+          ./malloc_large 2>&1 | tee -a baseline.txt
+
+          echo "--- xmalloc-test ---" | tee -a baseline.txt
+          ./xmalloc_test 2 2>&1 | tee -a baseline.txt
+
+          echo "--- sh6bench ---" | tee -a baseline.txt
+          ./sh6bench 2>&1 | tee -a baseline.txt
+
+          echo "--- sh8bench (4 threads) ---" | tee -a baseline.txt
+          ./sh8bench 4 2>&1 | tee -a baseline.txt
+
+          echo "--- rptest (4 threads) ---" | tee -a baseline.txt
+          ./rptest 4 2>&1 | tee -a baseline.txt
 
       - name: Run benchmarks with Hoard
         run: |
-          cd bench-out
-          HOARD=$PWD/../build/libhoard.so
+          cd benchmarks/ci/build
+          HOARD=$PWD/../../../build/libhoard.so
           echo "=== Hoard allocator ===" | tee hoard.txt
 
           echo "--- cfrac (single-threaded) ---" | tee -a hoard.txt
-          /usr/bin/time -f "%e" env LD_PRELOAD=$HOARD ./cfrac 17545186520507317056371138836327483792789528 2>&1 | tee -a hoard.txt || true
+          LD_PRELOAD=$HOARD ./cfrac 2>&1 | tee -a hoard.txt
 
-          echo "--- espresso (single-threaded) ---" | tee -a hoard.txt
-          /usr/bin/time -f "%e" env LD_PRELOAD=$HOARD ./espresso ../mimalloc-bench/bench/espresso/largest.espresso 2>&1 | tail -1 | tee -a hoard.txt || true
+          echo "--- larson (4 threads) ---" | tee -a hoard.txt
+          LD_PRELOAD=$HOARD ./larson 4 2>&1 | tee -a hoard.txt
 
-          echo "--- larson (multi-threaded) ---" | tee -a hoard.txt
-          /usr/bin/time -f "%e" env LD_PRELOAD=$HOARD ./larson 5 8 1000 5000 100 4141 4 2>&1 | tail -1 | tee -a hoard.txt || true
+          echo "--- cache-scratch (4 threads) ---" | tee -a hoard.txt
+          LD_PRELOAD=$HOARD ./cache_scratch 4 2>&1 | tee -a hoard.txt
 
-          echo "--- cache-scratch (multi-threaded) ---" | tee -a hoard.txt
-          /usr/bin/time -f "%e" env LD_PRELOAD=$HOARD ./cache-scratch 4 1000 1 1000000 2>&1 | tail -1 | tee -a hoard.txt || true
+          echo "--- cache-thrash (4 threads) ---" | tee -a hoard.txt
+          LD_PRELOAD=$HOARD ./cache_thrash 4 2>&1 | tee -a hoard.txt
 
-          echo "--- mstress (multi-threaded) ---" | tee -a hoard.txt
-          /usr/bin/time -f "%e" env LD_PRELOAD=$HOARD ./mstress 4 50 25 2>&1 | tail -1 | tee -a hoard.txt || true
+          echo "--- mstress (4 threads) ---" | tee -a hoard.txt
+          LD_PRELOAD=$HOARD ./mstress 4 2>&1 | tee -a hoard.txt
 
-          echo "--- barnes ---" | tee -a hoard.txt
-          /usr/bin/time -f "%e" env LD_PRELOAD=$HOARD ./barnes < ../mimalloc-bench/bench/barnes/input 2>&1 | tail -1 | tee -a hoard.txt || true
+          echo "--- alloc-test (4 threads) ---" | tee -a hoard.txt
+          LD_PRELOAD=$HOARD ./alloc_test 4 2>&1 | tee -a hoard.txt
 
-          echo "--- alloc-test ---" | tee -a hoard.txt
-          /usr/bin/time -f "%e" env LD_PRELOAD=$HOARD ./alloc-test 4 2>&1 | tail -1 | tee -a hoard.txt || true
+          echo "--- malloc-large ---" | tee -a hoard.txt
+          LD_PRELOAD=$HOARD ./malloc_large 2>&1 | tee -a hoard.txt
 
-          echo "--- cache-thrash ---" | tee -a hoard.txt
-          /usr/bin/time -f "%e" env LD_PRELOAD=$HOARD ./cache-thrash 4 1000 1 1000000 2>&1 | tail -1 | tee -a hoard.txt || true
+          echo "--- xmalloc-test ---" | tee -a hoard.txt
+          LD_PRELOAD=$HOARD ./xmalloc_test 2 2>&1 | tee -a hoard.txt
 
-          echo "--- rptest ---" | tee -a hoard.txt
-          /usr/bin/time -f "%e" env LD_PRELOAD=$HOARD ./rptest 4 0 1 2 500 1000 100 8 16000 2>&1 | tail -1 | tee -a hoard.txt || true
+          echo "--- sh6bench ---" | tee -a hoard.txt
+          LD_PRELOAD=$HOARD ./sh6bench 2>&1 | tee -a hoard.txt
 
-          if [ -f ./sh6bench ]; then
-            echo "--- sh6bench ---" | tee -a hoard.txt
-            /usr/bin/time -f "%e" env LD_PRELOAD=$HOARD ./sh6bench 2>&1 | tail -1 | tee -a hoard.txt || true
-          fi
+          echo "--- sh8bench (4 threads) ---" | tee -a hoard.txt
+          LD_PRELOAD=$HOARD ./sh8bench 4 2>&1 | tee -a hoard.txt
 
-          if [ -f ./sh8bench ]; then
-            echo "--- sh8bench ---" | tee -a hoard.txt
-            /usr/bin/time -f "%e" env LD_PRELOAD=$HOARD ./sh8bench 4 2>&1 | tail -1 | tee -a hoard.txt || true
-          fi
+          echo "--- rptest (4 threads) ---" | tee -a hoard.txt
+          LD_PRELOAD=$HOARD ./rptest 4 2>&1 | tee -a hoard.txt
 
-          if [ -f ./xmalloc-test ]; then
-            echo "--- xmalloc-test ---" | tee -a hoard.txt
-            timeout 60 /usr/bin/time -f "%e" env LD_PRELOAD=$HOARD ./xmalloc-test -w 4 -t 5 2>&1 | tail -1 | tee -a hoard.txt || echo "xmalloc-test timed out or failed"
-          fi
-
-          if [ -f ./malloc-large ]; then
-            echo "--- malloc-large ---" | tee -a hoard.txt
-            /usr/bin/time -f "%e" env LD_PRELOAD=$HOARD ./malloc-large 2>&1 | tail -1 | tee -a hoard.txt || true
-          fi
-
-          if [ -f ./glibc-simple ]; then
-            echo "--- glibc-simple ---" | tee -a hoard.txt
-            /usr/bin/time -f "%e" env LD_PRELOAD=$HOARD ./glibc-simple 2>&1 | tail -1 | tee -a hoard.txt || true
-          fi
-
-          if [ -f ./glibc-thread ]; then
-            echo "--- glibc-thread ---" | tee -a hoard.txt
-            /usr/bin/time -f "%e" env LD_PRELOAD=$HOARD ./glibc-thread 4 2>&1 | tail -1 | tee -a hoard.txt || true
-          fi
-
-      - name: Check for crashes
+      - name: Check for crashes and display results
         run: |
-          cd bench-out
+          cd benchmarks/ci/build
           echo "=== Benchmark Results ==="
+          echo ""
+          echo "Baseline (system allocator):"
           cat baseline.txt
           echo ""
+          echo "Hoard:"
           cat hoard.txt
 
           if grep -q "Segmentation fault\|SIGABRT\|SIGSEGV\|Aborted" hoard.txt; then
             echo "ERROR: Hoard crashed on one or more benchmarks!"
             exit 1
           fi
+          echo ""
           echo "All benchmarks completed without crashes."
 
       - name: Upload benchmark results
@@ -145,8 +125,8 @@ jobs:
         with:
           name: benchmark-results-linux
           path: |
-            bench-out/baseline.txt
-            bench-out/hoard.txt
+            benchmarks/ci/build/baseline.txt
+            benchmarks/ci/build/hoard.txt
 
       - name: Upload library
         uses: actions/upload-artifact@v4
@@ -159,73 +139,81 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
-
       - name: Build Hoard
-        run: cmake --build build -j$(sysctl -n hw.ncpu)
-
-      - name: Clone mimalloc-bench
-        run: git clone --depth 1 https://github.com/daanx/mimalloc-bench.git
-
-      - name: Build benchmarks
         run: |
-          cd mimalloc-bench/bench
-          mkdir -p ../../bench-out
-
           cmake -B build -DCMAKE_BUILD_TYPE=Release
           cmake --build build -j$(sysctl -n hw.ncpu)
 
-          cp build/cfrac build/espresso build/larson ../../bench-out/ 2>/dev/null || true
-          cp build/cache-scratch build/mstress build/alloc-test ../../bench-out/ 2>/dev/null || true
-          cp build/cache-thrash build/malloc-large ../../bench-out/ 2>/dev/null || true
+      - name: Build benchmarks
+        run: |
+          cmake -B benchmarks/ci/build -S benchmarks/ci -DCMAKE_BUILD_TYPE=Release
+          cmake --build benchmarks/ci/build -j$(sysctl -n hw.ncpu)
 
       - name: Run benchmarks with system allocator (baseline)
         run: |
-          cd bench-out
+          cd benchmarks/ci/build
           echo "=== System allocator baseline ===" | tee baseline.txt
 
           echo "--- cfrac ---" | tee -a baseline.txt
-          /usr/bin/time ./cfrac 17545186520507317056371138836327483792789528 2>&1 | tail -1 | tee -a baseline.txt || true
+          ./cfrac 2>&1 | tee -a baseline.txt
 
           echo "--- larson ---" | tee -a baseline.txt
-          /usr/bin/time ./larson 5 8 1000 5000 100 4141 4 2>&1 | tail -1 | tee -a baseline.txt || true
+          ./larson 4 2>&1 | tee -a baseline.txt
+
+          echo "--- cache-scratch ---" | tee -a baseline.txt
+          ./cache_scratch 4 2>&1 | tee -a baseline.txt
+
+          echo "--- mstress ---" | tee -a baseline.txt
+          ./mstress 4 2>&1 | tee -a baseline.txt
+
+          echo "--- sh6bench ---" | tee -a baseline.txt
+          ./sh6bench 2>&1 | tee -a baseline.txt
+
+          echo "--- sh8bench ---" | tee -a baseline.txt
+          ./sh8bench 4 2>&1 | tee -a baseline.txt
 
       - name: Run benchmarks with Hoard
         run: |
-          cd bench-out
-          HOARD=$PWD/../build/libhoard.dylib
+          cd benchmarks/ci/build
+          HOARD=$PWD/../../../build/libhoard.dylib
           echo "=== Hoard allocator ===" | tee hoard.txt
 
           echo "--- cfrac ---" | tee -a hoard.txt
-          DYLD_INSERT_LIBRARIES=$HOARD DYLD_FORCE_FLAT_NAMESPACE=1 /usr/bin/time ./cfrac 17545186520507317056371138836327483792789528 2>&1 | tail -1 | tee -a hoard.txt || true
-
-          echo "--- espresso ---" | tee -a hoard.txt
-          DYLD_INSERT_LIBRARIES=$HOARD DYLD_FORCE_FLAT_NAMESPACE=1 /usr/bin/time ./espresso ../mimalloc-bench/bench/espresso/largest.espresso 2>&1 | tail -1 | tee -a hoard.txt || true
+          DYLD_INSERT_LIBRARIES=$HOARD DYLD_FORCE_FLAT_NAMESPACE=1 ./cfrac 2>&1 | tee -a hoard.txt
 
           echo "--- larson ---" | tee -a hoard.txt
-          DYLD_INSERT_LIBRARIES=$HOARD DYLD_FORCE_FLAT_NAMESPACE=1 /usr/bin/time ./larson 5 8 1000 5000 100 4141 4 2>&1 | tail -1 | tee -a hoard.txt || true
+          DYLD_INSERT_LIBRARIES=$HOARD DYLD_FORCE_FLAT_NAMESPACE=1 ./larson 4 2>&1 | tee -a hoard.txt
 
           echo "--- cache-scratch ---" | tee -a hoard.txt
-          DYLD_INSERT_LIBRARIES=$HOARD DYLD_FORCE_FLAT_NAMESPACE=1 /usr/bin/time ./cache-scratch 4 1000 1 1000000 2>&1 | tail -1 | tee -a hoard.txt || true
-
-          echo "--- mstress ---" | tee -a hoard.txt
-          DYLD_INSERT_LIBRARIES=$HOARD DYLD_FORCE_FLAT_NAMESPACE=1 /usr/bin/time ./mstress 4 50 25 2>&1 | tail -1 | tee -a hoard.txt || true
-
-          echo "--- alloc-test ---" | tee -a hoard.txt
-          DYLD_INSERT_LIBRARIES=$HOARD DYLD_FORCE_FLAT_NAMESPACE=1 /usr/bin/time ./alloc-test 4 2>&1 | tail -1 | tee -a hoard.txt || true
+          DYLD_INSERT_LIBRARIES=$HOARD DYLD_FORCE_FLAT_NAMESPACE=1 ./cache_scratch 4 2>&1 | tee -a hoard.txt
 
           echo "--- cache-thrash ---" | tee -a hoard.txt
-          DYLD_INSERT_LIBRARIES=$HOARD DYLD_FORCE_FLAT_NAMESPACE=1 /usr/bin/time ./cache-thrash 4 1000 1 1000000 2>&1 | tail -1 | tee -a hoard.txt || true
+          DYLD_INSERT_LIBRARIES=$HOARD DYLD_FORCE_FLAT_NAMESPACE=1 ./cache_thrash 4 2>&1 | tee -a hoard.txt
 
-          if [ -f ./malloc-large ]; then
-            echo "--- malloc-large ---" | tee -a hoard.txt
-            DYLD_INSERT_LIBRARIES=$HOARD DYLD_FORCE_FLAT_NAMESPACE=1 /usr/bin/time ./malloc-large 2>&1 | tail -1 | tee -a hoard.txt || true
-          fi
+          echo "--- mstress ---" | tee -a hoard.txt
+          DYLD_INSERT_LIBRARIES=$HOARD DYLD_FORCE_FLAT_NAMESPACE=1 ./mstress 4 2>&1 | tee -a hoard.txt
+
+          echo "--- alloc-test ---" | tee -a hoard.txt
+          DYLD_INSERT_LIBRARIES=$HOARD DYLD_FORCE_FLAT_NAMESPACE=1 ./alloc_test 4 2>&1 | tee -a hoard.txt
+
+          echo "--- malloc-large ---" | tee -a hoard.txt
+          DYLD_INSERT_LIBRARIES=$HOARD DYLD_FORCE_FLAT_NAMESPACE=1 ./malloc_large 2>&1 | tee -a hoard.txt
+
+          echo "--- xmalloc-test ---" | tee -a hoard.txt
+          DYLD_INSERT_LIBRARIES=$HOARD DYLD_FORCE_FLAT_NAMESPACE=1 ./xmalloc_test 2 2>&1 | tee -a hoard.txt
+
+          echo "--- sh6bench ---" | tee -a hoard.txt
+          DYLD_INSERT_LIBRARIES=$HOARD DYLD_FORCE_FLAT_NAMESPACE=1 ./sh6bench 2>&1 | tee -a hoard.txt
+
+          echo "--- sh8bench ---" | tee -a hoard.txt
+          DYLD_INSERT_LIBRARIES=$HOARD DYLD_FORCE_FLAT_NAMESPACE=1 ./sh8bench 4 2>&1 | tee -a hoard.txt
+
+          echo "--- rptest ---" | tee -a hoard.txt
+          DYLD_INSERT_LIBRARIES=$HOARD DYLD_FORCE_FLAT_NAMESPACE=1 ./rptest 4 2>&1 | tee -a hoard.txt
 
       - name: Check for crashes
         run: |
-          cd bench-out
+          cd benchmarks/ci/build
           if grep -q "Segmentation fault\|SIGABRT\|SIGSEGV\|Aborted\|Abort trap" hoard.txt; then
             echo "ERROR: Hoard crashed on one or more benchmarks!"
             exit 1
@@ -237,8 +225,8 @@ jobs:
         with:
           name: benchmark-results-macos
           path: |
-            bench-out/baseline.txt
-            bench-out/hoard.txt
+            benchmarks/ci/build/baseline.txt
+            benchmarks/ci/build/hoard.txt
 
       - name: Upload library
         uses: actions/upload-artifact@v4
@@ -251,508 +239,101 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure Hoard
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
-
       - name: Build Hoard
-        run: cmake --build build --config Release -j $env:NUMBER_OF_PROCESSORS
-
-      - name: Clone mimalloc-bench
-        run: git clone --depth 1 https://github.com/daanx/mimalloc-bench.git
-
-      - name: Build mimalloc-bench benchmarks
-        shell: powershell
         run: |
-          cd mimalloc-bench/bench
-          New-Item -ItemType Directory -Path ../../bench-out -Force
-
-          # Configure with MSVC - need to handle pthreads
           cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release -j $env:NUMBER_OF_PROCESSORS
 
-          # Build individual targets that work on Windows
-          cmake --build build --config Release --target cfrac 2>&1 | Out-Null
-          cmake --build build --config Release --target espresso 2>&1 | Out-Null
-          cmake --build build --config Release --target larson 2>&1 | Out-Null
-
-          # Copy what built successfully
-          if (Test-Path build/Release/cfrac.exe) { Copy-Item build/Release/cfrac.exe ../../bench-out/ }
-          if (Test-Path build/Release/espresso.exe) { Copy-Item build/Release/espresso.exe ../../bench-out/ }
-          if (Test-Path build/Release/larson.exe) { Copy-Item build/Release/larson.exe ../../bench-out/ }
-
-      - name: Build Windows-native benchmarks
-        shell: powershell
+      - name: Build benchmarks
         run: |
-          # cfrac-like: single-threaded integer factorization stress test
-          @'
-          #include <stdlib.h>
-          #include <string.h>
-          #include <stdio.h>
-          #include <windows.h>
-
-          // Simplified allocation-heavy computation
-          #define ITERATIONS 5000000
-
-          int main() {
-              LARGE_INTEGER freq, start, end;
-              QueryPerformanceFrequency(&freq);
-              QueryPerformanceCounter(&start);
-
-              for (int i = 0; i < ITERATIONS; i++) {
-                  size_t size = (i % 256) + 8;
-                  char* p = (char*)malloc(size);
-                  if (p) {
-                      memset(p, i & 0xFF, size);
-                      free(p);
-                  }
-              }
-
-              QueryPerformanceCounter(&end);
-              double elapsed = (double)(end.QuadPart - start.QuadPart) / freq.QuadPart;
-              printf("cfrac-like: %d iterations in %.3f sec\n", ITERATIONS, elapsed);
-              return 0;
-          }
-          '@ | Out-File -FilePath bench-out/cfrac_win.c -Encoding ASCII
-
-          # larson: server workload with cross-thread frees
-          @'
-          #include <stdlib.h>
-          #include <string.h>
-          #include <stdio.h>
-          #include <windows.h>
-
-          #define NUM_OBJECTS 10000
-          #define ITERATIONS 100000
-
-          void** shared_ptrs;
-          CRITICAL_SECTION cs;
-          volatile LONG ops = 0;
-          int num_threads = 4;
-
-          DWORD WINAPI thread_func(LPVOID arg) {
-              int tid = (int)(intptr_t)arg;
-              for (int i = 0; i < ITERATIONS; i++) {
-                  int idx = (tid * 1000 + rand()) % NUM_OBJECTS;
-                  size_t size = (rand() % 1024) + 8;
-
-                  EnterCriticalSection(&cs);
-                  void* old = shared_ptrs[idx];
-                  shared_ptrs[idx] = malloc(size);
-                  LeaveCriticalSection(&cs);
-
-                  if (shared_ptrs[idx]) memset(shared_ptrs[idx], 0xCD, size);
-                  if (old) free(old);
-                  InterlockedIncrement(&ops);
-              }
-              return 0;
-          }
-
-          int main(int argc, char** argv) {
-              if (argc > 1) num_threads = atoi(argv[1]);
-
-              InitializeCriticalSection(&cs);
-              shared_ptrs = (void**)calloc(NUM_OBJECTS, sizeof(void*));
-              HANDLE* threads = (HANDLE*)malloc(sizeof(HANDLE) * num_threads);
-
-              LARGE_INTEGER freq, start, end;
-              QueryPerformanceFrequency(&freq);
-              QueryPerformanceCounter(&start);
-
-              for (int i = 0; i < num_threads; i++) {
-                  threads[i] = CreateThread(NULL, 0, thread_func, (LPVOID)(intptr_t)i, 0, NULL);
-              }
-              WaitForMultipleObjects(num_threads, threads, TRUE, INFINITE);
-
-              QueryPerformanceCounter(&end);
-              double elapsed = (double)(end.QuadPart - start.QuadPart) / freq.QuadPart;
-              printf("larson: threads=%d ops=%ld time=%.3f sec\n", num_threads, ops, elapsed);
-
-              for (int i = 0; i < NUM_OBJECTS; i++) if (shared_ptrs[i]) free(shared_ptrs[i]);
-              free(shared_ptrs);
-              for (int i = 0; i < num_threads; i++) CloseHandle(threads[i]);
-              free(threads);
-              DeleteCriticalSection(&cs);
-              return 0;
-          }
-          '@ | Out-File -FilePath bench-out/larson_win.c -Encoding ASCII
-
-          # cache-scratch: test for passive-false sharing
-          @'
-          #include <stdlib.h>
-          #include <string.h>
-          #include <stdio.h>
-          #include <windows.h>
-
-          #define OBJ_SIZE 8
-          #define ITERATIONS 1000000
-
-          typedef struct { char* obj; int objSize; int iterations; } WorkerArg;
-          int num_threads = 4;
-
-          DWORD WINAPI worker(LPVOID arg) {
-              WorkerArg* w = (WorkerArg*)arg;
-              char* obj = w->obj;
-              int sz = w->objSize;
-              for (int i = 0; i < w->iterations; i++) {
-                  free(obj);
-                  obj = (char*)malloc(sz);
-                  if (obj) {
-                      for (int j = 0; j < sz; j++) obj[j] = (char)j;
-                      for (int j = 0; j < sz; j++) obj[j] = (char)(obj[j] + 1);
-                  }
-              }
-              free(obj);
-              return 0;
-          }
-
-          int main(int argc, char** argv) {
-              if (argc > 1) num_threads = atoi(argv[1]);
-
-              HANDLE* threads = (HANDLE*)malloc(sizeof(HANDLE) * num_threads);
-              WorkerArg* args = (WorkerArg*)malloc(sizeof(WorkerArg) * num_threads);
-
-              // Pre-allocate objects for each thread
-              for (int i = 0; i < num_threads; i++) {
-                  args[i].obj = (char*)malloc(OBJ_SIZE);
-                  args[i].objSize = OBJ_SIZE;
-                  args[i].iterations = ITERATIONS;
-              }
-
-              LARGE_INTEGER freq, start, end;
-              QueryPerformanceFrequency(&freq);
-              QueryPerformanceCounter(&start);
-
-              for (int i = 0; i < num_threads; i++) {
-                  threads[i] = CreateThread(NULL, 0, worker, &args[i], 0, NULL);
-              }
-              WaitForMultipleObjects(num_threads, threads, TRUE, INFINITE);
-
-              QueryPerformanceCounter(&end);
-              double elapsed = (double)(end.QuadPart - start.QuadPart) / freq.QuadPart;
-              printf("cache-scratch: threads=%d iterations=%d time=%.3f sec\n", num_threads, ITERATIONS, elapsed);
-
-              for (int i = 0; i < num_threads; i++) CloseHandle(threads[i]);
-              free(threads);
-              free(args);
-              return 0;
-          }
-          '@ | Out-File -FilePath bench-out/cache_scratch_win.c -Encoding ASCII
-
-          # mstress: server-like allocation patterns with object migration
-          @'
-          #include <stdlib.h>
-          #include <string.h>
-          #include <stdio.h>
-          #include <windows.h>
-
-          #define TRANSFERS 1000
-          #define ALLOCS_PER_THREAD 50000
-
-          volatile void* transfer[TRANSFERS];
-          volatile LONG total_allocs = 0;
-          int num_threads = 4;
-
-          DWORD WINAPI thread_func(LPVOID arg) {
-              int tid = (int)(intptr_t)arg;
-              void* ptrs[100] = {0};
-
-              for (int i = 0; i < ALLOCS_PER_THREAD; i++) {
-                  size_t size = (rand() % 1024) + 8;
-                  int idx = i % 100;
-
-                  if (ptrs[idx]) free(ptrs[idx]);
-                  ptrs[idx] = malloc(size);
-                  if (ptrs[idx]) memset(ptrs[idx], tid, size);
-
-                  // Occasionally transfer to shared array
-                  if ((i % 100) == 0) {
-                      int tidx = rand() % TRANSFERS;
-                      void* old = (void*)InterlockedExchangePointer((volatile PVOID*)&transfer[tidx], ptrs[idx]);
-                      ptrs[idx] = old;
-                  }
-
-                  InterlockedIncrement(&total_allocs);
-              }
-
-              for (int i = 0; i < 100; i++) if (ptrs[i]) free(ptrs[i]);
-              return 0;
-          }
-
-          int main(int argc, char** argv) {
-              if (argc > 1) num_threads = atoi(argv[1]);
-
-              HANDLE* threads = (HANDLE*)malloc(sizeof(HANDLE) * num_threads);
-
-              LARGE_INTEGER freq, start, end;
-              QueryPerformanceFrequency(&freq);
-              QueryPerformanceCounter(&start);
-
-              for (int i = 0; i < num_threads; i++) {
-                  threads[i] = CreateThread(NULL, 0, thread_func, (LPVOID)(intptr_t)i, 0, NULL);
-              }
-              WaitForMultipleObjects(num_threads, threads, TRUE, INFINITE);
-
-              QueryPerformanceCounter(&end);
-              double elapsed = (double)(end.QuadPart - start.QuadPart) / freq.QuadPart;
-              printf("mstress: threads=%d allocs=%ld time=%.3f sec\n", num_threads, total_allocs, elapsed);
-
-              // Cleanup transfers
-              for (int i = 0; i < TRANSFERS; i++) if (transfer[i]) free((void*)transfer[i]);
-              for (int i = 0; i < num_threads; i++) CloseHandle(threads[i]);
-              free(threads);
-              return 0;
-          }
-          '@ | Out-File -FilePath bench-out/mstress_win.c -Encoding ASCII
-
-          # alloc-test: intensive allocation with various sizes
-          @'
-          #include <stdlib.h>
-          #include <string.h>
-          #include <stdio.h>
-          #include <windows.h>
-
-          #define ITERATIONS 10000000
-          #define MAX_PTRS 1000
-
-          volatile LONG total_allocs = 0;
-          int num_threads = 4;
-
-          DWORD WINAPI thread_func(LPVOID arg) {
-              void* ptrs[MAX_PTRS] = {0};
-              unsigned int seed = (unsigned int)(intptr_t)arg;
-
-              for (int i = 0; i < ITERATIONS / num_threads; i++) {
-                  int idx = rand_r(&seed) % MAX_PTRS;
-                  size_t size = (rand_r(&seed) % 1024) + 1;
-
-                  if (ptrs[idx]) free(ptrs[idx]);
-                  ptrs[idx] = malloc(size);
-                  if (ptrs[idx]) ((char*)ptrs[idx])[0] = (char)i;
-
-                  InterlockedIncrement(&total_allocs);
-              }
-
-              for (int i = 0; i < MAX_PTRS; i++) if (ptrs[i]) free(ptrs[i]);
-              return 0;
-          }
-
-          // Windows doesn't have rand_r, so define it
-          int rand_r(unsigned int* seed) {
-              *seed = *seed * 1103515245 + 12345;
-              return (int)((*seed / 65536) % 32768);
-          }
-
-          int main(int argc, char** argv) {
-              if (argc > 1) num_threads = atoi(argv[1]);
-
-              HANDLE* threads = (HANDLE*)malloc(sizeof(HANDLE) * num_threads);
-
-              LARGE_INTEGER freq, start, end;
-              QueryPerformanceFrequency(&freq);
-              QueryPerformanceCounter(&start);
-
-              for (int i = 0; i < num_threads; i++) {
-                  threads[i] = CreateThread(NULL, 0, thread_func, (LPVOID)(intptr_t)(i + 1), 0, NULL);
-              }
-              WaitForMultipleObjects(num_threads, threads, TRUE, INFINITE);
-
-              QueryPerformanceCounter(&end);
-              double elapsed = (double)(end.QuadPart - start.QuadPart) / freq.QuadPart;
-              printf("alloc-test: threads=%d allocs=%ld time=%.3f sec\n", num_threads, total_allocs, elapsed);
-
-              for (int i = 0; i < num_threads; i++) CloseHandle(threads[i]);
-              free(threads);
-              return 0;
-          }
-          '@ | Out-File -FilePath bench-out/alloc_test_win.c -Encoding ASCII
-
-          # malloc-large: test large allocations
-          @'
-          #include <stdlib.h>
-          #include <string.h>
-          #include <stdio.h>
-          #include <windows.h>
-
-          #define ITERATIONS 10000
-          #define MIN_SIZE (64 * 1024)
-          #define MAX_SIZE (8 * 1024 * 1024)
-
-          int main() {
-              LARGE_INTEGER freq, start, end;
-              QueryPerformanceFrequency(&freq);
-              QueryPerformanceCounter(&start);
-
-              for (int i = 0; i < ITERATIONS; i++) {
-                  size_t size = MIN_SIZE + (rand() % (MAX_SIZE - MIN_SIZE));
-                  char* p = (char*)malloc(size);
-                  if (p) {
-                      p[0] = 1;
-                      p[size - 1] = 2;
-                      free(p);
-                  }
-              }
-
-              QueryPerformanceCounter(&end);
-              double elapsed = (double)(end.QuadPart - start.QuadPart) / freq.QuadPart;
-              printf("malloc-large: %d iterations in %.3f sec\n", ITERATIONS, elapsed);
-              return 0;
-          }
-          '@ | Out-File -FilePath bench-out/malloc_large_win.c -Encoding ASCII
-
-          # xmalloc-test: asymmetric producer/consumer
-          @'
-          #include <stdlib.h>
-          #include <string.h>
-          #include <stdio.h>
-          #include <windows.h>
-
-          #define QUEUE_SIZE 10000
-          #define ITERATIONS 500000
-
-          void* queue[QUEUE_SIZE];
-          volatile LONG head = 0, tail = 0;
-          volatile LONG running = 1;
-          volatile LONG produced = 0, consumed = 0;
-          int num_producers = 2;
-          int num_consumers = 2;
-
-          DWORD WINAPI producer(LPVOID arg) {
-              while (running) {
-                  LONG h = head;
-                  LONG next = (h + 1) % QUEUE_SIZE;
-                  if (next != tail) {
-                      size_t size = (rand() % 512) + 8;
-                      void* p = malloc(size);
-                      if (p) {
-                          memset(p, 0xAB, size);
-                          queue[h] = p;
-                          InterlockedExchange(&head, next);
-                          InterlockedIncrement(&produced);
-                      }
-                  }
-                  if (produced >= ITERATIONS) break;
-              }
-              return 0;
-          }
-
-          DWORD WINAPI consumer(LPVOID arg) {
-              while (running || tail != head) {
-                  LONG t = tail;
-                  if (t != head) {
-                      void* p = queue[t];
-                      InterlockedExchange(&tail, (t + 1) % QUEUE_SIZE);
-                      if (p) free(p);
-                      InterlockedIncrement(&consumed);
-                  }
-                  if (!running && consumed >= produced) break;
-              }
-              return 0;
-          }
-
-          int main(int argc, char** argv) {
-              if (argc > 1) { num_producers = atoi(argv[1]); num_consumers = num_producers; }
-
-              int total = num_producers + num_consumers;
-              HANDLE* threads = (HANDLE*)malloc(sizeof(HANDLE) * total);
-
-              LARGE_INTEGER freq, start, end;
-              QueryPerformanceFrequency(&freq);
-              QueryPerformanceCounter(&start);
-
-              for (int i = 0; i < num_producers; i++) {
-                  threads[i] = CreateThread(NULL, 0, producer, NULL, 0, NULL);
-              }
-              for (int i = 0; i < num_consumers; i++) {
-                  threads[num_producers + i] = CreateThread(NULL, 0, consumer, NULL, 0, NULL);
-              }
-
-              // Wait for producers
-              WaitForMultipleObjects(num_producers, threads, TRUE, INFINITE);
-              running = 0;
-              // Wait for consumers
-              WaitForMultipleObjects(num_consumers, &threads[num_producers], TRUE, INFINITE);
-
-              QueryPerformanceCounter(&end);
-              double elapsed = (double)(end.QuadPart - start.QuadPart) / freq.QuadPart;
-              printf("xmalloc-test: producers=%d consumers=%d produced=%ld consumed=%ld time=%.3f sec\n",
-                     num_producers, num_consumers, produced, consumed, elapsed);
-
-              for (int i = 0; i < total; i++) CloseHandle(threads[i]);
-              free(threads);
-              return 0;
-          }
-          '@ | Out-File -FilePath bench-out/xmalloc_test_win.c -Encoding ASCII
-
-          # Compile all Windows benchmarks
-          cd bench-out
-          cl /MD /O2 cfrac_win.c /Fe:cfrac_win.exe
-          cl /MD /O2 larson_win.c /Fe:larson_win.exe
-          cl /MD /O2 cache_scratch_win.c /Fe:cache_scratch_win.exe
-          cl /MD /O2 mstress_win.c /Fe:mstress_win.exe
-          cl /MD /O2 alloc_test_win.c /Fe:alloc_test_win.exe
-          cl /MD /O2 malloc_large_win.c /Fe:malloc_large_win.exe
-          cl /MD /O2 xmalloc_test_win.c /Fe:xmalloc_test_win.exe
+          cmake -B benchmarks/ci/build -S benchmarks/ci -DCMAKE_BUILD_TYPE=Release
+          cmake --build benchmarks/ci/build --config Release -j $env:NUMBER_OF_PROCESSORS
 
       - name: Run benchmarks with system allocator (baseline)
         shell: powershell
         run: |
-          cd bench-out
+          cd benchmarks/ci/build/Release
           "=== System allocator baseline ===" | Tee-Object -FilePath baseline.txt
 
-          "--- cfrac (single-threaded) ---" | Tee-Object -FilePath baseline.txt -Append
-          .\cfrac_win.exe 2>&1 | Tee-Object -FilePath baseline.txt -Append
+          "--- cfrac ---" | Tee-Object -FilePath baseline.txt -Append
+          .\cfrac.exe 2>&1 | Tee-Object -FilePath baseline.txt -Append
 
-          "--- larson (4 threads) ---" | Tee-Object -FilePath baseline.txt -Append
-          .\larson_win.exe 4 2>&1 | Tee-Object -FilePath baseline.txt -Append
+          "--- larson ---" | Tee-Object -FilePath baseline.txt -Append
+          .\larson.exe 4 2>&1 | Tee-Object -FilePath baseline.txt -Append
 
-          "--- cache-scratch (4 threads) ---" | Tee-Object -FilePath baseline.txt -Append
-          .\cache_scratch_win.exe 4 2>&1 | Tee-Object -FilePath baseline.txt -Append
+          "--- cache-scratch ---" | Tee-Object -FilePath baseline.txt -Append
+          .\cache_scratch.exe 4 2>&1 | Tee-Object -FilePath baseline.txt -Append
 
-          "--- mstress (4 threads) ---" | Tee-Object -FilePath baseline.txt -Append
-          .\mstress_win.exe 4 2>&1 | Tee-Object -FilePath baseline.txt -Append
+          "--- cache-thrash ---" | Tee-Object -FilePath baseline.txt -Append
+          .\cache_thrash.exe 4 2>&1 | Tee-Object -FilePath baseline.txt -Append
 
-          "--- alloc-test (4 threads) ---" | Tee-Object -FilePath baseline.txt -Append
-          .\alloc_test_win.exe 4 2>&1 | Tee-Object -FilePath baseline.txt -Append
+          "--- mstress ---" | Tee-Object -FilePath baseline.txt -Append
+          .\mstress.exe 4 2>&1 | Tee-Object -FilePath baseline.txt -Append
+
+          "--- alloc-test ---" | Tee-Object -FilePath baseline.txt -Append
+          .\alloc_test.exe 4 2>&1 | Tee-Object -FilePath baseline.txt -Append
 
           "--- malloc-large ---" | Tee-Object -FilePath baseline.txt -Append
-          .\malloc_large_win.exe 2>&1 | Tee-Object -FilePath baseline.txt -Append
+          .\malloc_large.exe 2>&1 | Tee-Object -FilePath baseline.txt -Append
 
-          "--- xmalloc-test (2 producers, 2 consumers) ---" | Tee-Object -FilePath baseline.txt -Append
-          .\xmalloc_test_win.exe 2 2>&1 | Tee-Object -FilePath baseline.txt -Append
+          "--- xmalloc-test ---" | Tee-Object -FilePath baseline.txt -Append
+          .\xmalloc_test.exe 2 2>&1 | Tee-Object -FilePath baseline.txt -Append
+
+          "--- sh6bench ---" | Tee-Object -FilePath baseline.txt -Append
+          .\sh6bench.exe 2>&1 | Tee-Object -FilePath baseline.txt -Append
+
+          "--- sh8bench ---" | Tee-Object -FilePath baseline.txt -Append
+          .\sh8bench.exe 4 2>&1 | Tee-Object -FilePath baseline.txt -Append
+
+          "--- rptest ---" | Tee-Object -FilePath baseline.txt -Append
+          .\rptest.exe 4 2>&1 | Tee-Object -FilePath baseline.txt -Append
 
       - name: Run benchmarks with Hoard
         shell: powershell
         run: |
-          cd bench-out
-          $withdll = "$PWD\..\build\Release\withdll.exe"
-          $hoard = "$PWD\..\build\Release\hoard.dll"
+          cd benchmarks/ci/build/Release
+          $withdll = "$PWD/../../../../build/Release/withdll.exe"
+          $hoard = "$PWD/../../../../build/Release/hoard.dll"
 
           "=== Hoard allocator ===" | Tee-Object -FilePath hoard.txt
 
-          "--- cfrac (single-threaded) ---" | Tee-Object -FilePath hoard.txt -Append
-          & $withdll /d:$hoard .\cfrac_win.exe 2>&1 | Tee-Object -FilePath hoard.txt -Append
+          "--- cfrac ---" | Tee-Object -FilePath hoard.txt -Append
+          & $withdll /d:$hoard .\cfrac.exe 2>&1 | Tee-Object -FilePath hoard.txt -Append
 
-          "--- larson (4 threads) ---" | Tee-Object -FilePath hoard.txt -Append
-          & $withdll /d:$hoard .\larson_win.exe 4 2>&1 | Tee-Object -FilePath hoard.txt -Append
+          "--- larson ---" | Tee-Object -FilePath hoard.txt -Append
+          & $withdll /d:$hoard .\larson.exe 4 2>&1 | Tee-Object -FilePath hoard.txt -Append
 
-          "--- cache-scratch (4 threads) ---" | Tee-Object -FilePath hoard.txt -Append
-          & $withdll /d:$hoard .\cache_scratch_win.exe 4 2>&1 | Tee-Object -FilePath hoard.txt -Append
+          "--- cache-scratch ---" | Tee-Object -FilePath hoard.txt -Append
+          & $withdll /d:$hoard .\cache_scratch.exe 4 2>&1 | Tee-Object -FilePath hoard.txt -Append
 
-          "--- mstress (4 threads) ---" | Tee-Object -FilePath hoard.txt -Append
-          & $withdll /d:$hoard .\mstress_win.exe 4 2>&1 | Tee-Object -FilePath hoard.txt -Append
+          "--- cache-thrash ---" | Tee-Object -FilePath hoard.txt -Append
+          & $withdll /d:$hoard .\cache_thrash.exe 4 2>&1 | Tee-Object -FilePath hoard.txt -Append
 
-          "--- alloc-test (4 threads) ---" | Tee-Object -FilePath hoard.txt -Append
-          & $withdll /d:$hoard .\alloc_test_win.exe 4 2>&1 | Tee-Object -FilePath hoard.txt -Append
+          "--- mstress ---" | Tee-Object -FilePath hoard.txt -Append
+          & $withdll /d:$hoard .\mstress.exe 4 2>&1 | Tee-Object -FilePath hoard.txt -Append
+
+          "--- alloc-test ---" | Tee-Object -FilePath hoard.txt -Append
+          & $withdll /d:$hoard .\alloc_test.exe 4 2>&1 | Tee-Object -FilePath hoard.txt -Append
 
           "--- malloc-large ---" | Tee-Object -FilePath hoard.txt -Append
-          & $withdll /d:$hoard .\malloc_large_win.exe 2>&1 | Tee-Object -FilePath hoard.txt -Append
+          & $withdll /d:$hoard .\malloc_large.exe 2>&1 | Tee-Object -FilePath hoard.txt -Append
 
-          "--- xmalloc-test (2 producers, 2 consumers) ---" | Tee-Object -FilePath hoard.txt -Append
-          & $withdll /d:$hoard .\xmalloc_test_win.exe 2 2>&1 | Tee-Object -FilePath hoard.txt -Append
+          "--- xmalloc-test ---" | Tee-Object -FilePath hoard.txt -Append
+          & $withdll /d:$hoard .\xmalloc_test.exe 2 2>&1 | Tee-Object -FilePath hoard.txt -Append
 
-      - name: Check for crashes
+          "--- sh6bench ---" | Tee-Object -FilePath hoard.txt -Append
+          & $withdll /d:$hoard .\sh6bench.exe 2>&1 | Tee-Object -FilePath hoard.txt -Append
+
+          "--- sh8bench ---" | Tee-Object -FilePath hoard.txt -Append
+          & $withdll /d:$hoard .\sh8bench.exe 4 2>&1 | Tee-Object -FilePath hoard.txt -Append
+
+          "--- rptest ---" | Tee-Object -FilePath hoard.txt -Append
+          & $withdll /d:$hoard .\rptest.exe 4 2>&1 | Tee-Object -FilePath hoard.txt -Append
+
+      - name: Check for crashes and display results
         shell: powershell
         run: |
-          cd bench-out
+          cd benchmarks/ci/build/Release
           Write-Output "=== Baseline Results ==="
           Get-Content baseline.txt
           Write-Output ""
@@ -772,8 +353,8 @@ jobs:
         with:
           name: benchmark-results-windows
           path: |
-            bench-out/baseline.txt
-            bench-out/hoard.txt
+            benchmarks/ci/build/Release/baseline.txt
+            benchmarks/ci/build/Release/hoard.txt
 
       - name: Upload library
         uses: actions/upload-artifact@v4
