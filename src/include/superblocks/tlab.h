@@ -80,8 +80,8 @@ namespace Hoard {
         // Each bin can hold up to LocalHeapThreshold bytes worth of objects.
         auto limit = LocalHeapThreshold / sz;
         // At least 32 objects for any size, at most 32768.
-        limit = std::max(limit, (size_t)32);
-        limit = std::min(limit, (size_t)32768);
+        limit = (std::max)(limit, (size_t)32);
+        limit = (std::min)(limit, (size_t)32768);
         _maxCounts[i] = static_cast<uint16_t>(limit);
       }
     }

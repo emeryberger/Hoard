@@ -137,7 +137,7 @@ extern "C" {
   }
 
   // Fast path for free - check common case first
-  __attribute__((always_inline)) inline void xxfree_fast (void * ptr) {
+  INLINE void xxfree_fast (void * ptr) {
     auto * heap = getCustomHeap();
     if (HL_EXPECT_TRUE(heap != nullptr)) {
       heap->free(ptr);
