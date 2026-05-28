@@ -29,7 +29,6 @@
 
 // Platform-specific includes for CPU pinning
 #if defined(__linux__)
-#define _GNU_SOURCE
 #include <sched.h>
 #include <unistd.h>
 #elif defined(__APPLE__)
@@ -45,6 +44,7 @@
 static int nthreads = 8;
 static int niterations = 100000;
 static int objSize = 64;  // Cache line sized objects
+static int ntouches = 1;  // Number of times to touch each object
 static bool crossNode = true;
 
 // Cache line alignment to prevent false sharing
@@ -202,8 +202,10 @@ static void worker(int id, int targetCpu) {
         // Allocate an object
         auto* obj = new char[static_cast<size_t>(objSize)];
 
-        // Touch the memory (establishes local NUMA ownership)
-        touchMemory(obj, static_cast<size_t>(objSize));
+        // Touch the memory multiple times (establishes local NUMA ownership)
+        for (int t = 0; t < ntouches; t++) {
+            touchMemory(obj, static_cast<size_t>(objSize));
+        }
 
         // Try to pass to partner (cross-node free)
         void* expected = nullptr;
@@ -218,8 +220,10 @@ static void worker(int id, int targetCpu) {
         // Check if we received an object from another thread
         void* received = queues[id].slot.exchange(nullptr, std::memory_order_acquire);
         if (received) {
-            // Process the memory (read-modify-write to exercise NUMA traffic)
-            processReceivedMemory(received, static_cast<size_t>(objSize));
+            // Process the memory multiple times (read-modify-write to exercise NUMA traffic)
+            for (int t = 0; t < ntouches; t++) {
+                processReceivedMemory(received, static_cast<size_t>(objSize));
+            }
             delete[] static_cast<char*>(received);
         }
     }
@@ -235,12 +239,13 @@ int main(int argc, char* argv[]) {
     if (argc >= 2) nthreads = std::atoi(argv[1]);
     if (argc >= 3) niterations = std::atoi(argv[2]);
     if (argc >= 4) objSize = std::atoi(argv[3]);
-    if (argc >= 5) crossNode = (std::atoi(argv[4]) != 0);
+    if (argc >= 5) ntouches = std::atoi(argv[4]);
+    if (argc >= 6) crossNode = (std::atoi(argv[5]) != 0);
 
     int ncpus = getNumCpus();
 
-    std::printf("NUMA stress test: %d threads, %d iterations, %d byte objects, cross-node=%d\n",
-                nthreads, niterations, objSize, crossNode);
+    std::printf("NUMA stress test: %d threads, %d iterations, %d byte objects, %d touches, cross-node=%d\n",
+                nthreads, niterations, objSize, ntouches, crossNode);
     std::printf("System has %d CPUs\n", ncpus);
 
     // Allocate thread queues
