@@ -14,9 +14,12 @@
 #define HOARD_SHARDEDGLOBALHEAP_H
 
 #include <atomic>
+#include <cstdio>
 
 #if defined(__linux__)
 #include <sched.h>
+#include <sys/syscall.h>
+#include <unistd.h>
 #endif
 
 #include "hoardsuperblock.h"
@@ -73,8 +76,8 @@ namespace Hoard {
       _shardSizes[shard].fetch_add(1, std::memory_order_relaxed);
     }
 
-    // Get a superblock using power-of-two random choices.
-    // This reduces contention while maintaining memory blowup bounds.
+    // Get a superblock using NUMA-aware power-of-two random choices.
+    // Prefers shards on the same NUMA node to minimize cross-node traffic.
     SuperblockType * get (size_t sz, void * dest) {
       // Try local shard first (based on CPU for NUMA locality).
       auto tid = HL::CPUInfo::getThreadId();
@@ -85,13 +88,18 @@ namespace Hoard {
         return s;
       }
 
-      // Power-of-two choices: pick two random shards, try the fuller one.
-      // This spreads load while avoiding the emptiest shards.
+      // Get NUMA topology info for this thread
+      unsigned int shardsPerNode = NumShards / getNumaNodeCount();
+      if (shardsPerNode < 1) shardsPerNode = 1;
+      int nodeBase = (localShard / shardsPerNode) * shardsPerNode;
+      int nodeEnd = nodeBase + shardsPerNode;
+
+      // Phase 1: Power-of-two choices WITHIN same NUMA node
       unsigned int r = fastRand(tid);
-      int shard1 = r & (NumShards - 1);
-      int shard2 = (r >> 16) & (NumShards - 1);
+      int shard1 = nodeBase + (r % shardsPerNode);
+      int shard2 = nodeBase + ((r >> 16) % shardsPerNode);
       if (shard2 == shard1) {
-        shard2 = (shard1 + 1) & (NumShards - 1);
+        shard2 = nodeBase + ((shard1 - nodeBase + 1) % shardsPerNode);
       }
 
       // Try the fuller shard first (heuristic to balance load).
@@ -101,25 +109,30 @@ namespace Hoard {
       int firstShard = (size1 >= size2) ? shard1 : shard2;
       int secondShard = (size1 >= size2) ? shard2 : shard1;
 
-      s = tryGetFromShard(firstShard, sz, dest);
-      if (s) {
-        return s;
+      if (firstShard != localShard) {
+        s = tryGetFromShard(firstShard, sz, dest);
+        if (s) return s;
       }
 
-      s = tryGetFromShard(secondShard, sz, dest);
-      if (s) {
-        return s;
+      if (secondShard != localShard) {
+        s = tryGetFromShard(secondShard, sz, dest);
+        if (s) return s;
       }
 
-      // Fall back: try remaining shards starting from after our last random choice.
-      int start = (secondShard + 1) & (NumShards - 1);
-      for (int j = 0; j < NumShards; j++) {
-        int i = (start + j) & (NumShards - 1);
+      // Phase 2: Try remaining shards on same NUMA node
+      int start = (secondShard + 1 - nodeBase) % shardsPerNode + nodeBase;
+      for (unsigned int j = 0; j < shardsPerNode; j++) {
+        int i = (start - nodeBase + j) % shardsPerNode + nodeBase;
         if (i == localShard || i == shard1 || i == shard2) continue;
         s = tryGetFromShard(i, sz, dest);
-        if (s) {
-          return s;
-        }
+        if (s) return s;
+      }
+
+      // Phase 3: Try shards on OTHER NUMA nodes (last resort)
+      for (int i = 0; i < NumShards; i++) {
+        if (i >= nodeBase && i < nodeEnd) continue;  // Skip same-node shards
+        s = tryGetFromShard(i, sz, dest);
+        if (s) return s;
       }
 
       return nullptr;
@@ -147,20 +160,52 @@ namespace Hoard {
     }
 
     // Get a shard index with NUMA locality awareness.
-    // On Linux, uses sched_getcpu() to get current CPU, then maps to shard.
-    // Falls back to thread ID hash on other platforms.
+    // Uses syscall to get both CPU and NUMA node, then maps to a shard
+    // that preserves NUMA locality while spreading load within each node.
     static inline int getLocalShard(size_t tid) {
 #if defined(__linux__) && !defined(HOARD_DISABLE_NUMA_SHARDING)
-      // sched_getcpu() is fast (VDSO, no syscall) and gives NUMA locality.
-      // CPUs on the same NUMA node are typically numbered contiguously,
-      // so masking the CPU ID tends to group same-node threads.
-      int cpu = sched_getcpu();
-      if (cpu >= 0) {
-        return cpu & (NumShards - 1);
+      unsigned int cpu = 0;
+      unsigned int node = 0;
+      // getcpu() via syscall returns both CPU and NUMA node
+      if (syscall(SYS_getcpu, &cpu, &node, nullptr) == 0) {
+        // Combine NUMA node and CPU to get shard:
+        // - High bits from node ensure different nodes use different shard ranges
+        // - Low bits from CPU spread load within each node's range
+        // With 8 shards and 2 nodes: node 0 gets shards 0-3, node 1 gets shards 4-7
+        unsigned int shardsPerNode = NumShards / getNumaNodeCount();
+        if (shardsPerNode < 1) shardsPerNode = 1;
+        unsigned int nodeBase = (node * shardsPerNode) & (NumShards - 1);
+        unsigned int cpuOffset = cpu % shardsPerNode;
+        return (nodeBase + cpuOffset) & (NumShards - 1);
       }
 #endif
       // Fallback: hash thread ID
       return tid & (NumShards - 1);
+    }
+
+    // Cache the NUMA node count (queried once at startup)
+    static inline unsigned int getNumaNodeCount() {
+      static unsigned int count = 0;
+      if (count == 0) {
+        count = detectNumaNodeCount();
+        if (count == 0) count = 1;
+      }
+      return count;
+    }
+
+    static unsigned int detectNumaNodeCount() {
+#if defined(__linux__)
+      // Count NUMA nodes by checking /sys/devices/system/node/nodeN
+      unsigned int n = 0;
+      for (n = 0; n < 256; n++) {
+        char path[64];
+        snprintf(path, sizeof(path), "/sys/devices/system/node/node%u", n);
+        if (access(path, F_OK) != 0) break;
+      }
+      return n > 0 ? n : 1;
+#else
+      return 1;
+#endif
     }
 
     SuperHeap * _shards[NumShards];
