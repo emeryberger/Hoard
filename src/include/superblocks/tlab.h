@@ -140,8 +140,9 @@ namespace Hoard {
       if (HL_EXPECT_TRUE(sz <= LargestObject && sz >= Alignment)) {
         auto c = getSizeClass(sz);
         if (HL_EXPECT_TRUE(_localHeapCounts[c] < _maxCounts[c])) {
-          // Skip normalize on fast path - standard C requires exact pointer.
-          // If someone frees an interior pointer, it's undefined behavior.
+          // Normalize pointer to handle memalign interior pointers.
+          // memalign may return a pointer offset from the allocation start.
+          ptr = s->normalize(ptr);
           _localHeap(c).insert(reinterpret_cast<HL::SLList::Entry*>(ptr));
           _localHeapCounts[c]++;
           return;

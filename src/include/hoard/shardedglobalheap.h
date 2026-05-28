@@ -14,12 +14,22 @@
 #define HOARD_SHARDEDGLOBALHEAP_H
 
 #include <atomic>
-#include <cstdio>
 
+// Allocation-free printf (github.com/emeryberger/printf)
+#include "printf.h"
+
+// Platform-specific includes for CPU/NUMA detection
 #if defined(__linux__)
 #include <sched.h>
 #include <sys/syscall.h>
 #include <unistd.h>
+#elif defined(__APPLE__)
+#include <sys/sysctl.h>
+#include <mach/mach.h>
+#include <mach/thread_act.h>
+#elif defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 #endif
 
 #include "hoardsuperblock.h"
@@ -62,17 +72,17 @@ namespace Hoard {
 
     // Put a superblock back to the global heap.
     // Uses CPU-local shard for NUMA locality (last-touch policy).
-    void put (void * s, size_t sz) {
-      assert (s);
-      auto * sb = (SuperblockType *) s;
-      assert (sb->isValidSuperblock());
+    void put(void* s, size_t sz) {
+      assert(s);
+      auto* sb = static_cast<SuperblockType*>(s);
+      assert(sb->isValidSuperblock());
 
       // Put to CPU-local shard to preserve NUMA locality.
       // On NUMA systems, this keeps superblocks near their physical memory.
       auto tid = HL::CPUInfo::getThreadId();
       int shard = getLocalShard(tid);
 
-      _shards[shard]->put((typename SuperHeap::SuperblockType *) s, sz);
+      _shards[shard]->put(static_cast<typename SuperHeap::SuperblockType*>(s), sz);
       _shardSizes[shard].fetch_add(1, std::memory_order_relaxed);
     }
 
@@ -159,31 +169,74 @@ namespace Hoard {
       return x;
     }
 
-    // Get a shard index with NUMA locality awareness.
-    // Uses syscall to get both CPU and NUMA node, then maps to a shard
-    // that preserves NUMA locality while spreading load within each node.
-    static inline int getLocalShard(size_t tid) {
-#if defined(__linux__) && !defined(HOARD_DISABLE_NUMA_SHARDING)
+    // Get current CPU number (platform-specific).
+    static inline unsigned int getCurrentCpu() {
+#if defined(__linux__)
       unsigned int cpu = 0;
       unsigned int node = 0;
-      // getcpu() via syscall returns both CPU and NUMA node
       if (syscall(SYS_getcpu, &cpu, &node, nullptr) == 0) {
-        // Combine NUMA node and CPU to get shard:
-        // - High bits from node ensure different nodes use different shard ranges
-        // - Low bits from CPU spread load within each node's range
-        // With 8 shards and 2 nodes: node 0 gets shards 0-3, node 1 gets shards 4-7
-        unsigned int shardsPerNode = NumShards / getNumaNodeCount();
-        if (shardsPerNode < 1) shardsPerNode = 1;
-        unsigned int nodeBase = (node * shardsPerNode) & (NumShards - 1);
-        unsigned int cpuOffset = cpu % shardsPerNode;
-        return (nodeBase + cpuOffset) & (NumShards - 1);
+        return cpu;
       }
+      return 0;
+#elif defined(__APPLE__)
+      // macOS doesn't expose CPU number directly, use thread ID as proxy
+      mach_port_t thread = mach_thread_self();
+      unsigned int cpu = static_cast<unsigned int>(thread % 256);
+      mach_port_deallocate(mach_task_self(), thread);
+      return cpu;
+#elif defined(_WIN32)
+      return GetCurrentProcessorNumber();
+#else
+      return 0;
 #endif
-      // Fallback: hash thread ID
-      return tid & (NumShards - 1);
     }
 
-    // Cache the NUMA node count (queried once at startup)
+    // Get current NUMA node (platform-specific).
+    static inline unsigned int getCurrentNumaNode() {
+#if defined(__linux__)
+      unsigned int cpu = 0;
+      unsigned int node = 0;
+      if (syscall(SYS_getcpu, &cpu, &node, nullptr) == 0) {
+        return node;
+      }
+      return 0;
+#elif defined(_WIN32)
+      PROCESSOR_NUMBER procNum;
+      GetCurrentProcessorNumberEx(&procNum);
+      USHORT nodeNum = 0;
+      GetNumaProcessorNodeEx(&procNum, &nodeNum);
+      return static_cast<unsigned int>(nodeNum);
+#else
+      // macOS and others: assume single NUMA node
+      return 0;
+#endif
+    }
+
+    // Get a shard index with NUMA locality awareness.
+    // Maps CPU and NUMA node to a shard that preserves locality
+    // while spreading load within each node.
+    static inline int getLocalShard(size_t tid) {
+#if !defined(HOARD_DISABLE_NUMA_SHARDING)
+      unsigned int cpu = getCurrentCpu();
+      unsigned int node = getCurrentNumaNode();
+
+      // Combine NUMA node and CPU to get shard:
+      // - High bits from node ensure different nodes use different shard ranges
+      // - Low bits from CPU spread load within each node's range
+      // With 8 shards and 2 nodes: node 0 gets shards 0-3, node 1 gets shards 4-7
+      unsigned int shardsPerNode = NumShards / getNumaNodeCount();
+      if (shardsPerNode < 1) shardsPerNode = 1;
+      unsigned int nodeBase = (node * shardsPerNode) & (NumShards - 1);
+      unsigned int cpuOffset = cpu % shardsPerNode;
+      return static_cast<int>((nodeBase + cpuOffset) & (NumShards - 1));
+#else
+      (void)tid;
+#endif
+      // Fallback: hash thread ID
+      return static_cast<int>(tid & (NumShards - 1));
+    }
+
+    // Cache the NUMA node count (queried once at startup).
     static inline unsigned int getNumaNodeCount() {
       static unsigned int count = 0;
       if (count == 0) {
@@ -193,17 +246,26 @@ namespace Hoard {
       return count;
     }
 
+    // Detect number of NUMA nodes (platform-specific).
     static unsigned int detectNumaNodeCount() {
 #if defined(__linux__)
       // Count NUMA nodes by checking /sys/devices/system/node/nodeN
       unsigned int n = 0;
       for (n = 0; n < 256; n++) {
         char path[64];
-        snprintf(path, sizeof(path), "/sys/devices/system/node/node%u", n);
+        // Use allocation-free snprintf_ from emeryberger/printf
+        snprintf_(path, sizeof(path), "/sys/devices/system/node/node%u", n);
         if (access(path, F_OK) != 0) break;
       }
       return n > 0 ? n : 1;
+#elif defined(_WIN32)
+      ULONG highestNode = 0;
+      if (GetNumaHighestNodeNumber(&highestNode)) {
+        return static_cast<unsigned int>(highestNode + 1);
+      }
+      return 1;
 #else
+      // macOS and others: assume single NUMA node
       return 1;
 #endif
     }
