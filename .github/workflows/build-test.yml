@@ -292,7 +292,8 @@ jobs:
         shell: powershell
         run: |
           cd benchmarks/ci/build/Release
-          $withdll = "$PWD/../../../../build/Release/withdll.exe"
+          # withdll.exe is built by alloc8 in the _deps directory
+          $withdll = "$PWD/../../../../build/_deps/alloc8-build/Release/withdll.exe"
           $hoard = "$PWD/../../../../build/Release/hoard.dll"
 
           "=== Hoard allocator ===" | Tee-Object -FilePath hoard.txt
@@ -362,4 +363,4 @@ jobs:
           name: libhoard-windows
           path: |
             build/Release/hoard.dll
-            build/Release/withdll.exe
+            build/_deps/alloc8-build/Release/withdll.exe
