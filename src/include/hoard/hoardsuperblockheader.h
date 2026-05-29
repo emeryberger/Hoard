@@ -69,6 +69,8 @@ namespace Hoard {
 	_objectSize (sz),
 	_objectSizeIsPowerOfTwo (!(sz & (sz - 1)) && sz),
 	_totalObjects ((unsigned int) (bufferSize / sz)),
+	_magicMul (computeMagicMul(sz)),
+	_magicShift (computeMagicShift(sz)),
 	_owner (nullptr),
 	_ownerTid (0),
 	_prev (nullptr),
@@ -131,15 +133,13 @@ namespace Hoard {
       auto offset = (size_t) ptr - (size_t) _start;
       void * p;
 
-      // Optimization note: the modulo operation (%) is *really* slow on
-      // some architectures (notably x86-64). To reduce its overhead, we
-      // optimize for the case when the size request is a power of two,
-      // which is often enough to make a difference.
-
       if (_objectSizeIsPowerOfTwo) {
 	p = (void *) ((size_t) ptr - (offset & (_objectSize - 1)));
       } else {
-	p = (void *) ((size_t) ptr - (offset % _objectSize));
+	// Use multiplicative inverse to replace expensive modulo.
+	// A multiply+shift (~4 cycles) instead of division (~30+ cycles).
+	auto remainder = fastModulo(offset);
+	p = (void *) ((size_t) ptr - remainder);
       }
       return p;
     }
@@ -152,9 +152,18 @@ namespace Hoard {
       if (_objectSizeIsPowerOfTwo) {
 	newSize = _objectSize - (offset & (_objectSize - 1));
       } else {
-	newSize = _objectSize - (offset % _objectSize);
+	newSize = _objectSize - fastModulo(offset);
       }
       return newSize;
+    }
+
+    /// Get object size without validation (for fast path).
+    size_t getObjectSizeUnchecked() const {
+      return _objectSize;
+    }
+
+    bool isValidSuperblock() const {
+      return isValid();
     }
 
     size_t getObjectSize() const {
@@ -221,6 +230,41 @@ namespace Hoard {
 
   private:
 
+    /// Compute offset % _objectSize using precomputed multiplicative inverse.
+    /// A multiply+shift (~4 cycles) instead of division (~30+ cycles).
+    INLINE size_t fastModulo(size_t offset) const {
+#if defined(_MSC_VER) && !defined(__clang__)
+      // MSVC doesn't support __uint128_t; fall back to regular modulo.
+      return offset % _objectSize;
+#else
+      size_t quotient = (size_t)(((__uint128_t)offset * _magicMul) >> _magicShift);
+      return offset - quotient * _objectSize;
+#endif
+    }
+
+    /// Compute the multiplicative inverse for a given divisor.
+    static size_t computeMagicMul(size_t d) {
+      if (d == 0 || (!(d & (d - 1)) && d)) return 0;  // power of two or zero
+#if defined(_MSC_VER) && !defined(__clang__)
+      return 0;  // Not used on MSVC (fastModulo falls back to %)
+#else
+      unsigned s = computeMagicShift(d);
+      __uint128_t one = 1;
+      __uint128_t power = one << s;
+      return (size_t)((power + d - 1) / d);
+#endif
+    }
+
+    /// Compute the shift amount for the multiplicative inverse.
+    static unsigned computeMagicShift(size_t d) {
+      if (d == 0 || (!(d & (d - 1)) && d)) return 0;  // power of two or zero
+#if defined(_MSC_VER) && !defined(__clang__)
+      return 0;  // Not used on MSVC
+#else
+      return 64 + (63 - __builtin_clzll(d));
+#endif
+    }
+
     MALLOC_FUNCTION INLINE void * reapAlloc() {
       assert (isValid());
       assert (_position);
@@ -260,6 +304,12 @@ namespace Hoard {
 
     /// Total objects in the superblock.
     const unsigned int _totalObjects;
+
+    /// Multiplicative inverse of _objectSize for fast modulo computation.
+    const size_t _magicMul;
+
+    /// Shift amount for the multiplicative inverse.
+    const unsigned _magicShift;
 
     /// The lock.
     LockType _theLock;
