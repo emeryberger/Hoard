@@ -107,8 +107,9 @@ TheCustomHeapType * getCustomHeap() {
 #endif
 }
 
-extern "C" void InitializeWinWrapper();
-extern "C" void FinalizeWinWrapper();
+// alloc8 library provides these initialization functions
+extern "C" void InitializeAlloc8();
+extern "C" void FinalizeAlloc8();
 
 
 //
@@ -165,7 +166,7 @@ extern "C" {
 #endif
 
 	// Now we are good to go.
-	InitializeWinWrapper();
+	InitializeAlloc8();
 	// Force creation of the heap.
 	volatile auto * ch = getCustomHeap();
       }
@@ -208,7 +209,7 @@ extern "C" {
     case DLL_PROCESS_DETACH:
       if (lpreserved == NULL) {
 	// Dynamic unload (FreeLibrary) - shouldn't happen since we pinned the DLL
-	FinalizeWinWrapper();
+	FinalizeAlloc8();
 #if !USE_DECLSPEC_THREADLOCAL
 	if (LocalTLABIndex != TLS_OUT_OF_INDEXES) {
 	  TlsFree(LocalTLABIndex);

@@ -90,9 +90,10 @@ if(WIN32)
   #
   # ─── WINDOWS BUILD ───────────────────────────────────────────────────
   # alloc8 handles Detours fetching/building internally
+  # ALLOC8_NO_DLLMAIN: Hoard provides its own DllMain in wintls.cpp
   #
   set(HOARD_SOURCES ${WINDOWS_SOURCES})
-  add_definitions(-DNDEBUG -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN)
+  add_definitions(-DNDEBUG -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DALLOC8_NO_DLLMAIN)
 
 elseif(APPLE)
   set(HOARD_SOURCES ${MACOS_SOURCES})
