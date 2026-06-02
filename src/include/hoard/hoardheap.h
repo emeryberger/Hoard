@@ -59,6 +59,9 @@ using namespace HL;
 #include "globalheap.h"
 #include "shardedglobalheap.h"
 #include "../util/futexlock.h"
+#if defined(__APPLE__)
+#include "../util/macspinlock.h"
+#endif
 
 #include "thresholdsegheap.h"
 #include "geometricsizeclass.h"
@@ -71,10 +74,10 @@ using namespace HL;
 #if defined(_WIN32)
 typedef HL::WinLockType TheLockType;
 #elif defined(__APPLE__)
-// NOTE: On older versions of the Mac OS, Hoard CANNOT use Posix locks,
-// since they may call malloc themselves. However, as of Snow Leopard,
-// that problem seems to have gone away. Nonetheless, we use Mac-specific locks.
-typedef HL::MacLockType TheLockType;
+// Use MacSpinLockType: a hybrid that spins briefly with os_unfair_lock_trylock
+// before falling back to the blocking os_unfair_lock_lock. This reduces syscall
+// overhead on workloads with frequent cross-thread operations.
+typedef HL::MacSpinLockType TheLockType;
 #elif defined(__SVR4)
 typedef HL::SpinLockType TheLockType;
 #elif defined(__linux__)

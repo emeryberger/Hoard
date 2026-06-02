@@ -23,7 +23,11 @@ namespace Hoard {
   /**
    * @class RedirectFree
    * @brief Routes free calls to the Superblock's owner heap.
-   * @note  We also lock the heap on calls to malloc.
+   *
+   * Uses lock-free delayed free for cross-thread frees:
+   * - Same-thread free: lock owner heap, free directly
+   * - Cross-thread free: push to superblock's lock-free queue (no locks)
+   * - On malloc: drain pending cross-thread frees from active superblocks
    */
 
   template <class Heap,
@@ -35,9 +39,7 @@ namespace Hoard {
 
     typedef SuperblockType_ SuperblockType;
 
-    RedirectFree()
-    {
-    }
+    RedirectFree() {}
 
     inline void * malloc (size_t sz) {
       void * ptr = _theHeap.malloc (sz);
@@ -54,50 +56,57 @@ namespace Hoard {
       return Heap::getSuperblock (ptr);
     }
 
-    /// Free the given object, obeying the required locking protocol.
+    /// Free the given object using delayed free for cross-thread.
     static inline void free (void * ptr) {
       // Get the superblock header.
       SuperblockType * s = reinterpret_cast<SuperblockType *>(Heap::getSuperblock (ptr));
-
       assert (s->isValidSuperblock());
 
-      // Find out who the owner is.
+      // Check if this is our own thread's superblock.
+      size_t myTid = HL::CPUInfo::getThreadId();
+      size_t ownerTid = s->getOwnerTid();
 
-      typedef BaseHoardManager<SuperblockType> * baseHeapType;
-      baseHeapType owner;
-
-      s->lock();
-
-      // By acquiring the lock on the superblock (above),
-      // we prevent it from moving up to a higher heap.
-      // This eventually pins it down in one heap,
-      // so this loop is guaranteed to terminate.
-      // (It should generally take no more than two iterations.)
-
-      for (;;) {
-	owner = reinterpret_cast<baseHeapType>(s->getOwner());
-	assert (owner != nullptr);
-	assert (owner->isValid());
-	// Lock the owner. If ownership changed between these two lines,
-	// we'll detect it and try again.
-	owner->lock();
-	if (owner == reinterpret_cast<baseHeapType>(s->getOwner())) {
-	  owner->free (ptr);
-	  owner->unlock();
-	  s->unlock();
-	  return;
-	}
-	owner->unlock();
-
-	// Sleep a little.
-	HL::Fred::yield();
+      if (myTid == ownerTid) {
+        // Fast path: local free.
+        localFree(ptr, s);
+      } else {
+        // Lock-free path: push to superblock's cross-thread queue.
+        s->crossThreadFree(ptr);
       }
     }
 
   private:
 
-    Heap _theHeap;
+    /// Fast path: free to our own heap (single lock, no superblock lock).
+    static inline void localFree(void * ptr, SuperblockType * s) {
+      typedef BaseHoardManager<SuperblockType> * baseHeapType;
+      baseHeapType owner = reinterpret_cast<baseHeapType>(s->getOwner());
+      assert(owner != nullptr);
+      assert(owner->isValid());
 
+      owner->lock();
+
+      // First, drain any pending cross-thread frees for this superblock.
+      drainCrossThreadFrees(s, owner);
+
+      // Now free our object.
+      owner->free(ptr);
+      owner->unlock();
+    }
+
+    /// Drain pending cross-thread frees from a superblock into its owner heap.
+    static inline void drainCrossThreadFrees(SuperblockType * s,
+                                              BaseHoardManager<SuperblockType> * owner) {
+      auto* entry = s->drainCrossThreadFrees();
+      while (entry != nullptr) {
+        void* ptr = reinterpret_cast<void*>(entry);
+        auto* next = entry->next;
+        owner->free(ptr);
+        entry = next;
+      }
+    }
+
+    Heap _theHeap;
   };
 
 }

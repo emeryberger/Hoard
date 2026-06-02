@@ -179,11 +179,13 @@ namespace Hoard {
       }
       return 0;
 #elif defined(__APPLE__)
-      // macOS doesn't expose CPU number directly, use thread ID as proxy
-      mach_port_t thread = mach_thread_self();
-      unsigned int cpu = static_cast<unsigned int>(thread % 256);
-      mach_port_deallocate(mach_task_self(), thread);
-      return cpu;
+      // pthread_cpu_number_np is available since macOS 11.0 and is very fast
+      // (~2ns, no syscall - reads from thread-local commpage).
+      size_t cpu;
+      if (pthread_cpu_number_np(&cpu) == 0) {
+        return static_cast<unsigned int>(cpu);
+      }
+      return 0;
 #elif defined(_WIN32)
       return GetCurrentProcessorNumber();
 #else

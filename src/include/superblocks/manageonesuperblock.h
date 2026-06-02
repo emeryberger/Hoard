@@ -52,6 +52,9 @@ namespace Hoard {
     /// Get memory from the current superblock.
     inline void * malloc (size_t sz) {
       if (likely(_current)) {
+	// Drain any pending cross-thread frees before allocating.
+	// This processes frees from other threads that were deferred.
+	drainCrossThreadFrees(_current);
 	void * ptr = _current->malloc (sz);
 	if (ptr) {
 	  assert (_current->getSize(ptr) >= sz);
@@ -100,6 +103,19 @@ namespace Hoard {
     }
 
   private:
+
+    /// Drain pending cross-thread frees from a superblock.
+    inline void drainCrossThreadFrees(SuperblockType * s) {
+      if (unlikely(s->hasCrossThreadFrees())) {
+        auto* entry = s->drainCrossThreadFrees();
+        while (entry != nullptr) {
+          void* ptr = reinterpret_cast<void*>(entry);
+          auto* next = entry->next;
+          s->free(ptr);
+          entry = next;
+        }
+      }
+    }
 
     /// Obtain a superblock and return an object from it.
     void * slowMallocPath (size_t sz) {

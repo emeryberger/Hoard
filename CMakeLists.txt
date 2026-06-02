@@ -97,6 +97,9 @@ if(WIN32)
 
 elseif(APPLE)
   set(HOARD_SOURCES ${MACOS_SOURCES})
+  # alloc8 defaults to fast mode (no ownership table, no runtime checks).
+  # Hoard handles foreign pointers gracefully via IgnoreInvalidFree.
+  # To enable compatibility mode: -DALLOC8_OWNERSHIP_TABLE=1 -DALLOC8_RUNTIME_CHECKS=1
   add_compile_options(-DNDEBUG -ftls-model=initial-exec -ftemplate-depth=1024)
 else()
   set(HOARD_SOURCES ${UNIX_SOURCES})
