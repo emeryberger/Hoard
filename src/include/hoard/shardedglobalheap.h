@@ -14,6 +14,7 @@
 #define HOARD_SHARDEDGLOBALHEAP_H
 
 #include <atomic>
+#include <thread>
 
 // Allocation-free printf (github.com/emeryberger/printf)
 #include "printf.h"
@@ -37,18 +38,19 @@
 
 namespace Hoard {
 
+  // Maximum shards - actual count is determined at runtime.
+  // With power-of-two choices, expected max load is O(log log n).
+  // We size shards ≈ numCPUs to keep expected max load near 1.
+  static constexpr int MaxShards = 256;
+
   template <size_t SuperblockSize,
 	    template <class LockType_,
 		      int SuperblockSize_,
 		      typename HeapType_> class Header_,
 	    int EmptinessClasses,
 	    class MmapSource,
-	    class LockType,
-	    int NumShards = 8>  // Must be power of two; 8 works well up to ~64 cores
+	    class LockType>
   class ShardedGlobalHeap {
-
-    static_assert((NumShards & (NumShards - 1)) == 0, "NumShards must be a power of two");
-    static_assert(NumShards >= 2, "NumShards must be at least 2");
 
     class bogusThresholdFunctionClass {
     public:
@@ -61,7 +63,9 @@ namespace Hoard {
 
     ShardedGlobalHeap()
     {
-      for (int i = 0; i < NumShards; i++) {
+      _numShards = computeNumShards();
+      _shardMask = _numShards - 1;
+      for (int i = 0; i < _numShards; i++) {
         _shards[i] = getShard(i);
         _shardSizes[i].store(0, std::memory_order_relaxed);
       }
@@ -78,7 +82,6 @@ namespace Hoard {
       assert(sb->isValidSuperblock());
 
       // Put to CPU-local shard to preserve NUMA locality.
-      // On NUMA systems, this keeps superblocks near their physical memory.
       auto tid = HL::CPUInfo::getThreadId();
       int shard = getLocalShard(tid);
 
@@ -87,7 +90,7 @@ namespace Hoard {
     }
 
     // Get a superblock using NUMA-aware power-of-two random choices.
-    // Prefers shards on the same NUMA node to minimize cross-node traffic.
+    // With n threads and m ≈ n shards, expected max load is O(log log n).
     SuperblockType * get (size_t sz, void * dest) {
       // Try local shard first (based on CPU for NUMA locality).
       auto tid = HL::CPUInfo::getThreadId();
@@ -99,7 +102,7 @@ namespace Hoard {
       }
 
       // Get NUMA topology info for this thread
-      unsigned int shardsPerNode = NumShards / getNumaNodeCount();
+      unsigned int shardsPerNode = _numShards / getNumaNodeCount();
       if (shardsPerNode < 1) shardsPerNode = 1;
       int nodeBase = (localShard / shardsPerNode) * shardsPerNode;
       int nodeEnd = nodeBase + shardsPerNode;
@@ -139,7 +142,7 @@ namespace Hoard {
       }
 
       // Phase 3: Try shards on OTHER NUMA nodes (last resort)
-      for (int i = 0; i < NumShards; i++) {
+      for (int i = 0; i < _numShards; i++) {
         if (i >= nodeBase && i < nodeEnd) continue;  // Skip same-node shards
         s = tryGetFromShard(i, sz, dest);
         if (s) return s;
@@ -158,6 +161,46 @@ namespace Hoard {
         _shardSizes[shard].fetch_sub(1, std::memory_order_relaxed);
       }
       return s;
+    }
+
+    // Compute number of shards based on hardware.
+    // With power-of-two random choices and m shards for n threads:
+    //   - Expected max load ≈ ln(ln(n)) / ln(2) + O(1) when m = n
+    //   - For n = 256 threads, expected max load ≈ 3
+    // We use numCPUs shards (rounded to power of two) so each CPU
+    // has its own shard, minimizing contention.
+    static int computeNumShards() {
+      unsigned int numCpus = detectNumCpus();
+
+      // Round up to next power of two, clamped to [4, MaxShards]
+      int shards = 4;  // Minimum
+      while (shards < (int)numCpus && shards < MaxShards) {
+        shards *= 2;
+      }
+      return shards;
+    }
+
+    // Detect number of CPUs/hardware threads.
+    static unsigned int detectNumCpus() {
+#if defined(__linux__)
+      // Use sysconf for accurate count including offline CPUs
+      long n = sysconf(_SC_NPROCESSORS_CONF);
+      return (n > 0) ? static_cast<unsigned int>(n) : 1;
+#elif defined(__APPLE__)
+      int n = 0;
+      size_t size = sizeof(n);
+      if (sysctlbyname("hw.ncpu", &n, &size, nullptr, 0) == 0 && n > 0) {
+        return static_cast<unsigned int>(n);
+      }
+      return 1;
+#elif defined(_WIN32)
+      SYSTEM_INFO si;
+      GetSystemInfo(&si);
+      return si.dwNumberOfProcessors;
+#else
+      unsigned int n = std::thread::hardware_concurrency();
+      return (n > 0) ? n : 1;
+#endif
     }
 
     // Fast PRNG for shard selection (xorshift).
@@ -179,11 +222,13 @@ namespace Hoard {
       }
       return 0;
 #elif defined(__APPLE__)
-      // macOS doesn't expose CPU number directly, use thread ID as proxy
-      mach_port_t thread = mach_thread_self();
-      unsigned int cpu = static_cast<unsigned int>(thread % 256);
-      mach_port_deallocate(mach_task_self(), thread);
-      return cpu;
+      // pthread_cpu_number_np is available since macOS 11.0 and is very fast
+      // (~2ns, no syscall - reads from thread-local commpage).
+      size_t cpu;
+      if (pthread_cpu_number_np(&cpu) == 0) {
+        return static_cast<unsigned int>(cpu);
+      }
+      return 0;
 #elif defined(_WIN32)
       return GetCurrentProcessorNumber();
 #else
@@ -213,9 +258,7 @@ namespace Hoard {
     }
 
     // Get a shard index with NUMA locality awareness.
-    // Maps CPU and NUMA node to a shard that preserves locality
-    // while spreading load within each node.
-    static inline int getLocalShard(size_t tid) {
+    inline int getLocalShard(size_t tid) const {
 #if !defined(HOARD_DISABLE_NUMA_SHARDING)
       unsigned int cpu = getCurrentCpu();
       unsigned int node = getCurrentNumaNode();
@@ -223,17 +266,16 @@ namespace Hoard {
       // Combine NUMA node and CPU to get shard:
       // - High bits from node ensure different nodes use different shard ranges
       // - Low bits from CPU spread load within each node's range
-      // With 8 shards and 2 nodes: node 0 gets shards 0-3, node 1 gets shards 4-7
-      unsigned int shardsPerNode = NumShards / getNumaNodeCount();
+      unsigned int shardsPerNode = _numShards / getNumaNodeCount();
       if (shardsPerNode < 1) shardsPerNode = 1;
-      unsigned int nodeBase = (node * shardsPerNode) & (NumShards - 1);
+      unsigned int nodeBase = (node * shardsPerNode) & _shardMask;
       unsigned int cpuOffset = cpu % shardsPerNode;
-      return static_cast<int>((nodeBase + cpuOffset) & (NumShards - 1));
+      return static_cast<int>((nodeBase + cpuOffset) & _shardMask);
 #else
       (void)tid;
 #endif
       // Fallback: hash thread ID
-      return static_cast<int>(tid & (NumShards - 1));
+      return static_cast<int>(tid & _shardMask);
     }
 
     // Cache the NUMA node count (queried once at startup).
@@ -270,14 +312,18 @@ namespace Hoard {
 #endif
     }
 
-    SuperHeap * _shards[NumShards];
-    std::atomic<int> _shardSizes[NumShards];
+    // Runtime-determined shard count and mask
+    int _numShards;
+    unsigned int _shardMask;
+
+    SuperHeap * _shards[MaxShards];
+    std::atomic<int> _shardSizes[MaxShards];
 
     inline static SuperHeap * getShard(int index) {
       // Each shard has its own static storage.
-      static double shardBufs[NumShards][sizeof(SuperHeap) / sizeof(double) + 1];
-      static SuperHeap * shards[NumShards] = { nullptr };
-      static std::atomic<bool> initialized[NumShards] = {};
+      static double shardBufs[MaxShards][sizeof(SuperHeap) / sizeof(double) + 1];
+      static SuperHeap * shards[MaxShards] = { nullptr };
+      static std::atomic<bool> initialized[MaxShards] = {};
 
       if (!initialized[index].load(std::memory_order_acquire)) {
         shards[index] = new (&shardBufs[index][0]) SuperHeap;

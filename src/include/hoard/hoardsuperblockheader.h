@@ -72,7 +72,6 @@ namespace Hoard {
 	_magicMul (computeMagicMul(sz)),
 	_magicShift (computeMagicShift(sz)),
 	_owner (nullptr),
-	_ownerTid (0),
 	_prev (nullptr),
 	_next (nullptr),
 	_reapableObjects (_totalObjects),
@@ -184,14 +183,6 @@ namespace Hoard {
 
     void setOwner (HeapType * o) {
       _owner = o;
-    }
-
-    size_t getOwnerTid() const {
-      return _ownerTid;
-    }
-
-    void setOwnerTid (size_t tid) {
-      _ownerTid = tid;
     }
 
     bool isValid() const {
@@ -317,9 +308,6 @@ namespace Hoard {
     /// The owner of this superblock.
     HeapType * _owner;
 
-    /// The thread ID of the owning thread (for fast same-thread detection).
-    size_t _ownerTid;
-
     /// The preceding superblock in a linked list.
     BlockType* _prev;
 
@@ -340,37 +328,6 @@ namespace Hoard {
 
     /// The list of freed objects.
     FreeSLList _freeList;
-
-    /// Lock-free cross-thread free list entry (intrusive, uses object memory).
-    struct CrossThreadEntry {
-      CrossThreadEntry* next;
-    };
-
-    /// Lock-free cross-thread free list head (MPSC queue).
-    std::atomic<CrossThreadEntry*> _crossThreadFrees{nullptr};
-
-  public:
-    /// Push a pointer to the cross-thread free list (lock-free, multiple producers).
-    void crossThreadFree(void* ptr) {
-      auto* entry = reinterpret_cast<CrossThreadEntry*>(ptr);
-      CrossThreadEntry* oldHead = _crossThreadFrees.load(std::memory_order_relaxed);
-      do {
-        entry->next = oldHead;
-      } while (!_crossThreadFrees.compare_exchange_weak(oldHead, entry,
-                                                        std::memory_order_release,
-                                                        std::memory_order_relaxed));
-    }
-
-    /// Pop all entries from cross-thread free list (single consumer).
-    /// Returns head of linked list, or nullptr if empty.
-    CrossThreadEntry* drainCrossThreadFrees() {
-      return _crossThreadFrees.exchange(nullptr, std::memory_order_acquire);
-    }
-
-    /// Check if cross-thread free list has pending entries.
-    bool hasCrossThreadFrees() const {
-      return _crossThreadFrees.load(std::memory_order_relaxed) != nullptr;
-    }
   };
 
   // A helper class that pads the header to the desired alignment.
