@@ -44,7 +44,7 @@ namespace Hoard {
 	    int EmptinessClasses,
 	    class MmapSource,
 	    class LockType,
-	    int NumShards = 8>  // Must be power of two; 8 works well up to ~64 cores
+	    int NumShards = 64>  // Must be power of two; 64 for large NUMA systems
   class ShardedGlobalHeap {
 
     static_assert((NumShards & (NumShards - 1)) == 0, "NumShards must be a power of two");
