@@ -132,21 +132,23 @@ extern "C" {
     return ptr;
   }
 
-#if defined(__GNUG__)
+#if defined(__GNUG__) || defined(__clang__)
+  __attribute__((flatten))
   void xxfree (void * ptr)
 #else
   void xxfree (void * ptr)
 #endif
   {
-    // Don't free init buffer allocations
+    auto * heap = getCustomHeap();
+    if (__builtin_expect(heap != nullptr, 1)) {
+      heap->free(ptr);
+      return;
+    }
+    // Slow path: heap not initialized or init buffer allocation
     if (ptr >= initBuffer && ptr < initBuffer + MAX_LOCAL_BUFFER_SIZE) {
       return;
     }
-    auto * heap = getCustomHeap();
-    if (heap != nullptr) {
-      heap->free(ptr);
-    }
-    // If heap is null, we're in early init - just leak
+    // If heap is null and not init buffer, we're in early init - just leak
   }
 
   void xxfree_sized(void * ptr, size_t) {

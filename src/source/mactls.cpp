@@ -27,7 +27,9 @@ extern Hoard::HoardHeapType * getMainHoardHeap();
 static pthread_key_t theHeapKey;
 static pthread_once_t key_once = PTHREAD_ONCE_INIT;
 
-__thread TheCustomHeapType * per_thread_heap;
+// Use __thread for fast TLS access on the hot path.
+// pthread_key is still needed for the destructor on thread exit.
+static __thread TheCustomHeapType * tlsHeap = nullptr;
 
 // Called when the thread goes away.  This function clears out the
 // TLAB and then reclaims the memory allocated to hold it.
@@ -62,29 +64,26 @@ bool isCustomHeapInitialized() {
 }
 
 static TheCustomHeapType * initializeCustomHeap() {
-  TheCustomHeapType * heap =
-    reinterpret_cast<TheCustomHeapType *>(pthread_getspecific(theHeapKey));
-  if (heap == nullptr) {
-    // Defensive programming in case this is called twice.
-    // Allocate a per-thread heap.
-    size_t sz = sizeof(TheCustomHeapType);
-    char * mh = reinterpret_cast<char *>(getMainHoardHeap()->malloc(sz));
-    heap = new (mh) TheCustomHeapType(getMainHoardHeap());
-    // Store it in the appropriate thread-local area.
-    pthread_setspecific(theHeapKey, heap);
-  }
+  // Defensive programming in case this is called twice.
+  // Allocate a per-thread heap.
+  size_t sz = sizeof(TheCustomHeapType);
+  char * mh = reinterpret_cast<char *>(getMainHoardHeap()->malloc(sz));
+  TheCustomHeapType * heap = new (mh) TheCustomHeapType(getMainHoardHeap());
+  // Store in both __thread (fast path) and pthread_key (for destructor).
+  tlsHeap = heap;
+  pthread_setspecific(theHeapKey, heap);
   return heap;
 }
 
 TheCustomHeapType * getCustomHeap() {
-  initTSD();
-  // Allocate a per-thread heap.
-  TheCustomHeapType * heap =
-    reinterpret_cast<TheCustomHeapType *>(pthread_getspecific(theHeapKey));
-  if (heap == nullptr)  {
-    heap = initializeCustomHeap();
+  // Fast path: use __thread TLS (single memory load, no function call).
+  TheCustomHeapType * heap = tlsHeap;
+  if (__builtin_expect(heap != nullptr, 1)) {
+    return heap;
   }
-  return heap;
+  // Slow path: first access on this thread, initialize.
+  initTSD();
+  return initializeCustomHeap();
 }
 
 
