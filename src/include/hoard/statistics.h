@@ -16,27 +16,38 @@
 #ifndef HOARD_STATISTICS_H
 #define HOARD_STATISTICS_H
 
+#include "hoardconstants.h"
+
 namespace Hoard {
 
-  class Statistics {
+  /**
+   * @class Statistics
+   * @brief Tracks in-use and allocated object counts per size class.
+   *
+   * Padded to cache line size to prevent false sharing between adjacent
+   * bins' statistics in the per-bin array.
+   */
+  class alignas(CACHE_LINE_SIZE) Statistics {
   public:
-    Statistics (void)
-      : _inUse (0),
-	_allocated (0)
+    Statistics()
+      : _inUse(0),
+        _allocated(0)
     {}
-    
-    inline unsigned int getInUse() const 	{ return _inUse; }
-    inline unsigned int getAllocated() const    { return _allocated; }
-    inline void setInUse (unsigned int u) 	{ _inUse = u; }
-    inline void setAllocated (unsigned int a) 	{ _allocated = a; }
-  
+
+    inline unsigned int getInUse() const { return _inUse; }
+    inline unsigned int getAllocated() const { return _allocated; }
+    inline void setInUse(unsigned int u) { _inUse = u; }
+    inline void setAllocated(unsigned int a) { _allocated = a; }
+
   private:
-  
     /// The number of objects in use.
     unsigned int _inUse;
-  
+
     /// The number of objects allocated.
     unsigned int _allocated;
+
+    /// Padding to fill cache line, preventing false sharing.
+    char _pad[CACHE_LINE_SIZE - 2 * sizeof(unsigned int)];
   };
 
 }
