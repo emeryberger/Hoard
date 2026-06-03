@@ -138,7 +138,8 @@ run_larson() {
                 continue
             fi
 
-            output=$(run_single "$lib" "$BENCH_DIR/larson/larson 10 10 500 10000 1000 1 $threads $threads")
+            # Parameters match mimalloc-bench: ./larson 5 8 1000 5000 100 4141 $procs
+            output=$(run_single "$lib" "$BENCH_DIR/larson/larson 5 8 1000 5000 100 4141 $threads")
             throughput=$(echo "$output" | extract_larson_throughput)
 
             if [ -n "$throughput" ]; then
