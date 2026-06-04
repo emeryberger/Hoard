@@ -142,12 +142,35 @@ extern "C" {
     return ptr;
   }
 
+  // Magic marker to identify aligned allocations.
+  // Stored at offset -2*sizeof(void*) from aligned pointer.
+  static constexpr uintptr_t ALIGNED_ALLOC_MAGIC = 0xA11CBEEFDEADULL;
+
   void xxfree (void * ptr)
   {
+    if (HL_EXPECT_FALSE(ptr == nullptr)) {
+      return;
+    }
     // Check init buffer first (cold path)
     if (HL_EXPECT_FALSE(ptr >= initBuffer && ptr < initBuffer + MAX_LOCAL_BUFFER_SIZE)) {
       return;
     }
+
+    // Check if this is an aligned allocation by looking for magic marker.
+    // Only check if the pointer address suggests it might be aligned (>= 16 bytes from start).
+    uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);
+    if (addr >= 2 * sizeof(void*)) {
+      uintptr_t* magicSlot = reinterpret_cast<uintptr_t*>(ptr) - 1;
+      if (*magicSlot == ALIGNED_ALLOC_MAGIC) {
+        // This is an aligned allocation. Retrieve and free the original pointer.
+        void** ptrSlot = reinterpret_cast<void**>(ptr) - 2;
+        void* original = *ptrSlot;
+        // Clear magic to avoid double-free issues
+        *magicSlot = 0;
+        ptr = original;
+      }
+    }
+
     auto * heap = getCustomHeap();
     if (HL_EXPECT_TRUE(heap != nullptr)) {
       heap->free(ptr);
@@ -162,12 +185,42 @@ extern "C" {
     xxfree(ptr);
   }
 
-#if defined(__GNUG__)
+  /// Aligned allocation that stores the original pointer for proper freeing.
+  /// This is necessary because Hoard uses superblock headers and cannot free
+  /// arbitrary pointers internal to an allocation.
+  ///
+  /// Layout: [original_ptr | magic | ... padding ... | aligned_user_data]
   void * xxmemalign (size_t alignment, size_t sz) {
-#else
-  void * xxmemalign (size_t alignment, size_t sz) {
-#endif
-    return generic_xxmemalign(alignment, sz);
+    // Check for non power-of-two alignment or zero.
+    if ((alignment == 0) || (alignment & (alignment - 1))) {
+      return nullptr;
+    }
+
+    // If alignment is small enough, regular malloc handles it.
+    if (alignment <= alignof(max_align_t)) {
+      return xxmalloc(sz);
+    }
+
+    // Allocate extra space for alignment and metadata (original ptr + magic).
+    // We need at least 2*sizeof(void*) before the aligned address.
+    size_t headerSize = 2 * sizeof(void*);
+    size_t totalSize = sz + alignment + headerSize;
+    void* original = xxmalloc(totalSize);
+    if (original == nullptr) {
+      return nullptr;
+    }
+
+    // Calculate aligned address, leaving room for the header.
+    uintptr_t rawAddr = reinterpret_cast<uintptr_t>(original) + headerSize;
+    uintptr_t alignedAddr = (rawAddr + alignment - 1) & ~(alignment - 1);
+
+    // Store magic and original pointer just before the aligned address.
+    uintptr_t* magicSlot = reinterpret_cast<uintptr_t*>(alignedAddr) - 1;
+    void** ptrSlot = reinterpret_cast<void**>(alignedAddr) - 2;
+    *magicSlot = ALIGNED_ALLOC_MAGIC;
+    *ptrSlot = original;
+
+    return reinterpret_cast<void*>(alignedAddr);
   }
 
   size_t xxmalloc_usable_size (void * ptr) {
