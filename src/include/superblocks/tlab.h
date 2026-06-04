@@ -52,7 +52,9 @@ namespace Hoard {
 
     ThreadLocalAllocationBuffer (ParentHeap * parent)
       : _parentHeap (parent),
-      	_localHeapBytes (0)
+      	_localHeapBytes (0),
+        _cachedSuperblock (nullptr),
+        _cachedSizeClass (-1)
     {
       static_assert(gcd<Alignment, DesiredAlignment>::value == DesiredAlignment,
 		    "Alignment mismatch.");
@@ -68,7 +70,7 @@ namespace Hoard {
       return getSuperblock(ptr)->getSize (ptr);
     }
 
-    INLINE void * malloc (size_t sz) {
+    __attribute__((always_inline)) inline void * malloc (size_t sz) {
       // Fast path: get from thread-local freelist (no locking).
       // Small objects are the common case, and TLAB hit is the common case.
       if (HL_EXPECT_TRUE(sz <= LargestObject)) {
@@ -90,28 +92,50 @@ namespace Hoard {
     }
 
 
-    INLINE void free (void * ptr) {
+    __attribute__((always_inline)) inline void free (void * ptr) {
       auto * s = getSuperblock (ptr);
 
+      // Ultra-fast path: same superblock as last free (common in loops).
+      // Avoids isValidSuperblock() check and getObjectSize() memory access.
+      if (HL_EXPECT_TRUE(s == _cachedSuperblock)) {
+        ptr = s->normalize (ptr);
+        if (HL_EXPECT_TRUE(_localHeapBytes + getClassSize(_cachedSizeClass) <= LocalHeapThreshold)) {
+          _localHeap(_cachedSizeClass).insert ((HL::SLList::Entry *) ptr);
+          _localHeapBytes += getClassSize(_cachedSizeClass);
+          return;
+        }
+      }
+
+      // Fast path: valid superblock with small object that fits in TLAB.
       if (HL_EXPECT_TRUE(s != nullptr && s->isValidSuperblock())) {
 
       	ptr = s->normalize (ptr);
       	auto sz = s->getObjectSize ();
 
-      	// Fast path: cache small objects locally (no locking).
       	if (HL_EXPECT_TRUE((sz <= LargestObject) && (sz + _localHeapBytes <= LocalHeapThreshold))) {
       	  assert (getSize(ptr) >= sizeof(HL::SLList::Entry *));
       	  auto c = getSizeClass (sz);
+
+          // Cache this superblock for subsequent frees.
+          _cachedSuperblock = s;
+          _cachedSizeClass = c;
+
       	  _localHeap(c).insert ((HL::SLList::Entry *) ptr);
       	  _localHeapBytes += getClassSize(c);
-      	} else {
-      	  // Slow path: free to parent heap.
-      	  _parentHeap->free (ptr);
+      	  return;
       	}
+
+      	// Slow path: large object or TLAB full - free to parent heap.
+        _cachedSuperblock = nullptr;  // Invalidate cache
+      	_parentHeap->free (ptr);
       }
     }
 
     void clear() {
+      // Invalidate the superblock cache.
+      _cachedSuperblock = nullptr;
+      _cachedSizeClass = -1;
+
       // Free every object to the 'parent' heap.
       int i = NumBins - 1;
       while ((_localHeapBytes > 0) && (i >= 0)) {
@@ -144,6 +168,12 @@ namespace Hoard {
 
     /// The number of bytes we currently have on this thread.
     size_t _localHeapBytes;
+
+    /// Cached superblock pointer for fast consecutive frees.
+    SuperblockType * _cachedSuperblock;
+
+    /// Cached size class for the cached superblock.
+    int _cachedSizeClass;
 
     /// The local heap itself.
     Array<NumBins, HL::SLList> _localHeap;

@@ -292,11 +292,20 @@ namespace Hoard {
     static unsigned int detectNumaNodeCount() {
 #if defined(__linux__)
       // Count NUMA nodes by checking /sys/devices/system/node/nodeN
+      // Use simple integer-to-string to avoid printf dependency during init.
       unsigned int n = 0;
       for (n = 0; n < 256; n++) {
-        char path[64];
-        // Use allocation-free snprintf_ from emeryberger/printf
-        snprintf_(path, sizeof(path), "/sys/devices/system/node/node%u", n);
+        char path[64] = "/sys/devices/system/node/node";
+        char* p = path + 29;  // Length of prefix
+        unsigned int num = n;
+        char digits[4];
+        int len = 0;
+        do {
+          digits[len++] = '0' + (num % 10);
+          num /= 10;
+        } while (num > 0);
+        while (len > 0) *p++ = digits[--len];
+        *p = '\0';
         if (access(path, F_OK) != 0) break;
       }
       return n > 0 ? n : 1;
