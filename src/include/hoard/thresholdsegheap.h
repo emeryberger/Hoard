@@ -16,6 +16,22 @@
 #ifndef HOARD_THRESHOLD_SEGHEAP_H
 #define HOARD_THRESHOLD_SEGHEAP_H
 
+#if defined(_MSC_VER)
+#include <intrin.h>
+static inline int hoard_ctzll(unsigned long long x) {
+  unsigned long idx;
+#if defined(_WIN64)
+  _BitScanForward64(&idx, x);
+#else
+  if ((unsigned long)x != 0) { _BitScanForward(&idx, (unsigned long)x); }
+  else { _BitScanForward(&idx, (unsigned long)(x >> 32)); idx += 32; }
+#endif
+  return (int)idx;
+}
+#else
+#define hoard_ctzll(x) __builtin_ctzll(x)
+#endif
+
 namespace Hoard {
 
   // Allows superheap to hold at least ThresholdSlop but no more than
@@ -38,7 +54,11 @@ namespace Hoard {
 	_maxLive (0),
 	_maxFraction (1.0 + (double) ThresholdFraction / 100.0),
 	_cleared (false)
-    {}
+    {
+      for (int i = 0; i < BITMAP_WORDS; i++) {
+	_activeBins[i] = 0;
+      }
+    }
 
     size_t getSize (void * ptr) {
       return BigHeap::getSize(ptr);
@@ -62,6 +82,8 @@ namespace Hoard {
 	}
 	assert (getSize(ptr) <= maxSz);
 	_currLive += getSize (ptr);
+	// Mark this bin as active for selective clearing.
+	_activeBins[sizeClass / 64] |= (1ULL << (sizeClass % 64));
 	if (_currLive >= _maxLive) {
 	  _maxLive = _currLive;
 	  _cleared = false;
@@ -86,12 +108,23 @@ namespace Hoard {
 	_currLive -= sz;
       }
       _heap[cl].free (ptr);
+      // Mark this bin as active.
+      _activeBins[cl / 64] |= (1ULL << (cl % 64));
       bool crossedThreshold = (double) _maxLive > _maxFraction * (double) _currLive;
       if ((_currLive > ThresholdSlop) && crossedThreshold && !_cleared)
 	{
-	  // When we drop below the threshold, clear the heap.
-	  for (int i = 0; i < NumBins; i++) {
-	    _heap[i].clear();
+	  // When we drop below the threshold, clear only active bins.
+	  for (int w = 0; w < BITMAP_WORDS; w++) {
+	    auto bits = _activeBins[w];
+	    while (bits) {
+	      int bit = hoard_ctzll(bits);
+	      int i = bit + w * 64;
+	      if (i < NumBins) {
+		_heap[i].clear();
+	      }
+	      bits &= bits - 1;  // Clear lowest set bit.
+	    }
+	    _activeBins[w] = 0;
 	  }
 	  // We won't clear again until we reach maxlive again.
 	  _cleared = true;
@@ -107,6 +140,9 @@ namespace Hoard {
 
   private:
 
+    /// Number of 64-bit words needed for the active bins bitmap.
+    enum { BITMAP_WORDS = (NumBins + 63) / 64 };
+
     /// The current amount of live memory held by a client of this heap.
     unsigned long _currLive;
 
@@ -118,6 +154,9 @@ namespace Hoard {
 
     /// Have we already cleared out the superheap?
     bool _cleared;
+
+    /// Bitmap tracking which bins have been used since last clear.
+    unsigned long long _activeBins[BITMAP_WORDS];
 
     LittleHeap _heap[NumBins];
   };

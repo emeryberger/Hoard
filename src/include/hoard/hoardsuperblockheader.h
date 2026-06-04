@@ -25,18 +25,11 @@
 #endif
 
 #include "heaplayers.h"
-#include "../util/atomicfreelist.h"
+#include "utility/cpp23compat.h"
+#include "../util/purge.h"
 
+#include <atomic>
 #include <cstdlib>
-
-// Branch prediction hints for hot paths
-#if defined(__GNUC__) || defined(__clang__)
-#define HOARD_LIKELY(x) __builtin_expect(!!(x), 1)
-#define HOARD_UNLIKELY(x) __builtin_expect(!!(x), 0)
-#else
-#define HOARD_LIKELY(x) (x)
-#define HOARD_UNLIKELY(x) (x)
-#endif
 
 #if defined(__clang__)
 #pragma clang diagnostic push
@@ -76,6 +69,8 @@ namespace Hoard {
 	_objectSize (sz),
 	_objectSizeIsPowerOfTwo (!(sz & (sz - 1)) && sz),
 	_totalObjects ((unsigned int) (bufferSize / sz)),
+	_magicMul (computeMagicMul(sz)),
+	_magicShift (computeMagicShift(sz)),
 	_owner (nullptr),
 	_prev (nullptr),
 	_next (nullptr),
@@ -93,29 +88,30 @@ namespace Hoard {
       clear();
     }
 
-    inline void * malloc() {
+    INLINE void * malloc() {
       assert (isValid());
-      // Fast path: bump-pointer allocation from reapable region.
+      // Fast path: bump-pointer allocation from reap region.
       void * ptr = reapAlloc();
       assert ((ptr == nullptr) || ((size_t) ptr % Alignment == 0));
-      if (HOARD_UNLIKELY(!ptr)) {
-	// Slow path: allocation from freelist (previously freed objects).
+      if (HL_EXPECT_FALSE(!ptr)) {
+	// Slow path: allocate from freelist.
 	ptr = freeListAlloc();
 	assert ((ptr == nullptr) || ((size_t) ptr % Alignment == 0));
       }
-      if (HOARD_LIKELY(ptr != nullptr)) {
+      if (HL_EXPECT_TRUE(ptr != nullptr)) {
 	assert (getSize(ptr) >= _objectSize);
 	assert ((size_t) ptr % Alignment == 0);
       }
       return ptr;
     }
 
-    inline void free (void * ptr) {
+    INLINE void free (void * ptr) {
       assert ((size_t) ptr % Alignment == 0);
       assert (isValid());
       _freeList.insert (reinterpret_cast<FreeSLList::Entry *>(ptr));
       _objectsFree++;
-      if (_objectsFree == _totalObjects) {
+      // Clearing is rare - only when superblock becomes completely empty.
+      if (HL_EXPECT_FALSE(_objectsFree == _totalObjects)) {
 	clear();
       }
     }
@@ -136,15 +132,13 @@ namespace Hoard {
       auto offset = (size_t) ptr - (size_t) _start;
       void * p;
 
-      // Optimization note: the modulo operation (%) is *really* slow on
-      // some architectures (notably x86-64). To reduce its overhead, we
-      // optimize for the case when the size request is a power of two,
-      // which is often enough to make a difference.
-
       if (_objectSizeIsPowerOfTwo) {
 	p = (void *) ((size_t) ptr - (offset & (_objectSize - 1)));
       } else {
-	p = (void *) ((size_t) ptr - (offset % _objectSize));
+	// Use multiplicative inverse to replace expensive modulo.
+	// A multiply+shift (~4 cycles) instead of division (~30+ cycles).
+	auto remainder = fastModulo(offset);
+	p = (void *) ((size_t) ptr - remainder);
       }
       return p;
     }
@@ -157,9 +151,18 @@ namespace Hoard {
       if (_objectSizeIsPowerOfTwo) {
 	newSize = _objectSize - (offset & (_objectSize - 1));
       } else {
-	newSize = _objectSize - (offset % _objectSize);
+	newSize = _objectSize - fastModulo(offset);
       }
       return newSize;
+    }
+
+    /// Get object size without validation (for fast path).
+    size_t getObjectSizeUnchecked() const {
+      return _objectSize;
+    }
+
+    bool isValidSuperblock() const {
+      return isValid();
     }
 
     size_t getObjectSize() const {
@@ -174,25 +177,12 @@ namespace Hoard {
       return _objectsFree;
     }
 
-    /// Get current owner (atomic acquire for visibility).
-    HeapType* getOwner() const {
-      return _owner.load(std::memory_order_acquire);
+    HeapType * getOwner() const {
+      return _owner;
     }
 
-    /// Set owner (atomic release for visibility).
-    void setOwner(HeapType* o) {
-      _owner.store(o, std::memory_order_release);
-    }
-
-    /// Try to atomically claim ownership (for lock-free reclaim).
-    /// @param expected Current expected owner
-    /// @param newOwner New owner to set if expected matches
-    /// @return true if ownership was successfully transferred
-    bool tryClaimOwnership(HeapType* expected, HeapType* newOwner) {
-      return _owner.compare_exchange_strong(
-        expected, newOwner,
-        std::memory_order_acq_rel,
-        std::memory_order_acquire);
+    void setOwner (HeapType * o) {
+      _owner = o;
     }
 
     bool isValid() const {
@@ -223,23 +213,62 @@ namespace Hoard {
       _theLock.unlock();
     }
 
+    /// Purge (decommit) the data region so OS can reclaim physical RAM.
+    /// Called when a superblock becomes completely empty.
+    void purgeData() {
+      purgePages(const_cast<char*>(_start), (size_t)_totalObjects * _objectSize);
+    }
+
   private:
+
+    /// Compute offset % _objectSize using precomputed multiplicative inverse.
+    /// A multiply+shift (~4 cycles) instead of division (~30+ cycles).
+    INLINE size_t fastModulo(size_t offset) const {
+#if defined(_MSC_VER) && !defined(__clang__)
+      // MSVC doesn't support __uint128_t; fall back to regular modulo.
+      return offset % _objectSize;
+#else
+      size_t quotient = (size_t)(((__uint128_t)offset * _magicMul) >> _magicShift);
+      return offset - quotient * _objectSize;
+#endif
+    }
+
+    /// Compute the multiplicative inverse for a given divisor.
+    static size_t computeMagicMul(size_t d) {
+      if (d == 0 || (!(d & (d - 1)) && d)) return 0;  // power of two or zero
+#if defined(_MSC_VER) && !defined(__clang__)
+      return 0;  // Not used on MSVC (fastModulo falls back to %)
+#else
+      unsigned s = computeMagicShift(d);
+      __uint128_t one = 1;
+      __uint128_t power = one << s;
+      return (size_t)((power + d - 1) / d);
+#endif
+    }
+
+    /// Compute the shift amount for the multiplicative inverse.
+    static unsigned computeMagicShift(size_t d) {
+      if (d == 0 || (!(d & (d - 1)) && d)) return 0;  // power of two or zero
+#if defined(_MSC_VER) && !defined(__clang__)
+      return 0;  // Not used on MSVC
+#else
+      return 64 + (63 - __builtin_clzll(d));
+#endif
+    }
 
     MALLOC_FUNCTION INLINE void * reapAlloc() {
       assert (isValid());
       assert (_position);
-      // Reap mode - fast path for bump-pointer allocation.
-      // Most allocations succeed here (reapable objects available).
-      if (HOARD_LIKELY(_reapableObjects > 0)) {
+      // Fast bump-pointer allocation from virgin memory.
+      if (HL_EXPECT_TRUE(_reapableObjects > 0)) {
 	auto * ptr = _position;
 	_position = ptr + _objectSize;
 	_reapableObjects--;
 	_objectsFree--;
 	assert ((size_t) ptr % Alignment == 0);
 	return ptr;
-      } else {
-	return nullptr;
       }
+      return nullptr;
     }
 
     MALLOC_FUNCTION INLINE void * freeListAlloc() {
@@ -267,11 +296,17 @@ namespace Hoard {
     /// Total objects in the superblock.
     const unsigned int _totalObjects;
 
+    /// Multiplicative inverse of _objectSize for fast modulo computation.
+    const size_t _magicMul;
+
+    /// Shift amount for the multiplicative inverse.
+    const unsigned _magicShift;
+
     /// The lock.
     LockType _theLock;
 
-    /// The owner of this superblock (atomic for lock-free ownership transfer).
-    std::atomic<HeapType*> _owner;
+    /// The owner of this superblock.
+    HeapType * _owner;
 
     /// The preceding superblock in a linked list.
     BlockType* _prev;
@@ -293,59 +328,6 @@ namespace Hoard {
 
     /// The list of freed objects.
     FreeSLList _freeList;
-
-    /// Lock-free queue for delayed cross-thread frees (mimalloc-style optimization).
-    AtomicFreeList _delayedFreeList;
-
-  public:
-    // ========== Delayed Free Queue API (for cross-thread frees) ==========
-
-    /**
-     * @brief Push object to delayed free queue (cross-thread, lock-free).
-     * @param ptr Pointer to free (must be valid object in this superblock).
-     *
-     * Called by non-owner threads to defer free to owner thread.
-     * Owner thread drains during malloc via drainDelayedFrees().
-     */
-    inline void pushDelayedFree(void* ptr) {
-      _delayedFreeList.push(ptr);
-    }
-
-    /**
-     * @brief Check if delayed frees are pending (fast check for drain trigger).
-     * @return true if items likely pending, false if likely empty.
-     *
-     * Uses relaxed memory ordering - false negatives acceptable.
-     */
-    inline bool hasDelayedFrees() const {
-      return !_delayedFreeList.isEmpty();
-    }
-
-    /**
-     * @brief Drain all delayed frees to local freelist.
-     * @return Number of objects freed.
-     *
-     * Called by owner thread during malloc to process cross-thread frees.
-     * Atomically pops entire queue and processes each item.
-     * Updates _objectsFree count and may trigger clear() if superblock empties.
-     */
-    inline unsigned int drainDelayedFrees() {
-      auto* list = _delayedFreeList.popAll();
-      unsigned int count = 0;
-      while (list != nullptr) {
-        auto* next = list->next.load(std::memory_order_relaxed);
-        // Free to local freelist (same as normal free path)
-        _freeList.insert(reinterpret_cast<FreeSLList::Entry*>(list));
-        _objectsFree++;
-        count++;
-        list = reinterpret_cast<AtomicFreeList::Entry*>(next);
-      }
-      // Check if superblock is now completely free
-      if (count > 0 && _objectsFree == _totalObjects) {
-        clear();
-      }
-      return count;
-    }
   };
 
   // A helper class that pads the header to the desired alignment.

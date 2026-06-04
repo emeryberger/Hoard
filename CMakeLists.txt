@@ -22,16 +22,7 @@ endif()
 # Generate position-independent code; required for shared libraries on many platforms
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-if(NOT WIN32)
-  # Write a version map to enable replacing direct libc allocation calls (Linux only).
-  set(VERS_SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/vers.map)
-  file(WRITE ${VERS_SCRIPT}
-  "GLIBC_2.2.5 {\n  global:\n    __libc_malloc;\n    __libc_free;\n    __libc_realloc;\n    __libc_calloc;\n    __libc_memalign;\n    local: custom*;\n      xx*;\n};\n")
-
-  # Ensure that the compiler doesn't replace anything with malloc/free
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility=hidden -fno-builtin-malloc -fno-builtin-free")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden -fno-builtin-malloc -fno-builtin-free")
-endif()
+# Note: alloc8 handles version scripts, visibility flags, and compiler options
 
 #
 # ─── INCLUDE DIRECTORIES ──────────────────────────────────────────────
@@ -54,109 +45,61 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(Heap-Layers)
 include_directories(${heap-layers_SOURCE_DIR})
 
+# Allocation-free printf (compiled directly into Hoard, not as a library)
+FetchContent_Declare(
+  printf
+  GIT_REPOSITORY https://github.com/emeryberger/printf.git
+  GIT_TAG        master
+  GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(printf)
+include_directories(${printf_SOURCE_DIR})
+
+# alloc8 - generic allocator interposition library for all platforms
+FetchContent_Declare(
+  alloc8
+  GIT_REPOSITORY https://github.com/emeryberger/alloc8.git
+  GIT_TAG        main
+  GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(alloc8)
+include_directories(${alloc8_SOURCE_DIR}/include)
+
 set(UNIX_SOURCES
-#  ${heap-layers_SOURCE_DIR}/wrappers/gnuwrapper.cpp
   src/source/unixtls.cpp
   src/source/libhoard.cpp
+  ${printf_SOURCE_DIR}/printf.cpp
+  ${ALLOC8_INTERPOSE_SOURCES}
 )
 
 set(MACOS_SOURCES
-  ${heap-layers_SOURCE_DIR}/wrappers/macwrapper.cpp
   src/source/mactls.cpp
   src/source/libhoard.cpp
+  ${printf_SOURCE_DIR}/printf.cpp
+  ${ALLOC8_INTERPOSE_SOURCES}
 )
 
 set(WINDOWS_SOURCES
-  src/source/winwrapper-detours.cpp
   src/source/wintls.cpp
   src/source/libhoard.cpp
+  ${printf_SOURCE_DIR}/printf.cpp
+  ${ALLOC8_INTERPOSE_SOURCES}
 )
 
 if(WIN32)
   #
-  # ─── WINDOWS BUILD WITH DETOURS ─────────────────────────────────────
+  # ─── WINDOWS BUILD ───────────────────────────────────────────────────
+  # alloc8 handles Detours fetching/building internally
+  # ALLOC8_NO_DLLMAIN: Hoard provides its own DllMain in wintls.cpp
   #
   set(HOARD_SOURCES ${WINDOWS_SOURCES})
-  add_definitions(-DNDEBUG -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN)
-
-  # Option to use system-installed Detours instead of fetching
-  option(USE_SYSTEM_DETOURS "Use system-installed Detours instead of fetching" OFF)
-
-  if(USE_SYSTEM_DETOURS)
-    find_package(Detours REQUIRED)
-  else()
-    # Fetch Microsoft Detours from main branch (v4.0.1 has ARM64 bugs)
-    FetchContent_Declare(
-      Detours
-      GIT_REPOSITORY https://github.com/microsoft/Detours.git
-      GIT_TAG        main
-      GIT_SHALLOW    TRUE
-    )
-    FetchContent_GetProperties(Detours)
-    if(NOT detours_POPULATED)
-      FetchContent_Populate(Detours)
-    endif()
-
-    # Core Detours sources
-    set(DETOURS_SOURCES
-      "${detours_SOURCE_DIR}/src/creatwth.cpp"
-      "${detours_SOURCE_DIR}/src/detours.cpp"
-      "${detours_SOURCE_DIR}/src/modules.cpp"
-      "${detours_SOURCE_DIR}/src/image.cpp"
-      "${detours_SOURCE_DIR}/src/disasm.cpp"
-    )
-
-    # Add architecture-specific disassembler (required alongside disasm.cpp)
-    if(CMAKE_SYSTEM_PROCESSOR MATCHES "ARM64|aarch64")
-      list(APPEND DETOURS_SOURCES "${detours_SOURCE_DIR}/src/disolarm64.cpp")
-      message(STATUS "Detours: Building for ARM64")
-    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "ARM")
-      list(APPEND DETOURS_SOURCES "${detours_SOURCE_DIR}/src/disolarm.cpp")
-      message(STATUS "Detours: Building for ARM")
-    elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
-      list(APPEND DETOURS_SOURCES "${detours_SOURCE_DIR}/src/disolx64.cpp")
-      message(STATUS "Detours: Building for x64")
-    else()
-      list(APPEND DETOURS_SOURCES "${detours_SOURCE_DIR}/src/disolx86.cpp")
-      message(STATUS "Detours: Building for x86")
-    endif()
-
-    # Build Detours as a static library
-    add_library(detours STATIC ${DETOURS_SOURCES})
-
-    target_include_directories(detours PUBLIC "${detours_SOURCE_DIR}/src")
-
-    target_compile_definitions(detours PRIVATE
-      WIN32_LEAN_AND_MEAN
-      _WIN32_WINNT=0x0600
-    )
-
-    # Suppress warnings in Detours code
-    target_compile_options(detours PRIVATE /W3 /WX-)
-
-    # Create an alias to match the find_package target name
-    add_library(Detours::Detours ALIAS detours)
-    set(Detours_INCLUDE_DIR "${detours_SOURCE_DIR}/src")
-
-    # Build Detours tools (withdll.exe and setdll.exe)
-    add_executable(withdll "${detours_SOURCE_DIR}/samples/withdll/withdll.cpp")
-    target_link_libraries(withdll PRIVATE detours)
-    target_include_directories(withdll PRIVATE "${detours_SOURCE_DIR}/src")
-    target_compile_definitions(withdll PRIVATE WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0600)
-    target_compile_options(withdll PRIVATE /W3 /WX-)
-
-    add_executable(setdll "${detours_SOURCE_DIR}/samples/setdll/setdll.cpp")
-    target_link_libraries(setdll PRIVATE detours)
-    target_include_directories(setdll PRIVATE "${detours_SOURCE_DIR}/src")
-    target_compile_definitions(setdll PRIVATE WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0600)
-    target_compile_options(setdll PRIVATE /W3 /WX-)
-
-    # Install the tools alongside the library
-    install(TARGETS withdll setdll RUNTIME DESTINATION bin)
-  endif()
+  add_definitions(-DNDEBUG -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DALLOC8_NO_DLLMAIN)
 
 elseif(APPLE)
   set(HOARD_SOURCES ${MACOS_SOURCES})
+  # alloc8 defaults to fast mode (no ownership table, no runtime checks).
+  # Hoard handles foreign pointers gracefully via IgnoreInvalidFree.
+  # To enable compatibility mode: -DALLOC8_OWNERSHIP_TABLE=1 -DALLOC8_RUNTIME_CHECKS=1
   add_compile_options(-DNDEBUG -ftls-model=initial-exec -ftemplate-depth=1024)
 else()
   set(HOARD_SOURCES ${UNIX_SOURCES})
@@ -196,12 +139,11 @@ endif()
 
 add_library(hoard SHARED ${HOARD_SOURCES})
 
-# Platform-specific linking
-if(WIN32)
-  # Link with Detours and Windows libraries
-  target_link_libraries(hoard PRIVATE Detours::Detours psapi)
-  target_include_directories(hoard PRIVATE ${Detours_INCLUDE_DIR})
+# Link with alloc8 interposition library (handles platform-specific linking)
+target_link_libraries(hoard PRIVATE alloc8::interpose)
 
+# Platform-specific additional settings
+if(WIN32)
   # Export DetourFinishHelperProcess at ordinal #1 (required for withdll.exe)
   target_link_options(hoard PRIVATE "/export:DetourFinishHelperProcess,@1,NONAME")
 
@@ -213,14 +155,7 @@ if(WIN32)
     OUTPUT_NAME "hoard"
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
   )
-elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  # For Linux, link with the version script declared above.
-  target_link_options(hoard PRIVATE "LINKER:--version-script=${VERS_SCRIPT}")
-  target_link_libraries(hoard PRIVATE pthread dl)
-  set_target_properties(hoard PROPERTIES OUTPUT_NAME "hoard")
 else()
-  # macOS
-  target_link_libraries(hoard PRIVATE pthread dl)
   set_target_properties(hoard PROPERTIES OUTPUT_NAME "hoard")
 endif()
 

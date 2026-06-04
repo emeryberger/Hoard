@@ -24,15 +24,7 @@
 #define HOARD_TLAB_H
 
 #include "heaplayers.h"
-
-// Branch prediction hints for hot paths (mimalloc-style optimization)
-#if defined(__GNUC__) || defined(__clang__)
-#define TLAB_LIKELY(x) __builtin_expect(!!(x), 1)
-#define TLAB_UNLIKELY(x) __builtin_expect(!!(x), 0)
-#else
-#define TLAB_LIKELY(x) (x)
-#define TLAB_UNLIKELY(x) (x)
-#endif
+#include "utility/cpp23compat.h"
 
 #if defined(__clang__)
 #pragma clang diagnostic push
@@ -76,53 +68,47 @@ namespace Hoard {
       return getSuperblock(ptr)->getSize (ptr);
     }
 
-    inline void * malloc (size_t sz) {
-      // Fast path: small object allocation from thread-local cache.
-      // This is the common case - most allocations are small and hit the TLAB.
-      if (TLAB_LIKELY(sz <= LargestObject)) {
+    INLINE void * malloc (size_t sz) {
+      // Fast path: get from thread-local freelist (no locking).
+      // Small objects are the common case, and TLAB hit is the common case.
+      if (HL_EXPECT_TRUE(sz <= LargestObject)) {
       	auto c = getSizeClass (sz);
       	auto * ptr = _localHeap(c).get();
-      	if (TLAB_LIKELY(ptr != nullptr)) {
-      	  assert (_localHeapBytes >= sz);
-      	  _localHeapBytes -= getClassSize (c);
+      	if (HL_EXPECT_TRUE(ptr != nullptr)) {
+      	  assert (_localHeapBytes >= getClassSize(c));
+      	  _localHeapBytes -= getClassSize(c);
       	  assert (getSize(ptr) >= sz);
       	  assert ((size_t) ptr % Alignment == 0);
       	  return ptr;
       	}
       }
 
-      // Slow path: TLAB miss - get memory from parent heap.
+      // Slow path: go to parent heap (requires locking).
       auto * ptr = _parentHeap->malloc (sz);
       assert ((size_t) ptr % Alignment == 0);
       return ptr;
     }
 
 
-    inline void free (void * ptr) {
+    INLINE void free (void * ptr) {
       auto * s = getSuperblock (ptr);
 
-      // Fast path: valid superblock with small object that fits in TLAB.
-      // This is the common case for thread-local frees.
-      if (TLAB_LIKELY(s && s->isValidSuperblock())) {
+      if (HL_EXPECT_TRUE(s != nullptr && s->isValidSuperblock())) {
 
       	ptr = s->normalize (ptr);
       	auto sz = s->getObjectSize ();
 
-      	if (TLAB_LIKELY((sz <= LargestObject) && (sz + _localHeapBytes <= LocalHeapThreshold))) {
-      	  // Free small objects locally - no locks needed.
+      	// Fast path: cache small objects locally (no locking).
+      	if (HL_EXPECT_TRUE((sz <= LargestObject) && (sz + _localHeapBytes <= LocalHeapThreshold))) {
       	  assert (getSize(ptr) >= sizeof(HL::SLList::Entry *));
       	  auto c = getSizeClass (sz);
-
       	  _localHeap(c).insert ((HL::SLList::Entry *) ptr);
       	  _localHeapBytes += getClassSize(c);
-      	  return;
+      	} else {
+      	  // Slow path: free to parent heap.
+      	  _parentHeap->free (ptr);
       	}
-
-      	// Slow path: large object or TLAB full - free to parent heap.
-      	_parentHeap->free (ptr);
-
       }
-      // else: Invalid pointer - silently ignore.
     }
 
     void clear() {
@@ -137,10 +123,6 @@ namespace Hoard {
       	}
       	i--;
       }
-
-      // Drain any pending delayed frees before thread exits.
-      // This ensures cross-thread frees pushed to our heap are processed.
-      _parentHeap->drainAllDelayedFrees();
     }
 
     static inline SuperblockType * getSuperblock (void * ptr) {
@@ -165,6 +147,7 @@ namespace Hoard {
 
     /// The local heap itself.
     Array<NumBins, HL::SLList> _localHeap;
+
   };
 
 }
