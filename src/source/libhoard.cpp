@@ -69,6 +69,12 @@ volatile bool anyThreadCreated = false;
 
 #include "hoardtlab.h"
 
+// On Linux, use inline TLS access for fast path (defined in inlinetls.h)
+// This avoids function call overhead on every malloc/free
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
+#include "inlinetls.h"
+#endif
+
 //
 // The base Hoard heap.
 //
