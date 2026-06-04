@@ -58,10 +58,7 @@ using namespace HL;
 #include "alignedmmap.h"
 #include "globalheap.h"
 #include "shardedglobalheap.h"
-#include "../util/futexlock.h"
-#if defined(__APPLE__)
-#include "../util/macspinlock.h"
-#endif
+#include "hoardconstants.h"
 
 #include "thresholdsegheap.h"
 #include "geometricsizeclass.h"
@@ -74,15 +71,11 @@ using namespace HL;
 #if defined(_WIN32)
 typedef HL::WinLockType TheLockType;
 #elif defined(__APPLE__)
-// Use MacSpinLockType: a hybrid that spins briefly with os_unfair_lock_trylock
-// before falling back to the blocking os_unfair_lock_lock. This reduces syscall
-// overhead on workloads with frequent cross-thread operations.
-typedef HL::MacSpinLockType TheLockType;
+// NOTE: On older versions of the Mac OS, Hoard CANNOT use Posix locks,
+// since they may call malloc themselves. However, as of Snow Leopard,
+// that problem seems to have gone away. Nonetheless, we use Mac-specific locks.
+typedef HL::MacLockType TheLockType;
 #elif defined(__SVR4)
-typedef HL::SpinLockType TheLockType;
-#elif defined(__linux__)
-// SpinLock performs best for Hoard's short critical sections.
-// Futex adds syscall overhead without benefit for brief holds.
 typedef HL::SpinLockType TheLockType;
 #else
 typedef HL::SpinLockType TheLockType;
@@ -99,9 +92,11 @@ namespace Hoard {
   
   //
   // There is just one "global" heap, shared by all of the per-process heaps.
-  // We use a sharded global heap to reduce contention.
   //
 
+  // Use sharded global heap for better scalability
+  // put() always goes to local shard (no contention)
+  // get() tries local first, then steals with power-of-two choices
   typedef ShardedGlobalHeap<SUPERBLOCK_SIZE, HoardSuperblockHeader, EMPTINESS_CLASSES, MmapSource, TheLockType>
   TheGlobalHeap;
   
@@ -197,16 +192,15 @@ namespace Hoard {
 
   //
   // Each thread has its own heap for small objects.
+  // Aligned to cache line to prevent false sharing between per-thread heaps.
   //
-  class PerThreadHoardHeap :
+  class alignas(CACHE_LINE_SIZE) PerThreadHoardHeap :
     public RedirectFree<LockMallocHeap<SmallHeap>,
 			SmallSuperblockType> {
   private:
-    void nothing() {
-      _dummy[0] = _dummy[0];
-    }
-    // Avoid false sharing.
-    char _dummy[64];
+    // Padding to ensure each heap occupies at least one cache line,
+    // preventing false sharing when heaps are stored in arrays.
+    char _padding[CACHE_LINE_SIZE];
   };
   
 
