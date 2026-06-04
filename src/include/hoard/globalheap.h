@@ -51,7 +51,14 @@ namespace Hoard {
   
     void put (void * s, size_t sz) {
       assert (s);
-      assert (((SuperblockType *) s)->isValidSuperblock());
+      auto * sb = (SuperblockType *) s;
+      assert (sb->isValidSuperblock());
+      // If the superblock is fully empty, decommit its data pages
+      // so the OS can reclaim physical RAM. This is the main lever
+      // for closing Hoard's RSS gap to jemalloc/mimalloc.
+      if (sb->getObjectsFree() == sb->getTotalObjects()) {
+        sb->purgeData();
+      }
       _theHeap->put ((typename SuperHeap::SuperblockType *) s,
 		     sz);
     }

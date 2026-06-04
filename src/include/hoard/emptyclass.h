@@ -16,11 +16,19 @@
 #ifndef HOARD_EMPTYCLASS_H
 #define HOARD_EMPTYCLASS_H
 
-#include <mutex>
+#if defined(_MSC_VER)
+#include <intrin.h>
+static inline int hoard_clz(unsigned int x) {
+  unsigned long idx;
+  _BitScanReverse(&idx, x);
+  return 31 - (int)idx;
+}
+#else
+#define hoard_clz(x) __builtin_clz(x)
+#endif
 
 #include "check.h"
 #include "array.h"
-#include "heaplayers.h"
 
 /**
  * @class EmptyClass
@@ -40,6 +48,7 @@ namespace Hoard {
     typedef SuperblockType_ SuperblockType;
 
     EmptyClass()
+      : _binmap(0)
     {
       for (auto i = 0; i <= EmptinessClasses + 1; i++) {
 	_available(i) = 0;
@@ -62,12 +71,14 @@ namespace Hoard {
     SuperblockType * getEmpty() {
       Check<EmptyClass, MyChecker> check (this);
       auto * s = _available(0);
-      if (s && 
+      if (s &&
 	  (s->getObjectsFree() == s->getTotalObjects())) {
 	// Got an empty one. Remove it.
 	_available(0) = s->getNext();
 	if (_available(0)) {
 	  _available(0)->setPrev (0);
+	} else {
+	  _binmap &= ~(1U << 0);
 	}
 	s->setPrev (0);
 	s->setNext (0);
@@ -88,6 +99,8 @@ namespace Hoard {
 	  _available(n) = s->getNext();
 	  if (_available(n)) {
 	    _available(n)->setPrev (0);
+	  } else {
+	    _binmap &= ~(1U << n);
 	  }
 	  s->setPrev (0);
 	  s->setNext (0);
@@ -138,20 +151,24 @@ namespace Hoard {
       // Put on the appropriate available list.
       auto cl = getFullness (s);
 
-      //    printf ("put %x, cl = %d\n", s, cl);
       s->setPrev (0);
       s->setNext (_available(cl));
       if (_available(cl)) {
 	_available(cl)->setPrev (s);
       }
       _available(cl) = s;
+      _binmap |= (1U << cl);
     }
 
     INLINE MALLOC_FUNCTION void * malloc (size_t sz) {
       // Malloc from the fullest superblock first.
-      for (auto i = EmptinessClasses; i >= 0; i--) {
+      // Use bitmap to find the fullest non-empty class in O(1).
+      // Mask out the "full" bin (EmptinessClasses+1) and any higher bits.
+      auto allocBits = _binmap & ((1U << (EmptinessClasses + 1)) - 1);
+      while (allocBits) {
+	// Find the highest set bit = fullest non-empty class.
+	int i = 31 - hoard_clz(allocBits);
 	SuperblockType * s = _available(i);
-	// printf ("i\n");
 	if (s) {
 	  auto oldCl = getFullness (s);
 	  void * ptr = s->malloc (sz);
@@ -164,6 +181,8 @@ namespace Hoard {
 	    return ptr;
 	  }
 	}
+	// This class didn't yield an allocation; clear the bit and try next.
+	allocBits &= ~(1U << i);
       }
       return nullptr;
     }
@@ -186,87 +205,6 @@ namespace Hoard {
       return SuperblockType::getSuperblock (ptr);
     }
 
-    /**
-     * @brief Drain delayed frees from all superblocks (opportunistic).
-     * @param inUseCount Pointer to in-use count to decrement (or nullptr).
-     * @return Total number of objects freed from all superblocks.
-     *
-     * Called during malloc to process cross-thread frees pushed to
-     * superblocks via pushDelayedFree(). Iterates through emptiness
-     * classes and drains any pending delayed frees.
-     */
-    inline unsigned int drainDelayedFrees(unsigned int* inUseCount) {
-      unsigned int totalFreed = 0;
-      // Iterate from fullest to emptiest (matching malloc order)
-      for (int i = EmptinessClasses; i >= 0; i--) {
-        SuperblockType * s = _available(i);
-        while (s) {
-          // Save next pointer before potential transfer
-          SuperblockType * nextSb = s->getNext();
-
-          if (s->hasDelayedFrees()) {
-            auto oldCl = getFullness(s);
-            unsigned int freed = s->drainDelayedFrees();
-            if (freed > 0) {
-              totalFreed += freed;
-              // Update in-use count if provided
-              if (inUseCount) {
-                *inUseCount -= freed;
-              }
-              // Check if emptiness class changed
-              auto newCl = getFullness(s);
-              if (oldCl != newCl) {
-                transfer(s, oldCl, newCl);
-              }
-            }
-          }
-          s = nextSb;
-        }
-      }
-      return totalFreed;
-    }
-
-    /**
-     * @brief Remove a superblock from this EmptyClass's bins.
-     * @param s The superblock to remove.
-     * @return true if successfully removed, false if not found.
-     *
-     * Used for superblock reclaim when transferring ownership from
-     * an inactive heap to an active one.
-     */
-    bool removeSuperblock(SuperblockType* s) {
-      if (!s) return false;
-
-      // Find which emptiness class it's in
-      int cl = getFullness(s);
-
-      // Verify it's actually in our bins by walking the list
-      SuperblockType* cur = _available(cl);
-      bool found = false;
-      while (cur) {
-        if (cur == s) {
-          found = true;
-          break;
-        }
-        cur = cur->getNext();
-      }
-
-      if (!found) return false;
-
-      // Unlink from the doubly-linked list
-      auto* prev = s->getPrev();
-      auto* next = s->getNext();
-      if (prev) { prev->setNext(next); }
-      if (next) { next->setPrev(prev); }
-      if (s == _available(cl)) {
-        _available(cl) = next;
-      }
-      s->setPrev(nullptr);
-      s->setNext(nullptr);
-
-      return true;
-    }
-
   private:
 
     void transfer (SuperblockType * s, int oldCl, int newCl)
@@ -278,11 +216,15 @@ namespace Hoard {
       if (s == _available(oldCl)) {
 	assert (prev == 0);
 	_available(oldCl) = next;
+	if (!next) {
+	  _binmap &= ~(1U << oldCl);
+	}
       }
       s->setNext (_available(newCl));
       s->setPrev (0);
       if (_available(newCl)) { _available(newCl)->setPrev (s); }
       _available(newCl) = s;
+      _binmap |= (1U << newCl);
     }
 
     static INLINE int getFullness (SuperblockType * s) {
@@ -330,54 +272,13 @@ namespace Hoard {
       }
     }
 
-    /// Per-bin lock for thread-safe list operations.
-    HL::SpinLock _listLock;
+    /// Bitmap for O(1) lookup of non-empty bins.
+    /// Bit i is set iff _available(i) != nullptr.
+    unsigned int _binmap;
 
     /// The bins of superblocks, by emptiness class.
     /// @note index 0 = completely empty, EmptinessClasses + 1 = full
     Array<EmptinessClasses + 2, SuperblockType *> _available;
-
-  public:
-    // ========== Thread-Safe Operations (with internal locking) ==========
-
-    /// Acquire the bin lock.
-    void lock() { _listLock.lock(); }
-
-    /// Release the bin lock.
-    void unlock() { _listLock.unlock(); }
-
-    /// Thread-safe put (acquires lock internally).
-    void putLocked(SuperblockType* s) {
-      std::lock_guard<HL::SpinLock> l(_listLock);
-      put(s);
-    }
-
-    /// Thread-safe get (acquires lock internally).
-    SuperblockType* getLocked() {
-      std::lock_guard<HL::SpinLock> l(_listLock);
-      return get();
-    }
-
-    /// Transfer superblock between emptiness classes (caller must hold lock).
-    void transferUnlocked(SuperblockType* s, int oldCl, int newCl) {
-      transfer(s, oldCl, newCl);
-    }
-
-    /// Free to superblock and handle transfer (caller must hold lock).
-    void freeUnlocked(void* ptr) {
-      auto* s = getSuperblock(ptr);
-      auto oldCl = getFullness(s);
-      s->free(ptr);
-      auto newCl = getFullness(s);
-      if (oldCl != newCl) {
-        transfer(s, oldCl, newCl);
-      }
-    }
-
-    /// Get fullness class of superblock (for external use).
-    static int getFullnessClass(SuperblockType* s) {
-      return getFullness(s);
-    }
 
   };
 

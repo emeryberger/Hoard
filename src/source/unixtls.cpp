@@ -52,12 +52,20 @@
 #include <dlfcn.h>
 #endif
 
+#include <unistd.h>
 #include <new>
 #include <utility>
 #include <iostream>
 
 
 #include "hoard/hoardtlab.h"
+
+// Required by the replacement printf library (https://github.com/emeryberger/printf)
+extern "C" {
+  void _putchar(char ch) {
+    write(STDOUT_FILENO, &ch, 1);
+  }
+}
 
 extern Hoard::HoardHeapType * getMainHoardHeap();
 

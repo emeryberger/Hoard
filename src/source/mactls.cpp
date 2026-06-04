@@ -15,12 +15,20 @@
 #error "This file is intended for use with MacOS systems only."
 #endif
 
+#include <unistd.h>
 #include <dlfcn.h>
 #include <pthread.h>
 #include <utility>
 
 #include "heaplayers.h"
 #include "hoard/hoardtlab.h"
+
+// Required by the replacement printf library (https://github.com/emeryberger/printf)
+extern "C" {
+  void _putchar(char ch) {
+    write(STDOUT_FILENO, &ch, 1);
+  }
+}
 
 extern Hoard::HoardHeapType * getMainHoardHeap();
 

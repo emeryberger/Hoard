@@ -19,8 +19,17 @@
 namespace Hoard {
 
   /// Cache line size for false sharing prevention.
-  /// 64 bytes is standard for x86/x64 and ARM64.
+  /// L1 data cache lines are 64 bytes on x86/x64 and ARM64.
   enum { CACHE_LINE_SIZE = 64 };
+
+  /// Destructive interference size for cross-core false sharing.
+  /// Apple Silicon (M1+) uses 128-byte L2 cache lines; use this for
+  /// data structures where distinct threads write to adjacent fields.
+#if defined(__APPLE__) && defined(__aarch64__)
+  enum { DESTRUCTIVE_INTERFERENCE_SIZE = 128 };
+#else
+  enum { DESTRUCTIVE_INTERFERENCE_SIZE = 64 };
+#endif
 
   /// The maximum amount of memory that each TLAB may hold, in bytes.
   enum { MAX_MEMORY_PER_TLAB = 16 * 1024 * 1024UL }; // 16MB
