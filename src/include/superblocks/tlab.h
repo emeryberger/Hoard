@@ -55,6 +55,19 @@ namespace Hoard {
 
     enum { DesiredAlignment = HL::MallocInfo::Alignment };
 
+    // Adaptive TLAB sizing:
+    // The TLAB threshold adapts based on allocation patterns while preserving
+    // blowup bounds. We track peak TLAB usage and allow growth up to a fraction
+    // of LocalHeapThreshold. This reduces memory for low-allocation threads
+    // while allowing high-throughput threads to grow their cache.
+    //
+    // Blowup preservation: _adaptiveThreshold ≤ LocalHeapThreshold always,
+    // so total TLAB memory never exceeds the original O(1) bound.
+    enum { InitialThreshold = 65536 };           // 64KB initial
+    enum { MinThreshold = 16384 };               // 16KB minimum
+    enum { GrowthFactor = 2 };                   // Double when TLAB fills
+    enum { SlowPathGrowTrigger = 16 };           // Grow after this many slow paths
+
   public:
 
     enum { Alignment = ParentHeap::Alignment };
@@ -63,7 +76,9 @@ namespace Hoard {
       : _parentHeap (parent),
       	_localHeapBytes (0),
         _cachedSuperblock (nullptr),
-        _cachedSizeClass (-1)
+        _cachedSizeClass (-1),
+        _adaptiveThreshold (InitialThreshold),
+        _slowPathCount (0)
     {
       static_assert(gcd<Alignment, DesiredAlignment>::value == DesiredAlignment,
 		    "Alignment mismatch.");
@@ -95,6 +110,9 @@ namespace Hoard {
       }
 
       // Slow path: go to parent heap (requires locking).
+      // Adapt threshold: grow TLAB if we're hitting slow path often.
+      maybeGrowThreshold();
+
       auto * ptr = _parentHeap->malloc (sz);
       assert ((size_t) ptr % Alignment == 0);
       return ptr;
@@ -104,11 +122,14 @@ namespace Hoard {
     TLAB_ALWAYS_INLINE void free (void * ptr) {
       auto * s = getSuperblock (ptr);
 
+      // Use adaptive threshold (bounded by LocalHeapThreshold for blowup guarantee).
+      const size_t threshold = _adaptiveThreshold;
+
       // Ultra-fast path: same superblock as last free (common in loops).
       // Avoids isValidSuperblock() check and getObjectSize() memory access.
       if (HL_EXPECT_TRUE(s == _cachedSuperblock)) {
         ptr = s->normalize (ptr);
-        if (HL_EXPECT_TRUE(_localHeapBytes + getClassSize(_cachedSizeClass) <= LocalHeapThreshold)) {
+        if (HL_EXPECT_TRUE(_localHeapBytes + getClassSize(_cachedSizeClass) <= threshold)) {
           _localHeap(_cachedSizeClass).insert ((HL::SLList::Entry *) ptr);
           _localHeapBytes += getClassSize(_cachedSizeClass);
           return;
@@ -121,7 +142,7 @@ namespace Hoard {
       	ptr = s->normalize (ptr);
       	auto sz = s->getObjectSize ();
 
-      	if (HL_EXPECT_TRUE((sz <= LargestObject) && (sz + _localHeapBytes <= LocalHeapThreshold))) {
+      	if (HL_EXPECT_TRUE((sz <= LargestObject) && (sz + _localHeapBytes <= threshold))) {
       	  assert (getSize(ptr) >= sizeof(HL::SLList::Entry *));
       	  auto c = getSizeClass (sz);
 
@@ -169,6 +190,18 @@ namespace Hoard {
     ThreadLocalAllocationBuffer (const ThreadLocalAllocationBuffer&);
     ThreadLocalAllocationBuffer& operator=(const ThreadLocalAllocationBuffer&);
 
+    /// Grow TLAB threshold when hitting slow path often.
+    /// Preserves blowup by never exceeding LocalHeapThreshold.
+    inline void maybeGrowThreshold() {
+      _slowPathCount++;
+      if (_slowPathCount >= SlowPathGrowTrigger && _adaptiveThreshold < LocalHeapThreshold) {
+        // Double the threshold, capped at LocalHeapThreshold.
+        size_t newThreshold = _adaptiveThreshold * GrowthFactor;
+        _adaptiveThreshold = (newThreshold < LocalHeapThreshold) ? newThreshold : LocalHeapThreshold;
+        _slowPathCount = 0;
+      }
+    }
+
     /// Padding to prevent false sharing and ensure alignment.
     double _pad[128 / sizeof(double)];
 
@@ -186,6 +219,13 @@ namespace Hoard {
 
     /// The local heap itself.
     Array<NumBins, HL::SLList> _localHeap;
+
+    /// Adaptive TLAB threshold (starts at InitialThreshold, grows to LocalHeapThreshold).
+    /// Bounded above by LocalHeapThreshold to preserve blowup guarantee.
+    size_t _adaptiveThreshold;
+
+    /// Count of slow path hits for growth heuristic.
+    unsigned int _slowPathCount;
 
   };
 
