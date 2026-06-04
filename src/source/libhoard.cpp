@@ -144,11 +144,11 @@ extern "C" {
 #endif
   {
     // Check init buffer first (cold path)
-    if (__builtin_expect(ptr >= initBuffer && ptr < initBuffer + MAX_LOCAL_BUFFER_SIZE, 0)) {
+    if (HL_EXPECT_FALSE(ptr >= initBuffer && ptr < initBuffer + MAX_LOCAL_BUFFER_SIZE)) {
       return;
     }
     auto * heap = getCustomHeap();
-    if (__builtin_expect(heap != nullptr, 1)) {
+    if (HL_EXPECT_TRUE(heap != nullptr)) {
       heap->free(ptr);
     }
   }

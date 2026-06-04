@@ -31,6 +31,15 @@
 #pragma clang diagnostic ignored "-Wunused-variable"
 #endif
 
+// Cross-platform force inline
+#if defined(_MSC_VER)
+#define TLAB_ALWAYS_INLINE __forceinline
+#elif defined(__GNUC__) || defined(__clang__)
+#define TLAB_ALWAYS_INLINE __attribute__((always_inline)) inline
+#else
+#define TLAB_ALWAYS_INLINE inline
+#endif
+
 namespace Hoard {
 
   template <int NumBins,
@@ -70,7 +79,7 @@ namespace Hoard {
       return getSuperblock(ptr)->getSize (ptr);
     }
 
-    __attribute__((always_inline)) inline void * malloc (size_t sz) {
+    TLAB_ALWAYS_INLINE void * malloc (size_t sz) {
       // Fast path: small object allocation from thread-local cache.
       // This is the common case - most allocations are small and hit the TLAB.
       if (HL_EXPECT_TRUE(sz <= LargestObject)) {
@@ -92,7 +101,7 @@ namespace Hoard {
     }
 
 
-    __attribute__((always_inline)) inline void free (void * ptr) {
+    TLAB_ALWAYS_INLINE void free (void * ptr) {
       auto * s = getSuperblock (ptr);
 
       // Ultra-fast path: same superblock as last free (common in loops).
