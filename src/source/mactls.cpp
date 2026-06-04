@@ -36,11 +36,11 @@ static pthread_key_t theHeapKey;
 static pthread_once_t key_once = PTHREAD_ONCE_INIT;
 
 //----------------------------------------------------------------------
-// Fast TLS slot access
+// Fast TLS slot access (mimalloc-style optimization)
 //
 // On macOS, __thread variables go through _tlv_get_addr which is slow.
 // Instead, we directly access an unused pthread TLS slot (slot 89).
-// This technique is borrowed from mimalloc.
+// This gives us a single memory load instead of a function call.
 //----------------------------------------------------------------------
 
 #define HOARD_TLS_SLOT 89
@@ -124,14 +124,14 @@ static TheCustomHeapType * initializeCustomHeap() {
   size_t sz = sizeof(TheCustomHeapType);
   char * mh = reinterpret_cast<char *>(getMainHoardHeap()->malloc(sz));
   TheCustomHeapType * heap = new (mh) TheCustomHeapType(getMainHoardHeap());
-  // Store in both fast TLS (for hot path) and pthread_key (for destructor).
+  // Store in both fast TLS slot (for hot path) and pthread_key (for destructor).
   setTlsHeap(heap);
   pthread_setspecific(theHeapKey, heap);
   return heap;
 }
 
 TheCustomHeapType * getCustomHeap() {
-  // Fast path: direct TLS slot access.
+  // Fast path: direct TLS slot access (single memory load, no function call).
   TheCustomHeapType * heap = getTlsHeap();
   if (__builtin_expect(heap != nullptr, 1)) {
     return heap;

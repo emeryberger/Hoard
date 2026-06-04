@@ -20,6 +20,8 @@
 
 #if defined(__linux__)
 #include <sched.h>
+#elif defined(__APPLE__)
+#include <pthread.h>
 #endif
 
 #include "heaplayers.h"
@@ -58,13 +60,22 @@ namespace Hoard {
     }
     
     inline PerThreadHeap& getHeap (void) {
-#if defined(__linux__) && !defined(HOARD_DISABLE_CPU_HEAP_SELECTION)
+#if !defined(HOARD_DISABLE_CPU_HEAP_SELECTION)
+#if defined(__linux__)
       // Use CPU-based selection for NUMA locality.
       // Threads on the same CPU use the same heap, reducing cross-node traffic.
       int cpu = sched_getcpu();
       if (cpu >= 0) {
         return _heap(cpu & NumHeapsMask);
       }
+#elif defined(__APPLE__)
+      // pthread_cpu_number_np is available since macOS 11.0 and is very fast
+      // (~2ns, no syscall - reads from thread-local commpage).
+      size_t cpu;
+      if (pthread_cpu_number_np(&cpu) == 0) {
+        return _heap(static_cast<int>(cpu) & NumHeapsMask);
+      }
+#endif
 #endif
       // Fallback: hash thread ID to heap
       auto tid = HL::CPUInfo::getThreadId();
