@@ -55,13 +55,24 @@ namespace Hoard {
     }
 
     /// Free the given object, obeying the required locking protocol.
+    /// Fast path: try lock-free delayed free queue first.
+    /// Slow path: fall back to locking protocol if queue is full.
     static inline void free (void * ptr) {
       // Get the superblock header.
       SuperblockType * s = reinterpret_cast<SuperblockType *>(Heap::getSuperblock (ptr));
 
       assert (s->isValidSuperblock());
 
-      // Find out who the owner is.
+      // Fast path: try lock-free delayed free.
+      // The owner thread will drain these during its next malloc.
+      // Bounded to 1/4 of superblock capacity to preserve blowup bounds.
+      if (s->tryPushDelayedFree(ptr)) {
+        return;
+      }
+
+      // Slow path: queue full, use locking protocol.
+      // This is rare - only when many cross-thread frees happen faster
+      // than the owner thread can drain them.
 
       typedef BaseHoardManager<SuperblockType> * baseHeapType;
       baseHeapType owner;

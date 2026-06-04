@@ -99,6 +99,16 @@ namespace Hoard {
       _current = s;
     }
 
+    /// Drain delayed frees from the current superblock.
+    /// Called during malloc to process cross-thread frees.
+    /// @return Number of objects drained.
+    inline unsigned int drainDelayedFrees() {
+      if (likely(_current)) {
+        return _current->drainDelayedFrees();
+      }
+      return 0;
+    }
+
   private:
 
     /// Obtain a superblock and return an object from it.

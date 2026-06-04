@@ -177,6 +177,29 @@ namespace Hoard {
       _header.purgeData();
     }
 
+    // ========== Lock-Free Delayed Free API ==========
+    //
+    // These methods forward to the header's delayed free implementation.
+    // Cross-thread frees use tryPushDelayedFree() to avoid locking.
+    // The owner thread calls drainDelayedFrees() during malloc.
+
+    /// Try to push to delayed free queue (lock-free, bounded).
+    /// @return true if pushed, false if queue full (caller should use slow path)
+    inline bool tryPushDelayedFree(void* ptr) {
+      return _header.tryPushDelayedFree(ptr);
+    }
+
+    /// Check if delayed frees are pending.
+    inline bool hasDelayedFrees() const {
+      return _header.hasDelayedFrees();
+    }
+
+    /// Drain all delayed frees to local freelist (owner thread only).
+    /// @return Number of objects freed.
+    inline unsigned int drainDelayedFrees() {
+      return _header.drainDelayedFrees();
+    }
+
     typedef Header_<LockType, SuperblockSize, HeapType> Header;
 
   private:
