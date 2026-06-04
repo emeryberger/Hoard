@@ -107,7 +107,7 @@ extern bool isCustomHeapInitialized();
 extern "C" {
 
 #if defined(__GNUG__) || defined(__clang__)
-  __attribute__((flatten)) __attribute__((alloc_size(1))) __attribute__((malloc))
+  __attribute__((alloc_size(1))) __attribute__((malloc))
   void * xxmalloc (size_t sz)
 #else
   void * xxmalloc (size_t sz)
@@ -142,12 +142,7 @@ extern "C" {
     return ptr;
   }
 
-#if defined(__GNUG__) || defined(__clang__)
-  __attribute__((flatten))
   void xxfree (void * ptr)
-#else
-  void xxfree (void * ptr)
-#endif
   {
     // Check init buffer first (cold path)
     if (HL_EXPECT_FALSE(ptr >= initBuffer && ptr < initBuffer + MAX_LOCAL_BUFFER_SIZE)) {
