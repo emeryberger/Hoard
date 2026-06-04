@@ -136,25 +136,21 @@ extern "C" {
     return ptr;
   }
 
-  // Fast path for free - check common case first
-  INLINE void xxfree_fast (void * ptr) {
-    auto * heap = getCustomHeap();
-    if (HL_EXPECT_TRUE(heap != nullptr)) {
-      heap->free(ptr);
-    }
-  }
-
-#if defined(__GNUG__)
+#if defined(__GNUG__) || defined(__clang__)
+  __attribute__((flatten))
   void xxfree (void * ptr)
 #else
   void xxfree (void * ptr)
 #endif
   {
-    // Don't free init buffer allocations
+    // Check init buffer first (cold path)
     if (HL_EXPECT_FALSE(ptr >= initBuffer && ptr < initBuffer + MAX_LOCAL_BUFFER_SIZE)) {
       return;
     }
-    xxfree_fast(ptr);
+    auto * heap = getCustomHeap();
+    if (HL_EXPECT_TRUE(heap != nullptr)) {
+      heap->free(ptr);
+    }
   }
 
   void xxfree_sized(void * ptr, size_t) {

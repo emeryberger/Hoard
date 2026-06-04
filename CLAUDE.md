@@ -199,5 +199,31 @@ The allocator is built through template composition. The main heap type `HoardHe
 Located in `benchmarks/`:
 - `threadtest` - Per-thread throughput (allocation/deallocation cycles)
 - `cache-scratch`, `cache-thrash` - False sharing tests
-- `larson` - Server workload simulation
+- `larson` - Server workload simulation (mimalloc-bench parameters: `larson 10 7 8 1000 10000 1 <threads>`)
 - `linux-scalability` - University of Michigan scalability test
+
+## Performance Optimization Notes
+
+### macOS TLS Optimization
+
+On macOS, `__thread` variables go through `_tlv_get_addr()` which adds significant overhead (~50+ cycles per access). The `initial-exec` TLS model does NOT help on macOS - it still calls `_tlv_get_addr`. This is a fundamental difference from Linux where `initial-exec` gives direct TLS access.
+
+**Solution**: Direct pthread TLS slot access via inline assembly (see `mactls.cpp`). Uses slot 89 (`__PTK_FRAMEWORK_OLDGC_KEY9`), same technique as mimalloc. This bypasses `_tlv_get_addr` entirely.
+
+ARM64 (Apple Silicon) quirk: Must use `tpidrro_el0` register (read-only thread pointer), NOT `tpidr_el0`. The `__builtin_thread_pointer()` intrinsic reads the wrong register on macOS and will crash.
+
+### Hot Path Optimizations
+
+Key optimizations in the malloc/free fast path:
+
+1. **Superblock caching** (tlab.h): Cache the last-freed superblock pointer and size class. Consecutive frees to the same superblock skip `isValidSuperblock()` and `getObjectSize()` lookups.
+
+2. **always_inline attribute** (tlab.h): Force inlining of TLAB malloc/free. LTO doesn't always inline these despite the `inline` keyword.
+
+3. **Branch prediction hints**: Use `__builtin_expect()` (via `TLAB_LIKELY`/`TLAB_UNLIKELY` macros) on hot path conditionals.
+
+4. **flatten attribute** (libhoard.cpp): On `xxfree()` to inline callees.
+
+### Baseline Comparisons
+
+When optimizing, compare against mimalloc and jemalloc, not system malloc. Use consistent benchmark parameters across runs. Larson is sensitive to cross-thread free patterns; threadtest measures pure per-thread throughput.
