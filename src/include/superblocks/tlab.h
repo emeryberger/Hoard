@@ -78,7 +78,7 @@ namespace Hoard {
       return getSuperblock(ptr)->getSize (ptr);
     }
 
-    inline void * malloc (size_t sz) {
+    __attribute__((always_inline)) inline void * malloc (size_t sz) {
       // Fast path: small object allocation from thread-local cache.
       // This is the common case - most allocations are small and hit the TLAB.
       if (TLAB_LIKELY(sz <= LargestObject)) {
@@ -100,7 +100,7 @@ namespace Hoard {
     }
 
 
-    inline void free (void * ptr) {
+    __attribute__((always_inline)) inline void free (void * ptr) {
       auto * s = getSuperblock (ptr);
 
       // Ultra-fast path: same superblock as last free (common in loops).
