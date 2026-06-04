@@ -71,8 +71,8 @@ namespace Hoard {
     }
 
     __attribute__((always_inline)) inline void * malloc (size_t sz) {
-      // Fast path: get from thread-local freelist (no locking).
-      // Small objects are the common case, and TLAB hit is the common case.
+      // Fast path: small object allocation from thread-local cache.
+      // This is the common case - most allocations are small and hit the TLAB.
       if (HL_EXPECT_TRUE(sz <= LargestObject)) {
       	auto c = getSizeClass (sz);
       	auto * ptr = _localHeap(c).get();
