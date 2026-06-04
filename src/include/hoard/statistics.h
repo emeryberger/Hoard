@@ -25,9 +25,11 @@ namespace Hoard {
    * @brief Tracks in-use and allocated object counts per size class.
    *
    * Padded to cache line size to prevent false sharing between adjacent
-   * bins' statistics in the per-bin array.
+   * bins' statistics in the per-bin array. Note: we use padding instead
+   * of alignas() because alignas on class types can cause issues with
+   * array allocation under certain compiler optimizations.
    */
-  class alignas(CACHE_LINE_SIZE) Statistics {
+  class Statistics {
   public:
     Statistics()
       : _inUse(0),
