@@ -27,6 +27,7 @@
 #include "heaplayers.h"
 #include "utility/cpp23compat.h"
 #include "../util/purge.h"
+#include "../util/atomicfreelist.h"
 
 #include <atomic>
 #include <cstdlib>
@@ -94,6 +95,11 @@ namespace Hoard {
       void * ptr = reapAlloc();
       assert ((ptr == nullptr) || ((size_t) ptr % Alignment == 0));
       if (HL_EXPECT_FALSE(!ptr)) {
+	// Before checking freelist, drain any delayed frees.
+	// This is cheap when empty (single atomic load).
+	if (hasDelayedFrees()) {
+	  drainDelayedFrees();
+	}
 	// Slow path: allocate from freelist.
 	ptr = freeListAlloc();
 	assert ((ptr == nullptr) || ((size_t) ptr % Alignment == 0));
@@ -328,6 +334,71 @@ namespace Hoard {
 
     /// The list of freed objects.
     FreeSLList _freeList;
+
+    /// Lock-free queue for delayed cross-thread frees.
+    /// Bounded to preserve blowup guarantees.
+    AtomicFreeList _delayedFreeList;
+
+    /// Count of objects in the delayed free queue.
+    /// Used to bound the queue size and preserve blowup.
+    std::atomic<unsigned int> _delayedFreeCount{0};
+
+  public:
+    // ========== Lock-Free Delayed Free API ==========
+    //
+    // Cross-thread frees use this lock-free queue instead of locking.
+    // The owner thread drains the queue during malloc.
+    //
+    // BLOWUP BOUNDS: Delayed frees are bounded to 1/4 of total objects.
+    // This ensures at most 25% additional memory per superblock, which
+    // is absorbed into Hoard's existing O(1) blowup guarantee.
+
+    /// Maximum delayed frees per superblock (1/4 of total objects).
+    /// Keeps delayed memory bounded to preserve blowup guarantees.
+    unsigned int maxDelayedFrees() const {
+      return _totalObjects / 4 + 1;
+    }
+
+    /// Try to push to delayed free queue (lock-free, bounded).
+    /// @return true if pushed, false if queue full (caller should use slow path)
+    inline bool tryPushDelayedFree(void* ptr) {
+      // Check if queue is full (approximate, may have races but safe)
+      unsigned int count = _delayedFreeCount.load(std::memory_order_relaxed);
+      if (count >= maxDelayedFrees()) {
+        return false;  // Queue full, use slow path
+      }
+      // Optimistically increment count
+      _delayedFreeCount.fetch_add(1, std::memory_order_relaxed);
+      // Push to lock-free queue
+      _delayedFreeList.push(ptr);
+      return true;
+    }
+
+    /// Check if delayed frees are pending (fast check for drain trigger).
+    inline bool hasDelayedFrees() const {
+      return !_delayedFreeList.isEmpty();
+    }
+
+    /// Drain all delayed frees to local freelist.
+    /// @return Number of objects freed.
+    /// Called by owner thread during malloc to process cross-thread frees.
+    inline unsigned int drainDelayedFrees() {
+      auto* list = _delayedFreeList.popAll();
+      if (!list) return 0;
+
+      unsigned int count = 0;
+      while (list != nullptr) {
+        auto* next = list->next.load(std::memory_order_relaxed);
+        // Free to local freelist (same as normal free path)
+        _freeList.insert(reinterpret_cast<FreeSLList::Entry*>(list));
+        _objectsFree++;
+        count++;
+        list = reinterpret_cast<AtomicFreeList::Entry*>(next);
+      }
+      // Update delayed count (may go slightly negative due to races, but safe)
+      _delayedFreeCount.fetch_sub(count, std::memory_order_relaxed);
+      return count;
+    }
   };
 
   // A helper class that pads the header to the desired alignment.

@@ -87,13 +87,14 @@ extern Hoard::HoardHeapType * getMainHoardHeap();
 #define BUFFER_SIZE (sizeof(TheCustomHeapType) / sizeof(double) + 1)
 
 static __thread double tlabBuffer[BUFFER_SIZE] INITIAL_EXEC_ATTR;
-static __thread TheCustomHeapType * theTLAB INITIAL_EXEC_ATTR = nullptr;
+// Exported for inline TLS access in inlinetls.h
+__thread TheCustomHeapType * theTLAB INITIAL_EXEC_ATTR = nullptr;
 
-// Initialize the TLAB.
+// Initialize the TLAB - exported for inlinetls.h cold path.
 
-static TheCustomHeapType * initializeCustomHeap() __attribute__((constructor));
+TheCustomHeapType * initializeCustomHeap() __attribute__((constructor));
 
-static TheCustomHeapType * initializeCustomHeap() {
+TheCustomHeapType * initializeCustomHeap() {
   auto tlab = theTLAB;
   if (tlab == nullptr) {
     new (reinterpret_cast<char *>(&tlabBuffer)) TheCustomHeapType(getMainHoardHeap());

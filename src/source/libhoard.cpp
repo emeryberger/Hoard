@@ -69,6 +69,12 @@ volatile bool anyThreadCreated = false;
 
 #include "hoardtlab.h"
 
+// On Linux, use inline TLS access for fast path (defined in inlinetls.h)
+// This avoids function call overhead on every malloc/free
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
+#include "inlinetls.h"
+#endif
+
 //
 // The base Hoard heap.
 //
@@ -101,7 +107,7 @@ extern bool isCustomHeapInitialized();
 extern "C" {
 
 #if defined(__GNUG__) || defined(__clang__)
-  __attribute__((flatten)) __attribute__((alloc_size(1))) __attribute__((malloc))
+  __attribute__((alloc_size(1))) __attribute__((malloc))
   void * xxmalloc (size_t sz)
 #else
   void * xxmalloc (size_t sz)
@@ -136,17 +142,18 @@ extern "C" {
     return ptr;
   }
 
-#if defined(__GNUG__) || defined(__clang__)
-  __attribute__((flatten))
   void xxfree (void * ptr)
-#else
-  void xxfree (void * ptr)
-#endif
   {
+    if (HL_EXPECT_FALSE(ptr == nullptr)) {
+      return;
+    }
     // Check init buffer first (cold path)
     if (HL_EXPECT_FALSE(ptr >= initBuffer && ptr < initBuffer + MAX_LOCAL_BUFFER_SIZE)) {
       return;
     }
+
+    // The TLAB and Hoard internals use normalize() to handle internal pointers.
+    // This allows free() of pointers from aligned_alloc to work correctly.
     auto * heap = getCustomHeap();
     if (HL_EXPECT_TRUE(heap != nullptr)) {
       heap->free(ptr);
@@ -161,12 +168,34 @@ extern "C" {
     xxfree(ptr);
   }
 
-#if defined(__GNUG__)
+  /// Aligned allocation using Hoard's normalization.
+  /// Hoard uses normalize() in the free path to round internal pointers
+  /// back to their object start, so we can return internal pointers safely.
   void * xxmemalign (size_t alignment, size_t sz) {
-#else
-  void * xxmemalign (size_t alignment, size_t sz) {
-#endif
-    return generic_xxmemalign(alignment, sz);
+    // Check for non power-of-two alignment or zero.
+    if ((alignment == 0) || (alignment & (alignment - 1))) {
+      return nullptr;
+    }
+
+    // If alignment is small enough, regular malloc handles it.
+    if (alignment <= alignof(max_align_t)) {
+      return xxmalloc(sz);
+    }
+
+    // Allocate enough space to satisfy alignment requirement.
+    // The extra alignment bytes ensure we can find an aligned address within.
+    size_t totalSize = sz + alignment;
+    void* ptr = xxmalloc(totalSize);
+    if (ptr == nullptr) {
+      return nullptr;
+    }
+
+    // Calculate aligned address within the allocation.
+    uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);
+    uintptr_t alignedAddr = (addr + alignment - 1) & ~(alignment - 1);
+
+    // Hoard's free path uses normalize() which will round this back to ptr.
+    return reinterpret_cast<void*>(alignedAddr);
   }
 
   size_t xxmalloc_usable_size (void * ptr) {
