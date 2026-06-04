@@ -57,6 +57,7 @@ using namespace HL;
 #include "alignedsuperblockheap.h"
 #include "alignedmmap.h"
 #include "globalheap.h"
+#include "shardedglobalheap.h"
 #include "hoardconstants.h"
 
 #include "thresholdsegheap.h"
@@ -93,7 +94,10 @@ namespace Hoard {
   // There is just one "global" heap, shared by all of the per-process heaps.
   //
 
-  typedef GlobalHeap<SUPERBLOCK_SIZE, HoardSuperblockHeader, EMPTINESS_CLASSES, MmapSource, TheLockType>
+  // Use sharded global heap for better scalability
+  // put() always goes to local shard (no contention)
+  // get() tries local first, then steals with power-of-two choices
+  typedef ShardedGlobalHeap<SUPERBLOCK_SIZE, HoardSuperblockHeader, EMPTINESS_CLASSES, MmapSource, TheLockType>
   TheGlobalHeap;
   
   //
