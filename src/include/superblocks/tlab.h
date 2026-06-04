@@ -25,6 +25,7 @@
 
 #include "heaplayers.h"
 #include "utility/cpp23compat.h"
+#include "hoard/sizeclasslut.h"
 
 #if defined(__clang__)
 #pragma clang diagnostic push
@@ -98,11 +99,14 @@ namespace Hoard {
       // Fast path: small object allocation from thread-local cache.
       // This is the common case - most allocations are small and hit the TLAB.
       if (HL_EXPECT_TRUE(sz <= LargestObject)) {
-      	auto c = getSizeClass (sz);
+        // Use lookup table for size class (faster than bsr instruction).
+        // LUT handles sizes 1-1024, which covers LargestSmallObject.
+      	auto c = Hoard::getSizeClassLUT(sz);
       	auto * ptr = _localHeap(c).get();
       	if (HL_EXPECT_TRUE(ptr != nullptr)) {
-      	  assert (_localHeapBytes >= getClassSize(c));
-      	  _localHeapBytes -= getClassSize(c);
+          auto classSize = Hoard::getClassSizeLUT(c);
+      	  assert (_localHeapBytes >= classSize);
+      	  _localHeapBytes -= classSize;
       	  assert (getSize(ptr) >= sz);
       	  assert ((size_t) ptr % Alignment == 0);
       	  return ptr;
@@ -129,9 +133,10 @@ namespace Hoard {
       // Avoids isValidSuperblock() check and getObjectSize() memory access.
       if (HL_EXPECT_TRUE(s == _cachedSuperblock)) {
         ptr = s->normalize (ptr);
-        if (HL_EXPECT_TRUE(_localHeapBytes + getClassSize(_cachedSizeClass) <= threshold)) {
+        auto classSize = Hoard::getClassSizeLUT(_cachedSizeClass);
+        if (HL_EXPECT_TRUE(_localHeapBytes + classSize <= threshold)) {
           _localHeap(_cachedSizeClass).insert ((HL::SLList::Entry *) ptr);
-          _localHeapBytes += getClassSize(_cachedSizeClass);
+          _localHeapBytes += classSize;
           return;
         }
       }
@@ -144,14 +149,16 @@ namespace Hoard {
 
       	if (HL_EXPECT_TRUE((sz <= LargestObject) && (sz + _localHeapBytes <= threshold))) {
       	  assert (getSize(ptr) >= sizeof(HL::SLList::Entry *));
-      	  auto c = getSizeClass (sz);
+          // Use lookup table for size class (faster than bsr instruction).
+      	  auto c = Hoard::getSizeClassLUT(sz);
+          auto classSize = Hoard::getClassSizeLUT(c);
 
           // Cache this superblock for subsequent frees.
           _cachedSuperblock = s;
           _cachedSizeClass = c;
 
       	  _localHeap(c).insert ((HL::SLList::Entry *) ptr);
-      	  _localHeapBytes += getClassSize(c);
+      	  _localHeapBytes += classSize;
       	  return;
       	}
 
