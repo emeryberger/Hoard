@@ -215,3 +215,12 @@ install(FILES
   "${CMAKE_CURRENT_BINARY_DIR}/HoardConfigVersion.cmake"
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Hoard
 )
+
+#
+# ─── EXTERNAL ALLOCATORS (for benchmarking) ────────────────────────────
+#
+# Build external allocators for comparison benchmarking.
+# Enable with: -DBUILD_JEMALLOC=ON -DBUILD_MIMALLOC=ON -DBUILD_TCMALLOC=ON
+# Or all at once: -DBUILD_ALL_ALLOCATORS=ON
+#
+add_subdirectory(allocators)
