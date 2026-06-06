@@ -223,4 +223,6 @@ install(FILES
 # Enable with: -DBUILD_JEMALLOC=ON -DBUILD_MIMALLOC=ON -DBUILD_TCMALLOC=ON
 # Or all at once: -DBUILD_ALL_ALLOCATORS=ON
 #
-add_subdirectory(allocators)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/allocators/CMakeLists.txt")
+  add_subdirectory(allocators)
+endif()
