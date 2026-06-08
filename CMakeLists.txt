@@ -115,7 +115,10 @@ endif()
 # MSVC's ARM64 LTO codegen produces significantly slower code for memory allocators.
 if(NOT WIN32)
   include(CheckIPOSupported)
-  check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)
+  # Hoard is C++ only (project LANGUAGES CXX); scope the check to CXX so that
+  # a C compiler pulled in by a dependency (which CMake's IPO table may not
+  # recognize) doesn't disable LTO for our C++ targets.
+  check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error LANGUAGES CXX)
   if(ipo_supported)
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
     message(STATUS "LTO enabled")
