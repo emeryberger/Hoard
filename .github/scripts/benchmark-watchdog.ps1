@@ -59,6 +59,22 @@ if ($finished) {
   $code = $p.ExitCode
   if ($null -eq $code) { $code = -1 }
   Write-Host "$Name exited with $code"
+  if ($code -lt -1) {
+    # NTSTATUS-style exit (e.g. -1073741819 = 0xC0000005 access violation):
+    # re-run once under cdb to capture the faulting stack and a minidump.
+    $cdb = @(
+      "C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe",
+      "C:\Program Files\Windows Kits\10\Debuggers\x64\cdb.exe"
+    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if ($cdb) {
+      Write-Host "### $Name crashed - re-running under cdb for the faulting stack ###"
+      $env:_NT_SYMBOL_PATH = "srv*C:\symbols*https://msdl.microsoft.com/download/symbols"
+      $crashLog = Join-Path $OutDir "$Name-crash-stacks.txt"
+      $crashDump = Join-Path $OutDir "$Name-crash.dmp"
+      & $cdb -G -o -c ".lines; g; !analyze -v; ~*kb 64; .dump /ma `"$crashDump`"; q" `
+        @(@($exe) + $cmdArgs) 2>&1 | Tee-Object -FilePath $crashLog | Select-Object -Last 80 | Write-Host
+    }
+  }
   exit $code
 }
 
