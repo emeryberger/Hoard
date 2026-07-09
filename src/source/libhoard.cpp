@@ -19,6 +19,7 @@
  * @author Emery Berger <http://www.emeryberger.com>
  */
 
+#include <atomic>
 #include <cstddef>
 #include <cstring>
 #include <new>
@@ -96,17 +97,42 @@ volatile bool anyThreadCreated = false;
 
 
 /// Maintain a single instance of the main Hoard heap.
+///
+/// Deliberately NOT a guarded function-local static ("magic static").
+/// The heap constructor registers static destructors with the CRT; on
+/// Windows the CRT grows its onexit table with recalloc, which Detours
+/// routes straight back into Hoard while the guarded static would still
+/// be marked "initialization in progress" - MSVC's init guard then
+/// waits on its condition variable for its own thread, deadlocking
+/// every injected process inside DllMain (issue #100; observed in the
+/// CI stack captures as SleepConditionVariableSRW under
+/// register_onexit_function/recalloc under LdrpInitializeProcess).
+///
+/// Instead: constant-initialized atomics (no guard), and re-entrant or
+/// concurrent callers during construction get nullptr, which makes the
+/// entry points fall back to the static init buffer below - exactly
+/// what it exists for.
 
 Hoard::HoardHeapType * getMainHoardHeap() {
-  // This function is C++ magic that ensures that the heap is
-  // initialized before its first use. First, allocate a static buffer
-  // to hold the heap.
-
+  // Zero-initialized static buffer: no init guard.
   static double thBuf[sizeof(Hoard::HoardHeapType) / sizeof(double) + 1];
+  // Constant-initialized (C++20 P0883): no init guard.
+  static std::atomic<Hoard::HoardHeapType *> th { nullptr };
+  static std::atomic<bool> constructing { false };
 
-  // Now initialize the heap into that buffer.
-  static auto * th = new (thBuf) Hoard::HoardHeapType;
-  return th;
+  auto * p = th.load (std::memory_order_acquire);
+  if (HL_EXPECT_TRUE(p != nullptr)) {
+    return p;
+  }
+  if (constructing.exchange (true, std::memory_order_acq_rel)) {
+    // Re-entered from within the constructor (e.g. a detoured CRT
+    // allocation on Windows), or raced by another thread mid-init:
+    // serve this request from the init buffer.
+    return nullptr;
+  }
+  p = new (thBuf) Hoard::HoardHeapType;
+  th.store (p, std::memory_order_release);
+  return p;
 }
 
 TheCustomHeapType * getCustomHeap();

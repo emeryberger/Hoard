@@ -93,10 +93,19 @@ bool isCustomHeapInitialized() {
 }
 
 static TheCustomHeapType * initializeCustomHeap() {
-  // Allocate a per-thread heap.
+  // Allocate a per-thread heap. The main heap is nullptr while it is
+  // still under construction (re-entrant allocation from within its
+  // constructor); the caller then falls back to the init buffer.
+  auto * mainHeap = getMainHoardHeap();
+  if (mainHeap == nullptr) {
+    return nullptr;
+  }
   size_t sz = sizeof(TheCustomHeapType);
-  char * mh = reinterpret_cast<char *>(getMainHoardHeap()->malloc(sz));
-  TheCustomHeapType * heap = new (mh) TheCustomHeapType(getMainHoardHeap());
+  char * mh = reinterpret_cast<char *>(mainHeap->malloc(sz));
+  if (mh == nullptr) {
+    return nullptr;
+  }
+  TheCustomHeapType * heap = new (mh) TheCustomHeapType(mainHeap);
   // Store in both fast TLS slot (for hot path) and pthread_key (for destructor).
   setTlsHeap(heap);
   pthread_setspecific(theHeapKey, heap);

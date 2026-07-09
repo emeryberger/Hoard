@@ -61,9 +61,17 @@ extern HoardHeapType * getMainHoardHeap();
 
 static TheCustomHeapType * initializeCustomHeap()
 {
-  // Allocate a per-thread heap.
+  // Allocate a per-thread heap. The main heap is nullptr while it is
+  // still under construction (re-entrant allocation via a detoured CRT
+  // call); the caller then serves this request from the init buffer.
   auto * mainHeap = getMainHoardHeap();
+  if (mainHeap == nullptr) {
+    return nullptr;
+  }
   auto * customHeapBuf = mainHeap->malloc(sizeof(TheCustomHeapType));
+  if (customHeapBuf == nullptr) {
+    return nullptr;
+  }
   auto * perThreadHeap = new (customHeapBuf) TheCustomHeapType (mainHeap);
 
   // Store it in the appropriate thread-local area.
