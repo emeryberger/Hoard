@@ -140,6 +140,44 @@ namespace Hoard {
 
     void * slowMap (size_t sz) {
 
+#if defined(_WIN32)
+
+      // VirtualFree(MEM_RELEASE) cannot release a subrange of an
+      // allocation: it frees the entire region containing the base
+      // pointer and ignores the size. The Unix approach below (map
+      // oversized, trim the misaligned ends) therefore silently
+      // releases the very region being returned - this is why
+      // superblocks larger than the 64KB allocation granularity never
+      // worked on Windows. Instead: reserve an oversized block just to
+      // discover an aligned address, release it, then re-reserve
+      // exactly at that address, retrying if another thread claims the
+      // range in the window between the two calls.
+
+#if HL_EXECUTABLE_HEAP
+      const DWORD permflags = PAGE_EXECUTE_READWRITE;
+#else
+      const DWORD permflags = PAGE_READWRITE;
+#endif
+      for (int attempts = 0; attempts < 64; attempts++) {
+        void * probe = VirtualAlloc (nullptr, sz + Alignment, MEM_RESERVE, PAGE_NOACCESS);
+        if (probe == nullptr) {
+          return nullptr;
+        }
+        auto * aligned =
+          reinterpret_cast<void *>(HL::align<Alignment>((size_t) probe));
+        VirtualFree (probe, 0, MEM_RELEASE);
+        void * p = VirtualAlloc (aligned, sz, MEM_RESERVE | MEM_COMMIT, permflags);
+        if (p != nullptr) {
+          assert ((size_t) p % Alignment == 0);
+          OwnershipMap<Alignment>::set (p, sz);
+          return p;
+        }
+        // Lost the race for that address range; try again.
+      }
+      return nullptr;
+
+#else
+
       // We have to align it ourselves. We get memory from
       // mmap, align a pointer in the space, and free the space before
       // and after the aligned segment.
@@ -172,6 +210,8 @@ namespace Hoard {
 #endif
       OwnershipMap<Alignment>::set (newptr, sz);
       return newptr;
+
+#endif // _WIN32
     }
 
     // Manage information in a map that uses a custom heap for
