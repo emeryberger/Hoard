@@ -174,7 +174,7 @@ namespace Hoard {
 					    MmapSource> {};
 
   typedef HL::ThreadHeap<64, HL::LockedHeap<TheLockType,
-					    ThresholdSegHeap<25,      // % waste
+					    ThresholdSegHeap<10,      // % waste
 							     1048576, // at least 1MB in any heap
 							     80,      // num size classes
 							     GeometricSizeClass<20>::size2class,
