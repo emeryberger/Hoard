@@ -21,15 +21,22 @@ $exe = $Cmd[0]
 $cmdArgs = if ($Cmd.Count -gt 1) { $Cmd[1..($Cmd.Count-1)] } else { @() }
 
 Write-Host "--- $Name ---"
-if ($cmdArgs.Count -gt 0) {
-  $p = Start-Process -FilePath $exe -ArgumentList $cmdArgs -NoNewWindow -PassThru `
-       -RedirectStandardOutput $outFile -RedirectStandardError $errFile
-} else {
-  $p = Start-Process -FilePath $exe -NoNewWindow -PassThru `
-       -RedirectStandardOutput $outFile -RedirectStandardError $errFile
-}
+# Run through cmd.exe with shell redirection: unlike Start-Process handle
+# redirection, cmd's redirected handles are inherited by the whole process
+# tree, so the benchmark's own output (grandchild under withdll) is captured
+# too, not just withdll's banner.
+$quoted = @($exe) + $cmdArgs | ForEach-Object { '"' + $_ + '"' }
+$cmdLine = ($quoted -join ' ') + ' > "' + $outFile + '" 2> "' + $errFile + '"'
+$p = Start-Process -FilePath $env:ComSpec -ArgumentList @('/d', '/c', $cmdLine) `
+     -NoNewWindow -PassThru
 
 $finished = $p.WaitForExit($TimeoutSec * 1000)
+if ($finished) {
+  # Drain the process object: after a timed WaitForExit, .ExitCode is not
+  # populated until a final untimed WaitForExit() call. Without this the
+  # script exits with $null (= 0), masking benchmark crashes entirely.
+  $p.WaitForExit()
+}
 
 # Mirror benchmark output into the console and the aggregate log.
 $output = @()
@@ -42,8 +49,10 @@ if ($LogFile) {
 }
 
 if ($finished) {
-  Write-Host "$Name exited with $($p.ExitCode)"
-  exit $p.ExitCode
+  $code = $p.ExitCode
+  if ($null -eq $code) { $code = -1 }
+  Write-Host "$Name exited with $code"
+  exit $code
 }
 
 Write-Host "### $Name HUNG after ${TimeoutSec}s - capturing process-tree stacks ###"
