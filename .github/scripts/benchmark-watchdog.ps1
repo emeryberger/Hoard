@@ -21,20 +21,27 @@ $exe = $Cmd[0]
 $cmdArgs = if ($Cmd.Count -gt 1) { $Cmd[1..($Cmd.Count-1)] } else { @() }
 
 Write-Host "--- $Name ---"
-# Run through cmd.exe with shell redirection: unlike Start-Process handle
-# redirection, cmd's redirected handles are inherited by the whole process
-# tree, so the benchmark's own output (grandchild under withdll) is captured
-# too, not just withdll's banner.
-$quoted = @($exe) + $cmdArgs | ForEach-Object { '"' + $_ + '"' }
-$cmdLine = ($quoted -join ' ') + ' > "' + $outFile + '" 2> "' + $errFile + '"'
-$p = Start-Process -FilePath $env:ComSpec -ArgumentList @('/d', '/c', $cmdLine) `
+# Run through a generated .cmd script: shell redirection makes the handles
+# inheritable by the whole process tree (so the benchmark grandchild under
+# withdll is captured, not just withdll's banner), and a script file
+# sidesteps cmd.exe's multi-quote command-line parsing entirely.
+$quoted = (@($exe) + $cmdArgs | ForEach-Object { '"' + $_ + '"' }) -join ' '
+$scriptFile = Join-Path $OutDir "$Name.cmd"
+@(
+  '@echo off',
+  "$quoted > `"$outFile`" 2> `"$errFile`"",
+  'exit /b %ERRORLEVEL%'
+) | Set-Content -Path $scriptFile -Encoding ASCII
+$p = Start-Process -FilePath $env:ComSpec -ArgumentList @('/d', '/c', $scriptFile) `
      -NoNewWindow -PassThru
+# Touch the handle immediately: PowerShell acquires process handles lazily,
+# and without this .ExitCode is permanently null (reads as exit 0).
+$null = $p.Handle
 
 $finished = $p.WaitForExit($TimeoutSec * 1000)
 if ($finished) {
   # Drain the process object: after a timed WaitForExit, .ExitCode is not
-  # populated until a final untimed WaitForExit() call. Without this the
-  # script exits with $null (= 0), masking benchmark crashes entirely.
+  # populated until a final untimed WaitForExit() call.
   $p.WaitForExit()
 }
 
