@@ -26,6 +26,7 @@
 
 #include "heaplayers.h"
 #include "mmapalloc.h"
+#include "ownershipmap.h"
 
 #define TRACK_SIZE 0
 
@@ -62,8 +63,13 @@ namespace Hoard {
 
     inline void * malloc (size_t sz) {
 
-      // Round up sz to the nearest page.
-      sz = HL::align<HL::MmapWrapper::Size>(sz);
+      // Round up sz to the nearest multiple of Alignment (which is
+      // itself a multiple of the page size for all instantiations we
+      // use). This keeps regions an exact number of Alignment-sized
+      // chunks, making OwnershipMap chunk ownership exact. The extra
+      // tail is virtual address space only: it is never touched, so it
+      // consumes no physical memory.
+      sz = HL::align<Alignment>(HL::align<HL::MmapWrapper::Size>(sz));
 
       // If the memory is already suitably aligned, just track size requests.
       if ((size_t) HL::MmapWrapper::Alignment % (size_t) Alignment == 0) {
@@ -72,6 +78,7 @@ namespace Hoard {
 	MyMap.set (ptr, sz);
 #endif
 	assert ((size_t) ptr % Alignment == 0);
+	OwnershipMap<Alignment>::set (ptr, sz);
 	return ptr;
       }
 
@@ -87,6 +94,7 @@ namespace Hoard {
 #if TRACK_SIZE
 	MyMap.set (ptr, sz);
 #endif
+	OwnershipMap<Alignment>::set (ptr, sz);
 	return ptr;
       }
 
@@ -97,6 +105,11 @@ namespace Hoard {
     }
 
     inline void free (void * ptr, size_t sz) {
+      // Mirror malloc's rounding so we clear exactly the chunks we set.
+      sz = HL::align<Alignment>(HL::align<HL::MmapWrapper::Size>(sz));
+      // Clear ownership before unmapping so there is no window where
+      // the map claims an unmapped (or foreign-remapped) region.
+      OwnershipMap<Alignment>::clear (ptr, sz);
       HL::MmapWrapper::unmap (ptr, sz);
     }
     
@@ -157,6 +170,7 @@ namespace Hoard {
 #if TRACK_SIZE
       MyMap.set (newptr, sz);
 #endif
+      OwnershipMap<Alignment>::set (newptr, sz);
       return newptr;
     }
 

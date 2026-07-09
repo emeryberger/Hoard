@@ -70,6 +70,12 @@ namespace Hoard {
       return _header.getObjectSize();
     }
 
+    // Accessors for the TLAB's superblock cache (see tlab.h).
+    INLINE const char * getStart() const { return _header.getStart(); }
+    INLINE bool objectSizeIsPowerOfTwo() const { return _header.objectSizeIsPowerOfTwo(); }
+    INLINE size_t getMagicMul() const { return _header.getMagicMul(); }
+    INLINE unsigned getMagicShift() const { return _header.getMagicShift(); }
+
     MALLOC_FUNCTION INLINE void * malloc (size_t) {
       assert (_header.isValid());
       auto * ptr = _header.malloc();
@@ -165,7 +171,11 @@ namespace Hoard {
 	      (ptrValue < (size_t) &_buf[BufferSize]));
     }
     
-    constexpr INLINE void * normalize (void * ptr) const {
+#if defined(_MSC_VER)
+    __forceinline void * normalize (void * ptr) const {
+#else
+    __attribute__((always_inline)) inline void * normalize (void * ptr) const {
+#endif
       auto * ptr2 = _header.normalize (ptr);
       assert (inRange (ptr));
       assert (inRange (ptr2));

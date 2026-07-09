@@ -216,14 +216,32 @@ ARM64 (Apple Silicon) quirk: Must use `tpidrro_el0` register (read-only thread p
 
 Key optimizations in the malloc/free fast path:
 
-1. **Superblock caching** (tlab.h): Cache the last-freed superblock pointer and size class. Consecutive frees to the same superblock skip `isValidSuperblock()` and `getObjectSize()` lookups.
+1. **Superblock caching** (tlab.h): Cache the last-freed superblock pointer plus a copy of its read-only header fields (`_start`, object size, power-of-two flag, magic mul/shift, class size). Consecutive frees to the same superblock normalize and account entirely from TLAB-local fields with zero superblock header loads. The "no cached superblock" sentinel is `(SuperblockType*)1`, never `nullptr` (a garbage near-zero pointer masks to a null superblock and must not match the cache, which performs no validity check).
 
-2. **always_inline attribute** (tlab.h): Force inlining of TLAB malloc/free. LTO doesn't always inline these despite the `inline` keyword.
+2. **always_inline attribute** (tlab.h): Force inlining of TLAB malloc/free. LTO doesn't always inline these despite the `inline` keyword. Same for `Header::normalize` (hoardsuperblockheader.h) — the multiplicative-inverse branch is just big enough that compilers outline it — and for `TheCustomHeapType::malloc/free` (hoardtlab.h), which would otherwise stay an out-of-line `ANSIWrapper::malloc` call on every allocation.
 
 3. **Branch prediction hints**: Use `__builtin_expect()` (via `TLAB_LIKELY`/`TLAB_UNLIKELY` macros) on hot path conditionals.
 
-4. **flatten attribute** (libhoard.cpp): On `xxfree()` to inline callees.
+4. **Batch TLAB refill** (tlab.h + `mallocMany` in redirectfree.h, lockmallocheap.h, hoardmanager.h): when a TLAB bin is empty, fetch up to 64 objects under ONE per-thread-heap lock acquisition instead of one lock per object. Bounded by the TLAB's adaptive threshold, so blowup bounds are unchanged.
+
+5. **xxowns ownership hook** (libhoard.cpp + util/ownershipmap.h): on macOS, the alloc8 interposition layer needs an ownership predicate for every free/realloc/malloc_size. Without a hook it maintains an internal pointer->size hash table (a hash insert/erase on EVERY malloc/free) that hard-saturates at ~4M live objects, after which frees of Hoard's own pointers fall into a catastrophically slow `malloc_zone_from_ptr` walk and get dropped. Hoard exports strong `xxowns()`/`xxowns_active()` backed by `OwnershipMap`: one bit per 256KB chunk of address space, registered at the `AlignedMmap` layer (which rounds all region sizes to a superblock multiple so chunk ownership is exact). The 128MB bitmap is virtual; only pages covering address ranges Hoard actually uses are ever touched.
+
+6. **Hidden visibility on xx* hooks** (libhoard.cpp, macOS): the xx* entry points are only called by alloc8 inside the same dylib. Default visibility (exported) blocks ThinLTO from inlining them into `replace_malloc`/`replace_free`; hidden visibility lets the whole chain flatten. Note: alloc8's weak fallback definition of `xxowns` prevents its inlining regardless (ThinLTO will not import a prevailing definition over a module-local weak one), so `xxowns` remains one small call.
+
+### Size Classes
+
+`bins256k.h` specializes `HL::bins<Header, 262144>` (the 256KB-superblock configuration used on macOS/Linux) with fine-grained classes: 8-byte steps from 8 to 128, then four classes per power of two up to 32768 (48 bins, ≤25% worst-case internal fragmentation vs ~100% for the generic power-of-two classes). `sizeclasslut.h` (used by the TLAB fast path) MUST stay in sync with it — the TLAB indexes bins by that LUT while the parent heap uses `HL::bins`, and both are instantiated over the same class table. Non-power-of-two object sizes rely on the precomputed multiplicative-inverse modulo in the superblock header. Windows (64KB superblocks) still uses the generic power-of-two bins; the LUT mismatch there is benign (bins keyed by LUT classes hold objects at least as large as any request mapped to them) but wastes some TLAB reuse.
+
+### Memory / RSS
+
+- **Purge-on-empty** (shardedglobalheap.h): when a completely-empty superblock reaches the global heap, its data pages are discarded via `MADV_FREE_REUSABLE` (macOS; `MADV_FREE`/`MADV_DONTNEED` on Linux, `DiscardVirtualMemory` on Windows — see util/purge.h). `clear()` first resets the freelist to bump-pointer mode so no allocator metadata lives in purged pages. Plain `MADV_FREE` does NOT lower RSS/footprint numbers on macOS until memory pressure; `MADV_FREE_REUSABLE` does.
+- **Big-object retention** (hoardheap.h): ThresholdSegHeap waste threshold is 10%.
+- `AddHeaderHeap::free` must free `size + headerSize` — malloc maps `sz + headerSize`, and the mmap layer's map/unmap sizes have to match or trailing pages/ownership bits leak.
 
 ### Baseline Comparisons
 
 When optimizing, compare against mimalloc and jemalloc, not system malloc. Use consistent benchmark parameters across runs. Larson is sensitive to cross-thread free patterns; threadtest measures pure per-thread throughput.
+
+Measurement notes (macOS): SIP strips `DYLD_INSERT_LIBRARIES` for system binaries — a wrapper like `/usr/bin/time` will silently drop it, and hardened-runtime binaries (system python3, sqlite3, etc.) ignore it entirely, so interposition tests must use locally-built unsigned binaries. Verify interposition rather than assuming it (e.g. `MIMALLOC_VERBOSE=1` for mimalloc, `DYLD_PRINT_LIBRARIES=1` for Hoard).
+
+Known remaining gap (larson): roughly 25-30% of larson cycles are alloc8 wrapper overhead per malloc/free (`replace_*` entry checks plus the non-inlinable `xxowns` call). Closing it requires changes in alloc8 (e.g. an `ALLOC8_XXOWNS_INLINE` compile-time hook), not in this repository.

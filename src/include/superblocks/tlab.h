@@ -73,16 +73,46 @@ namespace Hoard {
 
     enum { Alignment = ParentHeap::Alignment };
 
+    // Size-class dispatch. The lookup tables in sizeclasslut.h encode the
+    // fine-grained classes of bins256k.h, which apply ONLY to the 256KB
+    // superblock configuration (macOS/Linux). Any other configuration
+    // (e.g. Windows, 64KB superblocks with generic power-of-two bins)
+    // must use the bins functions supplied as template parameters:
+    // indexing _localHeap with LUT classes there would run past NumBins.
+    static inline int tlabSizeClass (size_t sz) {
+      if constexpr (SuperblockSize == 262144) {
+        return Hoard::getSizeClassLUT (sz);
+      } else {
+        return getSizeClass (sz);
+      }
+    }
+
+    static inline size_t tlabClassSize (int c) {
+      if constexpr (SuperblockSize == 262144) {
+        return Hoard::getClassSizeLUT (c);
+      } else {
+        return getClassSize (c);
+      }
+    }
+
     ThreadLocalAllocationBuffer (ParentHeap * parent)
       : _parentHeap (parent),
       	_localHeapBytes (0),
-        _cachedSuperblock (nullptr),
+        _cachedSuperblock (invalidCacheSentinel()),
         _cachedSizeClass (-1),
+        _cachedClassSize (0),
+        _cachedStart (0),
+        _cachedObjectSize (1),
+        _cachedMagicMul (0),
+        _cachedMagicShift (0),
+        _cachedPow2 (true),
         _adaptiveThreshold (InitialThreshold),
         _slowPathCount (0)
     {
       static_assert(gcd<Alignment, DesiredAlignment>::value == DesiredAlignment,
 		    "Alignment mismatch.");
+      static_assert(SuperblockSize != 262144 || NumBins >= 28,
+		    "sizeclasslut.h classes (0-27) must fit in NumBins.");
       static_assert((Alignment >= 2 * sizeof(size_t)),
 		    "Alignment must be enough to hold two pointers.");
     }
@@ -101,16 +131,23 @@ namespace Hoard {
       if (HL_EXPECT_TRUE(sz <= LargestObject)) {
         // Use lookup table for size class (faster than bsr instruction).
         // LUT handles sizes 1-1024, which covers LargestSmallObject.
-      	auto c = Hoard::getSizeClassLUT(sz);
+      	auto c = tlabSizeClass(sz);
       	auto * ptr = _localHeap(c).get();
       	if (HL_EXPECT_TRUE(ptr != nullptr)) {
-          auto classSize = Hoard::getClassSizeLUT(c);
+          auto classSize = tlabClassSize(c);
       	  assert (_localHeapBytes >= classSize);
       	  _localHeapBytes -= classSize;
       	  assert (getSize(ptr) >= sz);
       	  assert ((size_t) ptr % Alignment == 0);
       	  return ptr;
       	}
+        // Refill the bin with a batch of objects under a single parent
+        // heap lock acquisition, rather than paying a lock per object.
+        void * rptr = refill (c);
+        if (HL_EXPECT_TRUE(rptr != nullptr)) {
+          assert ((size_t) rptr % Alignment == 0);
+          return rptr;
+        }
       }
 
       // Slow path: go to parent heap (requires locking).
@@ -130,32 +167,42 @@ namespace Hoard {
       const size_t threshold = _adaptiveThreshold;
 
       // Ultra-fast path: same superblock as last free (common in loops).
-      // Avoids isValidSuperblock() check and getObjectSize() memory access.
+      // All fields needed to normalize the pointer and account for the
+      // object are cached in this TLAB, so the superblock header is not
+      // touched at all: no dependent loads through cold memory.
       if (HL_EXPECT_TRUE(s == _cachedSuperblock)) {
-        ptr = s->normalize (ptr);
-        auto classSize = Hoard::getClassSizeLUT(_cachedSizeClass);
-        if (HL_EXPECT_TRUE(_localHeapBytes + classSize <= threshold)) {
+        ptr = normalizeCached (ptr);
+        if (HL_EXPECT_TRUE(_localHeapBytes + _cachedClassSize <= threshold)) {
           _localHeap(_cachedSizeClass).insert ((HL::SLList::Entry *) ptr);
-          _localHeapBytes += classSize;
+          _localHeapBytes += _cachedClassSize;
           return;
         }
       }
 
       // Fast path: valid superblock with small object that fits in TLAB.
+      // Validity is checked exactly once here; the accessors below are
+      // the unchecked variants so the magic number is not re-read.
       if (HL_EXPECT_TRUE(s != nullptr && s->isValidSuperblock())) {
 
       	ptr = s->normalize (ptr);
-      	auto sz = s->getObjectSize ();
+      	auto sz = s->getObjectSizeUnchecked ();
 
       	if (HL_EXPECT_TRUE((sz <= LargestObject) && (sz + _localHeapBytes <= threshold))) {
       	  assert (getSize(ptr) >= sizeof(HL::SLList::Entry *));
           // Use lookup table for size class (faster than bsr instruction).
-      	  auto c = Hoard::getSizeClassLUT(sz);
-          auto classSize = Hoard::getClassSizeLUT(c);
+      	  auto c = tlabSizeClass(sz);
+          auto classSize = tlabClassSize(c);
 
-          // Cache this superblock for subsequent frees.
+          // Cache this superblock (and the header fields the cached
+          // path needs) for subsequent frees.
           _cachedSuperblock = s;
           _cachedSizeClass = c;
+          _cachedClassSize = classSize;
+          _cachedStart = (uintptr_t) s->getStart();
+          _cachedObjectSize = sz;
+          _cachedPow2 = s->objectSizeIsPowerOfTwo();
+          _cachedMagicMul = s->getMagicMul();
+          _cachedMagicShift = s->getMagicShift();
 
       	  _localHeap(c).insert ((HL::SLList::Entry *) ptr);
       	  _localHeapBytes += classSize;
@@ -163,14 +210,14 @@ namespace Hoard {
       	}
 
       	// Slow path: large object or TLAB full - free to parent heap.
-        _cachedSuperblock = nullptr;  // Invalidate cache
+        _cachedSuperblock = invalidCacheSentinel();  // Invalidate cache
       	_parentHeap->free (ptr);
       }
     }
 
     void clear() {
       // Invalidate the superblock cache.
-      _cachedSuperblock = nullptr;
+      _cachedSuperblock = invalidCacheSentinel();
       _cachedSizeClass = -1;
 
       // Free every object to the 'parent' heap.
@@ -196,6 +243,67 @@ namespace Hoard {
 
     ThreadLocalAllocationBuffer (const ThreadLocalAllocationBuffer&);
     ThreadLocalAllocationBuffer& operator=(const ThreadLocalAllocationBuffer&);
+
+    /// Sentinel for "no cached superblock". Deliberately NOT nullptr:
+    /// getSuperblock() of a garbage near-zero pointer yields nullptr,
+    /// which must not match the cache (the cached path performs no
+    /// validity check). The value 1 can never equal a real superblock
+    /// address (those are SuperblockSize-aligned).
+    static SuperblockType * invalidCacheSentinel() {
+      return reinterpret_cast<SuperblockType *>(uintptr_t(1));
+    }
+
+    /// Normalize a pointer into the cached superblock using the cached
+    /// header fields only (no superblock header access).
+    TLAB_ALWAYS_INLINE void * normalizeCached (void * ptr) const {
+      uintptr_t offset = (uintptr_t) ptr - _cachedStart;
+      size_t remainder;
+      if (HL_EXPECT_TRUE(_cachedPow2)) {
+        remainder = offset & (_cachedObjectSize - 1);
+      } else {
+#if defined(_MSC_VER) && !defined(__clang__)
+        remainder = offset % _cachedObjectSize;
+#else
+        size_t quotient =
+          (size_t)(((__uint128_t) offset * _cachedMagicMul) >> _cachedMagicShift);
+        remainder = offset - quotient * _cachedObjectSize;
+#endif
+      }
+      return (void *) ((uintptr_t) ptr - remainder);
+    }
+
+    /// Maximum number of objects fetched per bin refill.
+    enum { MaxRefillBatch = 64 };
+
+    /// Refill an empty bin with a batch of objects fetched under one
+    /// parent-heap lock acquisition; return one of them.
+    ///
+    /// Blowup preservation: the prefetched objects live in the TLAB and
+    /// are bounded by the same _adaptiveThreshold ≤ LocalHeapThreshold
+    /// accounting as objects cached by free(), so the O(1)-per-thread
+    /// bound on TLAB memory is unchanged.
+    NO_INLINE void * refill (int c) {
+      maybeGrowThreshold();
+      const size_t classSize = tlabClassSize (c);
+      // Batch at most 1/8 of the current TLAB threshold per refill.
+      size_t batch = _adaptiveThreshold / (8 * classSize);
+      if (batch > (size_t) MaxRefillBatch) {
+        batch = MaxRefillBatch;
+      }
+      if (batch == 0) {
+        batch = 1;
+      }
+      void * objs[MaxRefillBatch];
+      size_t got = _parentHeap->getHeap().mallocMany (classSize, objs, batch);
+      if (HL_EXPECT_FALSE(got == 0)) {
+        return nullptr;
+      }
+      for (size_t i = 1; i < got; i++) {
+        _localHeap(c).insert (reinterpret_cast<HL::SLList::Entry *>(objs[i]));
+      }
+      _localHeapBytes += (got - 1) * classSize;
+      return objs[0];
+    }
 
     /// Grow TLAB threshold when hitting slow path often.
     /// Preserves blowup by never exceeding LocalHeapThreshold.
@@ -223,6 +331,15 @@ namespace Hoard {
 
     /// Cached size class for the cached superblock.
     int _cachedSizeClass;
+
+    // Copies of the cached superblock's read-only header fields, so the
+    // cached free path never dereferences the superblock header.
+    size_t _cachedClassSize;
+    uintptr_t _cachedStart;
+    size_t _cachedObjectSize;
+    size_t _cachedMagicMul;
+    unsigned _cachedMagicShift;
+    bool _cachedPow2;
 
     /// The local heap itself.
     Array<NumBins, HL::SLList> _localHeap;

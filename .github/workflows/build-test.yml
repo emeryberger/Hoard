@@ -236,6 +236,12 @@ jobs:
 
   build-windows:
     runs-on: windows-latest
+    # Bound the job so a hang fails fast instead of burning six
+    # runner-hours (issue #100). Budget: builds+baseline ~10 min, ten
+    # fast benchmarks, and rptest, which has always been extremely slow
+    # under DLL injection (the last green master run spent 10+ minutes
+    # in this step, nearly all of it rptest).
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -288,50 +294,58 @@ jobs:
           "--- rptest ---" | Tee-Object -FilePath baseline.txt -Append
           .\rptest.exe 4 2>&1 | Tee-Object -FilePath baseline.txt -Append
 
-      - name: Run benchmarks with Hoard
+      - name: Run benchmarks with Hoard (watchdogged)
         shell: powershell
+        # Each benchmark runs under a watchdog: on hang, all-thread stacks
+        # and minidumps of the process tree are captured with cdb before
+        # the tree is killed, and the remaining benchmarks still run.
+        # Diagnostics land in the windows-hang-diagnostics artifact (issue #100).
         run: |
           cd benchmarks/ci/build/Release
           # withdll.exe is built by alloc8 in the _deps directory
           $withdll = "$PWD/../../../../build/_deps/alloc8-build/Release/withdll.exe"
           $hoard = "$PWD/../../../../build/Release/hoard.dll"
+          $watchdog = "$PWD/../../../../.github/scripts/benchmark-watchdog.ps1"
 
           "=== Hoard allocator ===" | Tee-Object -FilePath hoard.txt
 
-          "--- cfrac ---" | Tee-Object -FilePath hoard.txt -Append
-          & $withdll /d:$hoard .\cfrac.exe 2>&1 | Tee-Object -FilePath hoard.txt -Append
+          $benchmarks = @(
+            @("cfrac", ".\cfrac.exe"),
+            @("larson", ".\larson.exe", "4"),
+            @("cache-scratch", ".\cache_scratch.exe", "4"),
+            @("cache-thrash", ".\cache_thrash.exe", "4"),
+            @("mstress", ".\mstress.exe", "4"),
+            @("alloc-test", ".\alloc_test.exe", "4"),
+            @("malloc-large", ".\malloc_large.exe"),
+            @("xmalloc-test", ".\xmalloc_test.exe", "2"),
+            @("sh6bench", ".\sh6bench.exe"),
+            @("sh8bench", ".\sh8bench.exe", "4"),
+            @("rptest", ".\rptest.exe", "4")
+          )
+          # rptest has always been far slower under injection (heavy
+          # large-object VM traffic serialized behind the mmap-layer
+          # lock; ~10 minutes even in the last green master run).
+          $timeouts = @{ "rptest" = 900 }
 
-          "--- larson ---" | Tee-Object -FilePath hoard.txt -Append
-          & $withdll /d:$hoard .\larson.exe 4 2>&1 | Tee-Object -FilePath hoard.txt -Append
+          $failed = @()
+          foreach ($b in $benchmarks) {
+            $name = $b[0]
+            $tmo = if ($timeouts.ContainsKey($name)) { $timeouts[$name] } else { 120 }
+            $cmd = @($withdll, "/d:$hoard") + $b[1..($b.Count-1)]
+            powershell -NoProfile -ExecutionPolicy Bypass -File $watchdog `
+              -Name $name -TimeoutSec $tmo -OutDir watchdog -LogFile hoard.txt @cmd
+            if ($LASTEXITCODE -ne 0) {
+              $failed += "$name (exit $LASTEXITCODE)"
+            }
+          }
 
-          "--- cache-scratch ---" | Tee-Object -FilePath hoard.txt -Append
-          & $withdll /d:$hoard .\cache_scratch.exe 4 2>&1 | Tee-Object -FilePath hoard.txt -Append
-
-          "--- cache-thrash ---" | Tee-Object -FilePath hoard.txt -Append
-          & $withdll /d:$hoard .\cache_thrash.exe 4 2>&1 | Tee-Object -FilePath hoard.txt -Append
-
-          "--- mstress ---" | Tee-Object -FilePath hoard.txt -Append
-          & $withdll /d:$hoard .\mstress.exe 4 2>&1 | Tee-Object -FilePath hoard.txt -Append
-
-          "--- alloc-test ---" | Tee-Object -FilePath hoard.txt -Append
-          & $withdll /d:$hoard .\alloc_test.exe 4 2>&1 | Tee-Object -FilePath hoard.txt -Append
-
-          "--- malloc-large ---" | Tee-Object -FilePath hoard.txt -Append
-          & $withdll /d:$hoard .\malloc_large.exe 2>&1 | Tee-Object -FilePath hoard.txt -Append
-
-          "--- xmalloc-test ---" | Tee-Object -FilePath hoard.txt -Append
-          & $withdll /d:$hoard .\xmalloc_test.exe 2 2>&1 | Tee-Object -FilePath hoard.txt -Append
-
-          "--- sh6bench ---" | Tee-Object -FilePath hoard.txt -Append
-          & $withdll /d:$hoard .\sh6bench.exe 2>&1 | Tee-Object -FilePath hoard.txt -Append
-
-          "--- sh8bench ---" | Tee-Object -FilePath hoard.txt -Append
-          & $withdll /d:$hoard .\sh8bench.exe 4 2>&1 | Tee-Object -FilePath hoard.txt -Append
-
-          "--- rptest ---" | Tee-Object -FilePath hoard.txt -Append
-          & $withdll /d:$hoard .\rptest.exe 4 2>&1 | Tee-Object -FilePath hoard.txt -Append
+          if ($failed.Count -gt 0) {
+            Write-Error ("Benchmarks failed or hung: " + ($failed -join ", "))
+            exit 1
+          }
 
       - name: Check for crashes and display results
+        if: always()
         shell: powershell
         run: |
           cd benchmarks/ci/build/Release
@@ -350,12 +364,21 @@ jobs:
           Write-Output "All benchmarks completed without crashes."
 
       - name: Upload benchmark results
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-results-windows
           path: |
             benchmarks/ci/build/Release/baseline.txt
             benchmarks/ci/build/Release/hoard.txt
+
+      - name: Upload hang diagnostics (stacks and dumps)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-hang-diagnostics
+          path: benchmarks/ci/build/Release/watchdog/
+          if-no-files-found: ignore
 
       - name: Upload library
         uses: actions/upload-artifact@v4

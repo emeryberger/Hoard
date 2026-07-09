@@ -97,7 +97,14 @@ TheCustomHeapType * initializeCustomHeap() __attribute__((constructor));
 TheCustomHeapType * initializeCustomHeap() {
   auto tlab = theTLAB;
   if (tlab == nullptr) {
-    new (reinterpret_cast<char *>(&tlabBuffer)) TheCustomHeapType(getMainHoardHeap());
+    // The main heap is nullptr while still under construction
+    // (re-entrant allocation from within its constructor); the caller
+    // then falls back to the init buffer and we retry next time.
+    auto * mainHeap = getMainHoardHeap();
+    if (mainHeap == nullptr) {
+      return nullptr;
+    }
+    new (reinterpret_cast<char *>(&tlabBuffer)) TheCustomHeapType(mainHeap);
     tlab = reinterpret_cast<TheCustomHeapType *>(&tlabBuffer);
     theTLAB = tlab;
   }

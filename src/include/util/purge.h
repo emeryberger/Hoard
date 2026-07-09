@@ -95,7 +95,10 @@ namespace Hoard {
     }
     return VirtualAlloc(a, span, MEM_RESET, PAGE_READWRITE) != nullptr;
 #elif defined(__APPLE__)
-    // macOS: MADV_FREE has the desired RSS-but-not-VM effect.
+    // macOS: MADV_FREE_REUSABLE removes the pages from the process
+    // footprint immediately (it is what Apple's own allocators use);
+    // plain MADV_FREE leaves them counted in RSS until memory pressure.
+    if (madvise(a, span, MADV_FREE_REUSABLE) == 0) return true;
     return madvise(a, span, MADV_FREE) == 0;
 #else
     // Linux: prefer MADV_FREE; fall back to MADV_DONTNEED on old kernels.

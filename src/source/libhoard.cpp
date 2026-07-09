@@ -19,6 +19,7 @@
  * @author Emery Berger <http://www.emeryberger.com>
  */
 
+#include <atomic>
 #include <cstddef>
 #include <cstring>
 #include <new>
@@ -75,23 +76,63 @@ volatile bool anyThreadCreated = false;
 #include "inlinetls.h"
 #endif
 
+// On macOS, inline the TLS fast path here as well (see mactlsfast.h).
+#if defined(__APPLE__)
+#include "mactlsfast.h"
+#endif
+
+// On macOS the xx* entry points are called only from the alloc8
+// interposition layer linked into this same dylib. Hidden visibility
+// keeps them out of the export table and lets LTO inline them into
+// alloc8's replace_malloc/replace_free wrappers.
+#if defined(__APPLE__)
+#define HOARD_HOOK __attribute__((visibility("hidden")))
+#else
+#define HOARD_HOOK
+#endif
+
 //
 // The base Hoard heap.
 //
 
 
 /// Maintain a single instance of the main Hoard heap.
+///
+/// Deliberately NOT a guarded function-local static ("magic static").
+/// The heap constructor registers static destructors with the CRT; on
+/// Windows the CRT grows its onexit table with recalloc, which Detours
+/// routes straight back into Hoard while the guarded static would still
+/// be marked "initialization in progress" - MSVC's init guard then
+/// waits on its condition variable for its own thread, deadlocking
+/// every injected process inside DllMain (issue #100; observed in the
+/// CI stack captures as SleepConditionVariableSRW under
+/// register_onexit_function/recalloc under LdrpInitializeProcess).
+///
+/// Instead: constant-initialized atomics (no guard), and re-entrant or
+/// concurrent callers during construction get nullptr, which makes the
+/// entry points fall back to the static init buffer below - exactly
+/// what it exists for.
 
 Hoard::HoardHeapType * getMainHoardHeap() {
-  // This function is C++ magic that ensures that the heap is
-  // initialized before its first use. First, allocate a static buffer
-  // to hold the heap.
-
+  // Zero-initialized static buffer: no init guard.
   static double thBuf[sizeof(Hoard::HoardHeapType) / sizeof(double) + 1];
+  // Constant-initialized (C++20 P0883): no init guard.
+  static std::atomic<Hoard::HoardHeapType *> th { nullptr };
+  static std::atomic<bool> constructing { false };
 
-  // Now initialize the heap into that buffer.
-  static auto * th = new (thBuf) Hoard::HoardHeapType;
-  return th;
+  auto * p = th.load (std::memory_order_acquire);
+  if (HL_EXPECT_TRUE(p != nullptr)) {
+    return p;
+  }
+  if (constructing.exchange (true, std::memory_order_acq_rel)) {
+    // Re-entered from within the constructor (e.g. a detoured CRT
+    // allocation on Windows), or raced by another thread mid-init:
+    // serve this request from the init buffer.
+    return nullptr;
+  }
+  p = new (thBuf) Hoard::HoardHeapType;
+  th.store (p, std::memory_order_release);
+  return p;
 }
 
 TheCustomHeapType * getCustomHeap();
@@ -104,13 +145,56 @@ extern bool isCustomHeapInitialized();
 
 #include "wrappers/generic-memalign.cpp"
 
+#if defined(__APPLE__)
+
+// Ownership hook consumed by the alloc8 interposition layer. Providing
+// these strong definitions makes alloc8 skip its internal per-pointer
+// size table (a hash insert/erase on every malloc/free that saturates
+// at ~4M live objects) and answer free/realloc/malloc_size ownership
+// via Hoard's O(1) superblock ownership map instead.
+//
+// The fast path actually used with current alloc8 is the compile-time
+// inline twin in hoardownsinline.h (via ALLOC8_XXOWNS_INLINE_HEADER);
+// the runtime hook below remains for older alloc8 versions.
+
+#include "hoardownsinline.h"
+
+// hoardownsinline.h must agree with the real superblock size.
+static_assert(HOARD_OWNS_CHUNK_SIZE == SUPERBLOCK_SIZE,
+              "hoardownsinline.h chunk size out of sync with SUPERBLOCK_SIZE");
+
+extern "C" {
+
+  // Constant-initialized bounds for hoardownsinline.h (no dynamic
+  // initializer: safe to read from arbitrarily early interposed calls).
+  const char * const hoardInitBufferStart = initBuffer;
+  const char * const hoardInitBufferEnd = initBuffer + MAX_LOCAL_BUFFER_SIZE;
+
+  HOARD_HOOK bool xxowns_active() {
+    return true;
+  }
+
+  HOARD_HOOK bool xxowns (const void * ptr) {
+    if (HL_EXPECT_TRUE(Hoard::OwnershipMap<SUPERBLOCK_SIZE>::contains (ptr))) {
+      return true;
+    }
+    // Allocations served from the static init buffer before heap
+    // initialization are also ours.
+    auto * p = reinterpret_cast<const char *>(ptr);
+    return (p >= initBuffer && p < initBuffer + MAX_LOCAL_BUFFER_SIZE);
+  }
+
+}
+
+#endif
+
 extern "C" {
 
 #if defined(__GNUG__) || defined(__clang__)
   __attribute__((alloc_size(1))) __attribute__((malloc))
-  void * xxmalloc (size_t sz)
+  HOARD_HOOK void * xxmalloc (size_t sz)
 #else
-  void * xxmalloc (size_t sz)
+  HOARD_HOOK void * xxmalloc (size_t sz)
 #endif
   {
     // Single TLS lookup - getCustomHeap returns nullptr if not initialized
@@ -142,7 +226,7 @@ extern "C" {
     return ptr;
   }
 
-  void xxfree (void * ptr)
+  HOARD_HOOK void xxfree (void * ptr)
   {
     if (HL_EXPECT_FALSE(ptr == nullptr)) {
       return;
@@ -160,25 +244,38 @@ extern "C" {
     }
   }
 
-  void xxfree_sized(void * ptr, size_t) {
+  HOARD_HOOK void xxfree_sized(void * ptr, size_t) {
     xxfree(ptr);
   }
 
-  void xxfree_aligned_sized(void * ptr, size_t, size_t) {
+  HOARD_HOOK void xxfree_aligned_sized(void * ptr, size_t, size_t) {
     xxfree(ptr);
   }
 
   /// Aligned allocation using Hoard's normalization.
   /// Hoard uses normalize() in the free path to round internal pointers
   /// back to their object start, so we can return internal pointers safely.
-  void * xxmemalign (size_t alignment, size_t sz) {
+  HOARD_HOOK void * xxmemalign (size_t alignment, size_t sz) {
     // Check for non power-of-two alignment or zero.
     if ((alignment == 0) || (alignment & (alignment - 1))) {
       return nullptr;
     }
 
-    // If alignment is small enough, regular malloc handles it.
-    if (alignment <= alignof(max_align_t)) {
+    // Alignment <= 8: every size class provides it.
+    if (alignment <= 8) {
+      return xxmalloc(sz);
+    }
+
+    // Alignment 16: size classes that are multiples of 16 are 16-byte
+    // aligned (superblock data starts 16-aligned), so rounding the
+    // request up to a multiple of 16 suffices. Do NOT rely on
+    // alignof(max_align_t) here: with 8-byte-granularity size classes
+    // (24, 40, ...), plain malloc only guarantees 8-byte alignment.
+    if (alignment == 16) {
+      sz = (sz + 15) & ~(size_t) 15;
+      if (sz == 0) {
+        sz = 16;
+      }
       return xxmalloc(sz);
     }
 
@@ -198,7 +295,7 @@ extern "C" {
     return reinterpret_cast<void*>(alignedAddr);
   }
 
-  size_t xxmalloc_usable_size (void * ptr) {
+  HOARD_HOOK size_t xxmalloc_usable_size (void * ptr) {
     // Handle init buffer pointers
     if (ptr >= initBuffer && ptr < initBuffer + MAX_LOCAL_BUFFER_SIZE) {
       return static_cast<size_t>((initBuffer + MAX_LOCAL_BUFFER_SIZE) - (char*)ptr);
@@ -210,7 +307,7 @@ extern "C" {
     return 0;
   }
 
-  void * xxrealloc(void * ptr, size_t sz) {
+  HOARD_HOOK void * xxrealloc(void * ptr, size_t sz) {
     // Handle null pointer - just malloc
     if (ptr == nullptr) {
       return xxmalloc(sz);
@@ -253,16 +350,16 @@ extern "C" {
     return newPtr;
   }
 
-  void xxmalloc_lock() {
+  HOARD_HOOK void xxmalloc_lock() {
     // Undefined for Hoard.
   }
 
-  void xxmalloc_unlock() {
+  HOARD_HOOK void xxmalloc_unlock() {
     // Undefined for Hoard.
   }
 
   // alloc8 expects xxcalloc
-  void * xxcalloc(size_t count, size_t size) {
+  HOARD_HOOK void * xxcalloc(size_t count, size_t size) {
     // Overflow check
     size_t total = count * size;
     if (size != 0 && total / size != count) {

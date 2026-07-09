@@ -59,6 +59,20 @@ namespace Hoard {
       auto * sb = (SuperblockType *) s;
       assert (sb->isValidSuperblock());
 
+      // If the superblock is completely empty, discard its data pages
+      // (MADV_FREE and equivalents) so the OS can reclaim the physical
+      // memory while it sits in the global heap. The virtual mapping,
+      // header, and reuse path are unchanged, so this does not affect
+      // Hoard's bounds; it only lowers resident memory. clear() first
+      // resets the freelist into pure-reap (bump pointer) mode so no
+      // allocator metadata lives in the purged region. No thread can
+      // legitimately free into a fully-empty superblock concurrently,
+      // and TLAB-cached objects count as live, so this is race-free.
+      if (sb->getObjectsFree() == sb->getTotalObjects()) {
+        sb->clear();
+        sb->purgeData();
+      }
+
       int shard = getThreadShard();
       _shards[shard]->put((typename SuperHeap::SuperblockType *) s, sz);
     }

@@ -31,6 +31,11 @@ namespace Hoard {
       std::lock_guard<Heap> l (*this);
       return Heap::malloc (sz);
     }
+    /// Batch allocation: one lock acquisition for the whole batch.
+    MALLOC_FUNCTION INLINE size_t mallocMany (size_t sz, void ** out, size_t n) {
+      std::lock_guard<Heap> l (*this);
+      return Heap::mallocMany (sz, out, n);
+    }
   };
 
 }

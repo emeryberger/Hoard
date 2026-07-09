@@ -30,6 +30,7 @@
 #include "hoardconstants.h"
 
 #include "heaplayers.h"
+#include "../util/bins256k.h"
 
 namespace Hoard {
   
@@ -77,6 +78,25 @@ namespace Hoard {
   
 }
 
-typedef HL::ANSIWrapper<Hoard::TLABBase> TheCustomHeapType;
+// The per-thread heap type used by the malloc/free entry points.
+// ANSIWrapper supplies getSize/realloc/calloc plumbing; malloc and
+// free are overridden with force-inlined versions that go straight to
+// the TLAB. Without this, LTO keeps ANSIWrapper::malloc as an
+// out-of-line call on the hottest path in the allocator.
+class TheCustomHeapType : public HL::ANSIWrapper<Hoard::TLABBase> {
+  typedef HL::ANSIWrapper<Hoard::TLABBase> Parent;
+public:
+  using Parent::Parent;
+
+  TLAB_ALWAYS_INLINE void * malloc (size_t sz) {
+    return Hoard::TLABBase::malloc (sz);
+  }
+
+  TLAB_ALWAYS_INLINE void free (void * ptr) {
+    if (HL_EXPECT_TRUE(ptr != nullptr)) {
+      Hoard::TLABBase::free (ptr);
+    }
+  }
+};
 
 #endif

@@ -31,6 +31,7 @@
 
 #include "heaplayers.h"
 #include "utility/cpp23compat.h"
+#include "../util/bins256k.h"
 
 using namespace HL;
 
@@ -84,6 +85,30 @@ namespace Hoard {
       return ptr;
     }
 
+
+    /// Allocate up to n objects of size sz, storing them in out.
+    /// Returns the number of objects actually allocated. Called with
+    /// the heap lock already held (see LockMallocHeap::mallocMany);
+    /// batching amortizes that lock acquisition over the whole batch.
+    MALLOC_FUNCTION INLINE size_t mallocMany (size_t sz, void ** out, size_t n) {
+      Check<HoardManager, sanityCheck> check (this);
+      const auto binIndex = binType::getSizeClass(sz);
+      const auto realSize = binType::getClassSize(binIndex);
+      assert (realSize >= sz);
+      size_t got = 0;
+      while (got < n) {
+	auto * ptr = getObject (binIndex, realSize);
+	if (HL_EXPECT_TRUE(ptr != nullptr)) {
+	  out[got++] = ptr;
+	} else {
+	  // Grab another superblock; if we can't, return what we have.
+	  if (!getAnotherSuperblock (realSize)) {
+	    break;
+	  }
+	}
+      }
+      return got;
+    }
 
     /// Put a superblock on this heap.
     NO_INLINE void put (SuperblockType * s, size_t sz) {
