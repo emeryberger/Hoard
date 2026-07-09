@@ -97,10 +97,13 @@ if(WIN32)
 
 elseif(APPLE)
   set(HOARD_SOURCES ${MACOS_SOURCES})
-  # alloc8 defaults to fast mode (no ownership table, no runtime checks).
-  # Hoard handles foreign pointers gracefully via IgnoreInvalidFree.
-  # To enable compatibility mode: -DALLOC8_OWNERSHIP_TABLE=1 -DALLOC8_RUNTIME_CHECKS=1
   add_compile_options(-DNDEBUG -ftls-model=initial-exec -ftemplate-depth=1024)
+  # Compile-time inline ownership hook for alloc8: the predicate in
+  # hoardownsinline.h (backed by Hoard's superblock ownership map) inlines
+  # directly into alloc8's replace_free/replace_realloc/malloc_size hot
+  # paths. Harmlessly ignored by alloc8 versions without the hook (the
+  # runtime xxowns() hook in libhoard.cpp then applies instead).
+  add_definitions(-DALLOC8_XXOWNS_INLINE_HEADER=\"hoardownsinline.h\")
 else()
   set(HOARD_SOURCES ${UNIX_SOURCES})
   add_definitions(-DNDEBUG)

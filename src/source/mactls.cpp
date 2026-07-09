@@ -22,6 +22,7 @@
 
 #include "heaplayers.h"
 #include "hoard/hoardtlab.h"
+#include "hoard/mactlsfast.h"
 
 // Required by the replacement printf library (https://github.com/emeryberger/printf)
 extern "C" {
@@ -41,48 +42,20 @@ static pthread_once_t key_once = PTHREAD_ONCE_INIT;
 // On macOS, __thread variables go through _tlv_get_addr which is slow.
 // Instead, we directly access an unused pthread TLS slot (slot 89).
 // This gives us a single memory load instead of a function call.
+//
+// The accessors (hoardGetTlsHeap/hoardSetTlsHeap) and the inline
+// getCustomHeap() fast path live in hoard/mactlsfast.h so that every
+// caller (notably the malloc/free entry points in libhoard.cpp) can
+// inline them; only the first-access slow path lives here.
 //----------------------------------------------------------------------
 
-#define HOARD_TLS_SLOT 89
-
-#if defined(__x86_64__)
-
 static inline TheCustomHeapType* getTlsHeap() {
-  void* res;
-  const size_t ofs = HOARD_TLS_SLOT * sizeof(void*);
-  __asm__ volatile("movq %%gs:%1, %0" : "=r" (res) : "m" (*((void**)ofs)));
-  return reinterpret_cast<TheCustomHeapType*>(res);
+  return hoardGetTlsHeap();
 }
 
 static inline void setTlsHeap(TheCustomHeapType* value) {
-  const size_t ofs = HOARD_TLS_SLOT * sizeof(void*);
-  __asm__ volatile("movq %1, %%gs:%0" : "=m" (*((void**)ofs)) : "r" ((void*)value));
+  hoardSetTlsHeap(value);
 }
-
-#elif defined(__aarch64__)
-
-static inline TheCustomHeapType* getTlsHeap() {
-  void** tcb;
-  __asm__ volatile("mrs %0, tpidrro_el0\n\tbic %0, %0, #7" : "=r" (tcb));
-  return reinterpret_cast<TheCustomHeapType*>(tcb[HOARD_TLS_SLOT]);
-}
-
-static inline void setTlsHeap(TheCustomHeapType* value) {
-  void** tcb;
-  __asm__ volatile("mrs %0, tpidrro_el0\n\tbic %0, %0, #7" : "=r" (tcb));
-  tcb[HOARD_TLS_SLOT] = value;
-}
-
-#else
-// Fallback for other architectures - use pthread_getspecific
-static inline TheCustomHeapType* getTlsHeap() {
-  return reinterpret_cast<TheCustomHeapType*>(pthread_getspecific(theHeapKey));
-}
-
-static inline void setTlsHeap(TheCustomHeapType* value) {
-  pthread_setspecific(theHeapKey, value);
-}
-#endif
 
 // Called when the thread goes away.  This function clears out the
 // TLAB and then reclaims the memory allocated to hold it.
@@ -130,13 +103,9 @@ static TheCustomHeapType * initializeCustomHeap() {
   return heap;
 }
 
-TheCustomHeapType * getCustomHeap() {
-  // Fast path: direct TLS slot access (single memory load, no function call).
-  TheCustomHeapType * heap = getTlsHeap();
-  if (__builtin_expect(heap != nullptr, 1)) {
-    return heap;
-  }
-  // Slow path: first access on this thread, initialize.
+// Slow path for the inline getCustomHeap() in mactlsfast.h:
+// first access on this thread, initialize.
+TheCustomHeapType * hoardSlowGetCustomHeap() {
   initTSD();
   return initializeCustomHeap();
 }
