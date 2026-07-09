@@ -46,6 +46,11 @@ namespace Hoard {
       return ptr;
     }
 
+    /// Batch allocation (used by the TLAB to amortize the heap lock).
+    inline size_t mallocMany (size_t sz, void ** out, size_t n) {
+      return _theHeap.mallocMany (sz, out, n);
+    }
+
     size_t getSize (void * ptr) {
       return Heap::getSize (ptr);
     }

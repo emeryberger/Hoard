@@ -26,6 +26,7 @@
 
 #include "heaplayers.h"
 #include "utility/cpp23compat.h"
+#include "hoardconstants.h"
 #include "../util/purge.h"
 #include "../util/atomicfreelist.h"
 
@@ -68,16 +69,16 @@ namespace Hoard {
     HoardSuperblockHeaderHelper (size_t sz, size_t bufferSize, char * start)
       : _magicNumber (MAGIC_NUMBER ^ (size_t) this),
 	_objectSize (sz),
+	_start (start),
 	_objectSizeIsPowerOfTwo (!(sz & (sz - 1)) && sz),
-	_totalObjects ((unsigned int) (bufferSize / sz)),
-	_magicMul (computeMagicMul(sz)),
 	_magicShift (computeMagicShift(sz)),
+	_magicMul (computeMagicMul(sz)),
+	_totalObjects ((unsigned int) (bufferSize / sz)),
 	_owner (nullptr),
 	_prev (nullptr),
 	_next (nullptr),
 	_reapableObjects (_totalObjects),
 	_objectsFree (_totalObjects),
-	_start (start),
 	_position (start)
     {
       assert ((HL::align<Alignment>((size_t) start) == (size_t) start));
@@ -133,7 +134,14 @@ namespace Hoard {
     }
 
     /// @brief Returns the actual start of the object.
-    INLINE void * normalize (void * ptr) const {
+    /// Force-inlined: this sits on the free fast path, and the
+    /// multiplicative-inverse branch is just big enough that compilers
+    /// otherwise outline it into a call.
+#if defined(_MSC_VER)
+    __forceinline void * normalize (void * ptr) const {
+#else
+    __attribute__((always_inline)) inline void * normalize (void * ptr) const {
+#endif
       assert (isValid());
       auto offset = (size_t) ptr - (size_t) _start;
       void * p;
@@ -166,6 +174,14 @@ namespace Hoard {
     size_t getObjectSizeUnchecked() const {
       return _objectSize;
     }
+
+    // Accessors for the TLAB's superblock cache: the TLAB copies these
+    // read-only fields so consecutive frees to the same superblock can
+    // normalize pointers without touching this header at all.
+    const char * getStart() const { return _start; }
+    bool objectSizeIsPowerOfTwo() const { return _objectSizeIsPowerOfTwo; }
+    size_t getMagicMul() const { return _magicMul; }
+    unsigned getMagicShift() const { return _magicShift; }
 
     bool isValidSuperblock() const {
       return isValid();
@@ -290,26 +306,35 @@ namespace Hoard {
 
     enum { MAGIC_NUMBER = 0xcafed00d };
 
+    // Field order matters for performance. The free fast path (executed
+    // on every free from the TLAB) reads _magicNumber, _objectSize,
+    // _start, and _objectSizeIsPowerOfTwo (plus _magicMul/_magicShift
+    // for non-power-of-two sizes): all read-only after construction and
+    // deliberately grouped in the first cache line, right after the
+    // vtable pointer. Owner-side mutable state comes next, and the
+    // cross-thread delayed-free fields sit on their own cache line so
+    // remote frees do not invalidate the lines the owner is reading.
+
     /// A magic number used to verify validity of this header.
     const size_t _magicNumber;
 
     /// The object size.
     const size_t _objectSize;
 
+    /// The start of reap allocation.
+    const char * _start;
+
     /// True iff size is a power of two.
     const bool _objectSizeIsPowerOfTwo;
-
-    /// Total objects in the superblock.
-    const unsigned int _totalObjects;
-
-    /// Multiplicative inverse of _objectSize for fast modulo computation.
-    const size_t _magicMul;
 
     /// Shift amount for the multiplicative inverse.
     const unsigned _magicShift;
 
-    /// The lock.
-    LockType _theLock;
+    /// Multiplicative inverse of _objectSize for fast modulo computation.
+    const size_t _magicMul;
+
+    /// Total objects in the superblock.
+    const unsigned int _totalObjects;
 
     /// The owner of this superblock.
     HeapType * _owner;
@@ -319,15 +344,12 @@ namespace Hoard {
 
     /// The succeeding superblock in a linked list.
     BlockType* _next;
-    
+
     /// The number of objects available to be 'reap'ed.
     unsigned int _reapableObjects;
 
     /// The number of objects available for (re)use.
     unsigned int _objectsFree;
-
-    /// The start of reap allocation.
-    const char * _start;
 
     /// The cursor into the buffer following the header.
     char * _position;
@@ -335,9 +357,13 @@ namespace Hoard {
     /// The list of freed objects.
     FreeSLList _freeList;
 
+    /// The lock.
+    LockType _theLock;
+
     /// Lock-free queue for delayed cross-thread frees.
     /// Bounded to preserve blowup guarantees.
-    AtomicFreeList _delayedFreeList;
+    /// On its own cache line: remote threads write here concurrently.
+    alignas(CACHE_LINE_SIZE) AtomicFreeList _delayedFreeList;
 
     /// Count of objects in the delayed free queue.
     /// Used to bound the queue size and preserve blowup.
