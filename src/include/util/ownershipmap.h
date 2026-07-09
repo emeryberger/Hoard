@@ -147,8 +147,15 @@ namespace Hoard {
 #endif
     }
 
-    static inline std::atomic<std::atomic<uint64_t> *> _bits { nullptr };
+    // Defined out of line below. NOTE: deliberately not an inline
+    // static member: libhoard.cpp does `#define inline __forceinline`
+    // on Windows, which is invalid on data declarations; a template's
+    // static member may be defined in a header without `inline`.
+    static std::atomic<std::atomic<uint64_t> *> _bits;
   };
+
+  template <size_t ChunkSize>
+  std::atomic<std::atomic<uint64_t> *> OwnershipMap<ChunkSize>::_bits { nullptr };
 
 }
 
