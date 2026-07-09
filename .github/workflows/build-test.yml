@@ -236,11 +236,12 @@ jobs:
 
   build-windows:
     runs-on: windows-latest
-    # The "Run benchmarks with Hoard" step has a long-standing hang on
-    # Windows (observed on master well before June 2026: jobs sat on that
-    # step until the 6-hour GitHub timeout cancelled them). Bound the job
-    # so a hang fails fast instead of burning six runner-hours.
-    timeout-minutes: 30
+    # Bound the job so a hang fails fast instead of burning six
+    # runner-hours (issue #100). Budget: builds+baseline ~10 min, ten
+    # fast benchmarks, and rptest, which has always been extremely slow
+    # under DLL injection (the last green master run spent 10+ minutes
+    # in this step, nearly all of it rptest).
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -321,9 +322,10 @@ jobs:
             @("sh8bench", ".\sh8bench.exe", "4"),
             @("rptest", ".\rptest.exe", "4")
           )
-          # rptest is far slower under injection (heavy large-object VM
-          # traffic serialized behind the mmap-layer lock); give it longer.
-          $timeouts = @{ "rptest" = 420 }
+          # rptest has always been far slower under injection (heavy
+          # large-object VM traffic serialized behind the mmap-layer
+          # lock; ~10 minutes even in the last green master run).
+          $timeouts = @{ "rptest" = 900 }
 
           $failed = @()
           foreach ($b in $benchmarks) {
