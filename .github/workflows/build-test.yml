@@ -236,6 +236,11 @@ jobs:
 
   build-windows:
     runs-on: windows-latest
+    # The "Run benchmarks with Hoard" step has a long-standing hang on
+    # Windows (observed on master well before June 2026: jobs sat on that
+    # step until the 6-hour GitHub timeout cancelled them). Bound the job
+    # so a hang fails fast instead of burning six runner-hours.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 

@@ -73,6 +73,28 @@ namespace Hoard {
 
     enum { Alignment = ParentHeap::Alignment };
 
+    // Size-class dispatch. The lookup tables in sizeclasslut.h encode the
+    // fine-grained classes of bins256k.h, which apply ONLY to the 256KB
+    // superblock configuration (macOS/Linux). Any other configuration
+    // (e.g. Windows, 64KB superblocks with generic power-of-two bins)
+    // must use the bins functions supplied as template parameters:
+    // indexing _localHeap with LUT classes there would run past NumBins.
+    static inline int tlabSizeClass (size_t sz) {
+      if constexpr (SuperblockSize == 262144) {
+        return Hoard::getSizeClassLUT (sz);
+      } else {
+        return getSizeClass (sz);
+      }
+    }
+
+    static inline size_t tlabClassSize (int c) {
+      if constexpr (SuperblockSize == 262144) {
+        return Hoard::getClassSizeLUT (c);
+      } else {
+        return getClassSize (c);
+      }
+    }
+
     ThreadLocalAllocationBuffer (ParentHeap * parent)
       : _parentHeap (parent),
       	_localHeapBytes (0),
@@ -89,6 +111,8 @@ namespace Hoard {
     {
       static_assert(gcd<Alignment, DesiredAlignment>::value == DesiredAlignment,
 		    "Alignment mismatch.");
+      static_assert(SuperblockSize != 262144 || NumBins >= 28,
+		    "sizeclasslut.h classes (0-27) must fit in NumBins.");
       static_assert((Alignment >= 2 * sizeof(size_t)),
 		    "Alignment must be enough to hold two pointers.");
     }
@@ -107,10 +131,10 @@ namespace Hoard {
       if (HL_EXPECT_TRUE(sz <= LargestObject)) {
         // Use lookup table for size class (faster than bsr instruction).
         // LUT handles sizes 1-1024, which covers LargestSmallObject.
-      	auto c = Hoard::getSizeClassLUT(sz);
+      	auto c = tlabSizeClass(sz);
       	auto * ptr = _localHeap(c).get();
       	if (HL_EXPECT_TRUE(ptr != nullptr)) {
-          auto classSize = Hoard::getClassSizeLUT(c);
+          auto classSize = tlabClassSize(c);
       	  assert (_localHeapBytes >= classSize);
       	  _localHeapBytes -= classSize;
       	  assert (getSize(ptr) >= sz);
@@ -166,8 +190,8 @@ namespace Hoard {
       	if (HL_EXPECT_TRUE((sz <= LargestObject) && (sz + _localHeapBytes <= threshold))) {
       	  assert (getSize(ptr) >= sizeof(HL::SLList::Entry *));
           // Use lookup table for size class (faster than bsr instruction).
-      	  auto c = Hoard::getSizeClassLUT(sz);
-          auto classSize = Hoard::getClassSizeLUT(c);
+      	  auto c = tlabSizeClass(sz);
+          auto classSize = tlabClassSize(c);
 
           // Cache this superblock (and the header fields the cached
           // path needs) for subsequent frees.
@@ -260,7 +284,7 @@ namespace Hoard {
     /// bound on TLAB memory is unchanged.
     NO_INLINE void * refill (int c) {
       maybeGrowThreshold();
-      const size_t classSize = Hoard::getClassSizeLUT (c);
+      const size_t classSize = tlabClassSize (c);
       // Batch at most 1/8 of the current TLAB threshold per refill.
       size_t batch = _adaptiveThreshold / (8 * classSize);
       if (batch > (size_t) MaxRefillBatch) {
