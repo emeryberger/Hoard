@@ -71,16 +71,21 @@ namespace Hoard {
 
     INLINE void free (void * ptr) {
       // Find the header (just before the pointer) and free the whole object.
+      // Include the header in the freed size: malloc mapped sz + headerSize,
+      // and the underlying mmap heap must unmap exactly what was mapped.
+      const size_t headerSize = sizeof(typename SuperblockType::Header);
       typename SuperblockType::Header * p;
       p = reinterpret_cast<typename SuperblockType::Header *>(ptr);
-      theHeap.free (reinterpret_cast<void *>(p - 1), getSize(ptr));
+      theHeap.free (reinterpret_cast<void *>(p - 1), getSize(ptr) + headerSize);
     }
 
     INLINE void free (void * ptr, size_t sz) {
       // Find the header (just before the pointer) and free the whole object.
+      // As above: account for the header so map/unmap sizes match.
+      const size_t headerSize = sizeof(typename SuperblockType::Header);
       typename SuperblockType::Header * p;
       p = reinterpret_cast<typename SuperblockType::Header *>(ptr);
-      theHeap.free (reinterpret_cast<void *>(p - 1), sz);
+      theHeap.free (reinterpret_cast<void *>(p - 1), sz + headerSize);
     }
   };
 
