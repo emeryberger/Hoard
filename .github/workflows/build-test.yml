@@ -321,13 +321,17 @@ jobs:
             @("sh8bench", ".\sh8bench.exe", "4"),
             @("rptest", ".\rptest.exe", "4")
           )
+          # rptest is far slower under injection (heavy large-object VM
+          # traffic serialized behind the mmap-layer lock); give it longer.
+          $timeouts = @{ "rptest" = 420 }
 
           $failed = @()
           foreach ($b in $benchmarks) {
             $name = $b[0]
+            $tmo = if ($timeouts.ContainsKey($name)) { $timeouts[$name] } else { 120 }
             $cmd = @($withdll, "/d:$hoard") + $b[1..($b.Count-1)]
             powershell -NoProfile -ExecutionPolicy Bypass -File $watchdog `
-              -Name $name -TimeoutSec 120 -OutDir watchdog -LogFile hoard.txt @cmd
+              -Name $name -TimeoutSec $tmo -OutDir watchdog -LogFile hoard.txt @cmd
             if ($LASTEXITCODE -ne 0) {
               $failed += "$name (exit $LASTEXITCODE)"
             }
