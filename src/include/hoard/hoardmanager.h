@@ -142,7 +142,13 @@ namespace Hoard {
       auto * s = _otherBins(binIndex).get();
       if (s) {
 	assert (s->isValidSuperblock());
-      
+
+	// Reconcile pending cross-thread delayed frees while we still
+	// hold this (owning) heap's lock, and BEFORE computing the
+	// statistics delta below, so the in-use count we subtract
+	// reflects the drained objects.
+	s->drainDelayedFrees();
+
 	// Update the statistics, removing objects in use and allocated for s.
 	decStatsSuperblock (s, binIndex);
 	s->setOwner (dest);
@@ -261,6 +267,13 @@ namespace Hoard {
 
       const auto binIndex = binType::getSizeClass(sz);
 
+      // Reconcile pending cross-thread delayed frees before the
+      // superblock is classified by emptiness and before its stats are
+      // added below. Safe: the transfer chain still holds the previous
+      // owner's lock (all freelist mutators must take it), and we hold
+      // this heap's lock.
+      s->drainDelayedFrees();
+
       // Now put it on this heap.
       s->setOwner (reinterpret_cast<HeapType *>(this));
       _otherBins(binIndex).put (s);
@@ -316,6 +329,17 @@ namespace Hoard {
     MALLOC_FUNCTION INLINE void * getObject (int binIndex,
 					     size_t sz) {
       Check<HoardManager, sanityCheck> check (this);
+      // Reconcile pending cross-thread delayed frees on this bin's
+      // current superblock first, so those objects recirculate and the
+      // emptiness statistics stay truthful. Safe here: freelist
+      // mutations on owned superblocks are serialized by this heap's
+      // lock, which our caller holds (the locked cross-thread free
+      // path takes it too before touching the freelist).
+      if (HL_EXPECT_FALSE(_otherBins(binIndex).hasDelayedFrees())) {
+	auto drained = _otherBins(binIndex).drainDelayedFrees();
+	auto& stats = _stats(binIndex);
+	stats.setInUse (stats.getInUse() - drained);
+      }
       void * ptr = _otherBins(binIndex).malloc (sz);
       if (ptr) {
 	// We got one. Update stats.

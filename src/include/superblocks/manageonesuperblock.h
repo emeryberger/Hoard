@@ -99,6 +99,11 @@ namespace Hoard {
       _current = s;
     }
 
+    /// Whether the current superblock has pending cross-thread frees.
+    inline bool hasDelayedFrees() const {
+      return _current && _current->hasDelayedFrees();
+    }
+
     /// Drain delayed frees from the current superblock.
     /// Called during malloc to process cross-thread frees.
     /// @return Number of objects drained.

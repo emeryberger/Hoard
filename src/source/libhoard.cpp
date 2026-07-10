@@ -143,6 +143,18 @@ static char * initBufferPtr = initBuffer;
 
 extern bool isCustomHeapInitialized();
 
+#if !defined(_WIN32)
+#include "util/ownershipmap.h"
+// Storage for the ownership bitmap (see ownershipmap.h): an ordinary
+// non-weak zero-initialized global so it lands in a zerofill segment —
+// reserved address space only; pages materialize on first touch.
+namespace Hoard {
+  namespace ownershipdetail {
+    std::atomic<uint64_t> bits[kNumWords];
+  }
+}
+#endif
+
 #include "wrappers/generic-memalign.cpp"
 
 #if defined(__APPLE__) || defined(_WIN32)

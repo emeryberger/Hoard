@@ -57,18 +57,29 @@ static inline void setTlsHeap(TheCustomHeapType* value) {
   hoardSetTlsHeap(value);
 }
 
-// Called when the thread goes away.  This function clears out the
-// TLAB and then reclaims the memory allocated to hold it.
+// Called when the thread goes away. This clears out the TLAB and then
+// reclaims the memory allocated to hold it. It also clears both TLS
+// locations so explicit pthread_exit cleanup and pthread-key cleanup do
+// not run twice for the same thread.
+static void destroyThatHeap(TheCustomHeapType * heap) {
+  if (heap == nullptr) {
+    return;
+  }
+  heap->clear();
+
+  // CPU-based heap selection does not use the thread heap map, so avoid
+  // taking the global heap-map lock on every thread exit in that mode.
+#if defined(HOARD_DISABLE_CPU_HEAP_SELECTION)
+  getMainHoardHeap()->releaseHeap();
+#endif
+
+  pthread_setspecific(theHeapKey, nullptr);
+  setTlsHeap(nullptr);
+  getMainHoardHeap()->free(heap);
+}
 
 static void deleteThatHeap(void * p) {
-  reinterpret_cast<TheCustomHeapType *>(p)->clear();
-  getMainHoardHeap()->free(p);
-
-  // Relinquish the assigned heap.
-  getMainHoardHeap()->releaseHeap();
-
-  // Clear the TLS slot
-  setTlsHeap(nullptr);
+  destroyThatHeap(reinterpret_cast<TheCustomHeapType *>(p));
 }
 
 static void make_heap_key() {
@@ -129,23 +140,23 @@ extern "C" {
   typedef void * (*threadFunctionType)(void * arg);
 }
 
-// A special routine we call on thread exits to free up some resources.
+// A special routine we call on explicit pthread_exit and on normal returns
+// from the wrapper. Threads not created through our wrapper are cleaned by
+// the pthread-key destructor above.
 static void exitRoutine() {
-  TheCustomHeapType * heap = getCustomHeap();
-
-  // Clear the TLAB's buffer.
-  heap->clear();
-
-  // Relinquish the assigned heap.
-  getMainHoardHeap()->releaseHeap();
+  destroyThatHeap(getTlsHeap());
 }
 
 extern "C" {
   static inline void * startMeUp(void * a) {
-    // Make sure that the custom heap has been initialized,
-    // then find an unused process heap for this thread, if possible.
+    // Make sure that the custom heap has been initialized; exitRoutine()
+    // below handles normal returns, while xxpthread_exit handles explicit
+    // pthread_exit() from inside the user function.
     getCustomHeap();
+
+#if defined(HOARD_DISABLE_CPU_HEAP_SELECTION)
     getMainHoardHeap()->findUnusedHeap();
+#endif
 
     // Extract the pair elements (function, argument).
     pair<threadFunctionType, void *> * z
@@ -157,9 +168,8 @@ extern "C" {
     // Execute the function.
     void * result = (*fun)(arg);
 
-    // We're done: free up resources.
-    exitRoutine();
     getCustomHeap()->free(a);
+    exitRoutine();
     return result;
   }
 }
@@ -175,7 +185,8 @@ extern volatile bool anyThreadCreated;
 
 
 extern "C" void xxpthread_exit(void * value_ptr) {
-  // Do necessary clean-up of the TLAB and get out.
+  // Clean up before pthread_exit tears the thread down; exitRoutine clears
+  // the pthread key so the key destructor will not repeat the work.
   exitRoutine();
   pthread_exit(value_ptr);
 }

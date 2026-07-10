@@ -23,8 +23,12 @@
 #ifndef HOARD_TLAB_H
 #define HOARD_TLAB_H
 
+#include <type_traits>
+#include <utility>
+
 #include "heaplayers.h"
 #include "utility/cpp23compat.h"
+#include "hoard/hoardconstants.h"
 #include "hoard/sizeclasslut.h"
 
 #if defined(__clang__)
@@ -97,6 +101,7 @@ namespace Hoard {
 
     ThreadLocalAllocationBuffer (ParentHeap * parent)
       : _parentHeap (parent),
+        _homeHeap (nullptr),
       	_localHeapBytes (0),
         _cachedSuperblock (invalidCacheSentinel()),
         _cachedSizeClass (-1),
@@ -106,6 +111,8 @@ namespace Hoard {
         _cachedMagicMul (0),
         _cachedMagicShift (0),
         _cachedPow2 (true),
+        _cachedRemote (false),
+        _myOwner (nullptr),
         _adaptiveThreshold (InitialThreshold),
         _slowPathCount (0)
     {
@@ -163,20 +170,24 @@ namespace Hoard {
     TLAB_ALWAYS_INLINE void free (void * ptr) {
       auto * s = getSuperblock (ptr);
 
-      // Use adaptive threshold (bounded by LocalHeapThreshold for blowup guarantee).
-      const size_t threshold = _adaptiveThreshold;
-
       // Ultra-fast path: same superblock as last free (common in loops).
       // All fields needed to normalize the pointer and account for the
       // object are cached in this TLAB, so the superblock header is not
       // touched at all: no dependent loads through cold memory.
       if (HL_EXPECT_TRUE(s == _cachedSuperblock)) {
         ptr = normalizeCached (ptr);
-        if (HL_EXPECT_TRUE(_localHeapBytes + _cachedClassSize <= threshold)) {
+        if (HL_EXPECT_TRUE(!_cachedRemote &&
+                           _localHeapBytes + _cachedClassSize <= _adaptiveThreshold)) {
           _localHeap(_cachedSizeClass).insert ((HL::SLList::Entry *) ptr);
           _localHeapBytes += _cachedClassSize;
           return;
         }
+        // Foreign superblock or TLAB at capacity: return the object to
+        // its owning heap (RedirectFree's lock-free delayed-free path).
+        // The cache stays valid: it still normalizes correctly and
+        // routes subsequent frees to this same branch.
+        _parentHeap->free (ptr);
+        return;
       }
 
       // Fast path: valid superblock with small object that fits in TLAB.
@@ -187,7 +198,8 @@ namespace Hoard {
       	ptr = s->normalize (ptr);
       	auto sz = s->getObjectSizeUnchecked ();
 
-      	if (HL_EXPECT_TRUE((sz <= LargestObject) && (sz + _localHeapBytes <= threshold))) {
+      	if (HL_EXPECT_TRUE((sz <= LargestObject) &&
+                           (sz + _localHeapBytes <= _adaptiveThreshold))) {
       	  assert (getSize(ptr) >= sizeof(HL::SLList::Entry *));
           // Use lookup table for size class (faster than bsr instruction).
       	  auto c = tlabSizeClass(sz);
@@ -203,10 +215,25 @@ namespace Hoard {
           _cachedPow2 = s->objectSizeIsPowerOfTwo();
           _cachedMagicMul = s->getMagicMul();
           _cachedMagicShift = s->getMagicShift();
+          // Objects from superblocks owned by another heap are NOT
+          // adopted into the local bins: recycling them here would hand
+          // this thread memory interleaved with other threads' live
+          // objects at cache-line granularity (e.g. a shared-then-
+          // scattered working set like larson's shuffled warmup), and
+          // that false sharing then persists forever because a LIFO bin
+          // returns the same object right back. Sending foreign objects
+          // home makes the next malloc draw from this thread's own
+          // superblocks, so mixed working sets migrate apart instead.
+          _cachedRemote = (reinterpret_cast<const void *>(s->getOwner())
+                           != _myOwner);
 
-      	  _localHeap(c).insert ((HL::SLList::Entry *) ptr);
-      	  _localHeapBytes += classSize;
-      	  return;
+          if (HL_EXPECT_TRUE(!_cachedRemote)) {
+            _localHeap(c).insert ((HL::SLList::Entry *) ptr);
+            _localHeapBytes += classSize;
+            return;
+          }
+          _parentHeap->free (ptr);
+          return;
       	}
 
       	// Slow path: large object or TLAB full - free to parent heap.
@@ -231,6 +258,9 @@ namespace Hoard {
       	}
       	i--;
       }
+
+      _homeHeap = nullptr;
+      _myOwner = nullptr;
     }
 
     static inline SuperblockType * getSuperblock (void * ptr) {
@@ -293,11 +323,24 @@ namespace Hoard {
       if (batch == 0) {
         batch = 1;
       }
+      // Refill from this thread's home heap: a stable heap identity for
+      // the thread's whole lifetime (see assignHomeHeap). Assigned
+      // lazily so early allocations before the pool exists stay cheap.
+      if (HL_EXPECT_FALSE(_homeHeap == nullptr)) {
+        _homeHeap = &_parentHeap->assignHomeHeap();
+      }
       void * objs[MaxRefillBatch];
-      size_t got = _parentHeap->getHeap().mallocMany (classSize, objs, batch);
+      size_t got = _homeHeap->mallocMany (classSize, objs, batch);
       if (HL_EXPECT_FALSE(got == 0)) {
         return nullptr;
       }
+      // Remember which heap feeds this TLAB: the free path treats
+      // objects from superblocks owned by any other heap as foreign
+      // and sends them home rather than adopting them locally. Read
+      // without the heap lock — a stale value only misroutes a free
+      // (both routes are correct), never breaks anything.
+      _myOwner = reinterpret_cast<const void *>
+        (getSuperblock (objs[0])->getOwner());
       for (size_t i = 1; i < got; i++) {
         _localHeap(c).insert (reinterpret_cast<HL::SLList::Entry *>(objs[i]));
       }
@@ -317,11 +360,19 @@ namespace Hoard {
       }
     }
 
-    /// Padding to prevent false sharing and ensure alignment.
-    double _pad[128 / sizeof(double)];
+    /// Padding to prevent cross-thread false sharing between TLABs.
+    double _pad[Hoard::DESTRUCTIVE_INTERFERENCE_SIZE / sizeof(double)];
 
     /// This heap's 'parent' (where to go for more memory).
     ParentHeap * _parentHeap;
+
+    /// The type of the per-thread heap inside the parent's thread pool.
+    using HomeHeapType =
+      std::remove_reference_t<decltype(std::declval<ParentHeap&>().getHeap())>;
+
+    /// This thread's home heap: the stable refill source backing the
+    /// local/foreign classification in free(). Assigned on first refill.
+    HomeHeapType * _homeHeap;
 
     /// The number of bytes we currently have on this thread.
     size_t _localHeapBytes;
@@ -340,6 +391,15 @@ namespace Hoard {
     size_t _cachedMagicMul;
     unsigned _cachedMagicShift;
     bool _cachedPow2;
+
+    /// Whether the cached superblock is owned by a heap other than the
+    /// one this TLAB refills from (see free()).
+    bool _cachedRemote;
+
+    /// Identity of the heap this TLAB last refilled from, as the opaque
+    /// owner pointer superblock headers carry. Compared against
+    /// superblock owners to classify frees as local or foreign.
+    const void * _myOwner;
 
     /// The local heap itself.
     Array<NumBins, HL::SLList> _localHeap;
@@ -360,4 +420,3 @@ namespace Hoard {
 #endif
 
 #endif
-

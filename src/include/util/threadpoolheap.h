@@ -16,6 +16,7 @@
 #ifndef HOARD_THREADPOOLHEAP_H
 #define HOARD_THREADPOOLHEAP_H
 
+#include <atomic>
 #include <cassert>
 
 #if defined(__linux__)
@@ -81,6 +82,27 @@ namespace Hoard {
       auto tid = HL::CPUInfo::getThreadId();
       auto heapno = _tidMap(tid & NumThreadsMask);
       return _heap(heapno);
+    }
+
+    /// Assign a home heap for a new thread's TLAB. The TLAB refills
+    /// exclusively from its home heap for its whole lifetime, which
+    /// gives every thread a STABLE ownership identity: the TLAB free
+    /// path compares superblock owners against the home heap to
+    /// classify frees as local or foreign, and that predicate must not
+    /// shift when the scheduler moves the thread between CPUs (a
+    /// CPU-keyed heap would reclassify the thread's entire working set
+    /// on every migration and churn it through remote frees).
+    ///
+    /// Round-robin: consecutively created threads get distinct heaps
+    /// until the counter wraps at NumHeaps. A dead thread's heap keeps
+    /// its superblocks; once its objects are freed back (via the
+    /// delayed-free queue and the locked free path), empty superblocks
+    /// flow to the global heap for reuse by later heaps.
+    inline PerThreadHeap& assignHomeHeap() {
+      // Constant-initialized: no static init guard (see getMainHoardHeap).
+      static std::atomic<unsigned int> nextHome;
+      auto i = nextHome.fetch_add (1, std::memory_order_relaxed);
+      return _heap((int) (i & NumHeapsMask));
     }
     
     inline void * malloc (size_t sz) {
