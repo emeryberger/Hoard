@@ -155,7 +155,10 @@ namespace Hoard {
     SuperHeap * _shards[NumShards];
 
     static SuperHeap * getShardHeap(int index) {
-      static double shardBufs[NumShards][(sizeof(SuperHeap) / sizeof(double)) + 1];
+      // alignas: placement-new into an under-aligned buffer is UB (see
+      // getMainHoardHeap).
+      alignas(SuperHeap)
+      static char shardBufs[NumShards][sizeof(SuperHeap)];
       static SuperHeap * shardHeaps[NumShards] = { nullptr };
       static LockType initLock;
 

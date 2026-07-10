@@ -114,8 +114,12 @@ volatile bool anyThreadCreated = false;
 /// what it exists for.
 
 Hoard::HoardHeapType * getMainHoardHeap() {
-  // Zero-initialized static buffer: no init guard.
-  static double thBuf[sizeof(Hoard::HoardHeapType) / sizeof(double) + 1];
+  // Zero-initialized static buffer: no init guard. Must carry the heap
+  // type's alignment: placement-new into an under-aligned buffer is UB
+  // (GCC on x86-64 turns the alignas promise into aligned vector
+  // stores that fault).
+  alignas(Hoard::HoardHeapType)
+  static char thBuf[sizeof(Hoard::HoardHeapType)];
   // Constant-initialized (C++20 P0883): no init guard.
   static std::atomic<Hoard::HoardHeapType *> th { nullptr };
   static std::atomic<bool> constructing { false };
