@@ -41,7 +41,12 @@
 #include <cstdint>
 #include <cstddef>
 
-#if !defined(_WIN32)
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#else
 #include <sys/mman.h>
 #ifndef MAP_NORESERVE
 #define MAP_NORESERVE 0
@@ -55,6 +60,23 @@ namespace Hoard {
   public:
 
     static inline bool contains (const void * p) {
+      auto a = reinterpret_cast<uintptr_t>(p);
+      if (a >= MaxAddress) {
+        return false;
+      }
+#if defined(_WIN32)
+      auto * l1 = _l1.load (std::memory_order_acquire);
+      if (l1 == nullptr) {
+        return false;
+      }
+      auto * l2 = l1[a / L2Span].load (std::memory_order_acquire);
+      if (l2 == nullptr) {
+        return false;
+      }
+      size_t chunk = (a % L2Span) / ChunkSize;
+      uint64_t word = l2[chunk >> 6].load (std::memory_order_relaxed);
+      return (word >> (chunk & 63)) & 1;
+#else
       // Relaxed load on the hot path: the pointer is written exactly
       // once (before any Hoard-owned pointer can be freed), and the
       // subsequent array access carries an address dependency. Fall
@@ -70,18 +92,26 @@ namespace Hoard {
           return false;
         }
       }
-      auto a = reinterpret_cast<uintptr_t>(p);
-      if (a >= MaxAddress) {
-        return false;
-      }
       size_t chunk = a / ChunkSize;
       uint64_t word = bits[chunk >> 6].load (std::memory_order_relaxed);
       return (word >> (chunk & 63)) & 1;
+#endif
     }
 
     // Register [start, start+len) as Hoard-owned. Called with len a
     // multiple of ChunkSize and start ChunkSize-aligned.
     static void set (void * start, size_t len) {
+#if defined(_WIN32)
+      forEachChunkAddr (start, len, [] (uintptr_t a) {
+        auto * l2 = ensureL2 (a);
+        if (l2 == nullptr) {
+          return;
+        }
+        size_t chunk = (a % L2Span) / ChunkSize;
+        l2[chunk >> 6].fetch_or (1ULL << (chunk & 63),
+                                 std::memory_order_release);
+      });
+#else
       auto * bits = ensureBits();
       if (bits == nullptr) {
         return;
@@ -90,9 +120,25 @@ namespace Hoard {
         bits[chunk >> 6].fetch_or (1ULL << (chunk & 63),
                                    std::memory_order_release);
       });
+#endif
     }
 
     static void clear (void * start, size_t len) {
+#if defined(_WIN32)
+      auto * l1 = _l1.load (std::memory_order_acquire);
+      if (l1 == nullptr) {
+        return;
+      }
+      forEachChunkAddr (start, len, [l1] (uintptr_t a) {
+        auto * l2 = l1[a / L2Span].load (std::memory_order_acquire);
+        if (l2 == nullptr) {
+          return;
+        }
+        size_t chunk = (a % L2Span) / ChunkSize;
+        l2[chunk >> 6].fetch_and (~(1ULL << (chunk & 63)),
+                                  std::memory_order_release);
+      });
+#else
       auto * bits = _bits.load (std::memory_order_acquire);
       if (bits == nullptr) {
         return;
@@ -101,6 +147,7 @@ namespace Hoard {
         bits[chunk >> 6].fetch_and (~(1ULL << (chunk & 63)),
                                     std::memory_order_release);
       });
+#endif
     }
 
   private:
@@ -108,6 +155,16 @@ namespace Hoard {
     static constexpr uintptr_t MaxAddress = 1ULL << 48;
     static constexpr size_t NumChunks = MaxAddress / ChunkSize;
     static constexpr size_t NumWords = NumChunks / 64;
+
+#if defined(_WIN32)
+    // Windows has no overcommit: a flat 128MB bitmap would charge the
+    // pagefile up front. Use a two-level radix instead: a small L1
+    // pointer array (committed once) whose entries each cover 64GB of
+    // address space via an on-demand-committed L2 bitmap.
+    static constexpr uintptr_t L2Span = 1ULL << 36; // 64GB per L2 node
+    static constexpr size_t L1Entries = MaxAddress / L2Span; // 4096
+    static constexpr size_t L2Words = (L2Span / ChunkSize) / 64;
+#endif
 
     template <class F>
     static void forEachChunk (void * start, size_t len, F f) {
@@ -122,12 +179,68 @@ namespace Hoard {
       }
     }
 
+#if defined(_WIN32)
+    /// Like forEachChunk but passes the chunk's base address.
+    template <class F>
+    static void forEachChunkAddr (void * start, size_t len, F f) {
+      auto a = reinterpret_cast<uintptr_t>(start);
+      if (a >= MaxAddress) {
+        return;
+      }
+      uintptr_t first = (a / ChunkSize) * ChunkSize;
+      uintptr_t lastEx = ((a + len + ChunkSize - 1) / ChunkSize) * ChunkSize;
+      for (uintptr_t c = first; c < lastEx && c < MaxAddress; c += ChunkSize) {
+        f (c);
+      }
+    }
+
+    static std::atomic<uint64_t> * ensureL2 (uintptr_t a) {
+      auto * l1 = _l1.load (std::memory_order_acquire);
+      if (l1 == nullptr) {
+        void * mem = VirtualAlloc (nullptr,
+                                   L1Entries * sizeof(void *),
+                                   MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+        if (mem == nullptr) {
+          return nullptr;
+        }
+        auto * fresh =
+          reinterpret_cast<std::atomic<std::atomic<uint64_t> *> *>(mem);
+        std::atomic<std::atomic<uint64_t> *> * expected = nullptr;
+        if (!_l1.compare_exchange_strong (expected, fresh,
+                                          std::memory_order_acq_rel)) {
+          VirtualFree (mem, 0, MEM_RELEASE);
+          l1 = expected;
+        } else {
+          l1 = fresh;
+        }
+      }
+      auto & slot = l1[a / L2Span];
+      auto * l2 = slot.load (std::memory_order_acquire);
+      if (l2 != nullptr) {
+        return l2;
+      }
+      void * mem = VirtualAlloc (nullptr, L2Words * sizeof(uint64_t),
+                                 MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+      if (mem == nullptr) {
+        return nullptr;
+      }
+      auto * fresh = reinterpret_cast<std::atomic<uint64_t> *>(mem);
+      std::atomic<uint64_t> * expected = nullptr;
+      if (!slot.compare_exchange_strong (expected, fresh,
+                                         std::memory_order_acq_rel)) {
+        VirtualFree (mem, 0, MEM_RELEASE);
+        return expected;
+      }
+      return fresh;
+    }
+#endif
+
+#if !defined(_WIN32)
     static std::atomic<uint64_t> * ensureBits() {
       auto * bits = _bits.load (std::memory_order_acquire);
       if (bits != nullptr) {
         return bits;
       }
-#if !defined(_WIN32)
       void * p = mmap (nullptr, NumWords * sizeof(uint64_t),
                        PROT_READ | PROT_WRITE,
                        MAP_PRIVATE | MAP_ANON | MAP_NORESERVE, -1, 0);
@@ -142,20 +255,27 @@ namespace Hoard {
         return expected;
       }
       return fresh;
-#else
-      return nullptr;
-#endif
     }
+#endif
 
-    // Defined out of line below. NOTE: deliberately not an inline
-    // static member: libhoard.cpp does `#define inline __forceinline`
+    // Defined out of line below. NOTE: deliberately not inline
+    // static members: libhoard.cpp does `#define inline __forceinline`
     // on Windows, which is invalid on data declarations; a template's
     // static member may be defined in a header without `inline`.
+#if defined(_WIN32)
+    static std::atomic<std::atomic<std::atomic<uint64_t> *> *> _l1;
+#else
     static std::atomic<std::atomic<uint64_t> *> _bits;
+#endif
   };
 
+#if defined(_WIN32)
+  template <size_t ChunkSize>
+  std::atomic<std::atomic<std::atomic<uint64_t> *> *> OwnershipMap<ChunkSize>::_l1 { nullptr };
+#else
   template <size_t ChunkSize>
   std::atomic<std::atomic<uint64_t> *> OwnershipMap<ChunkSize>::_bits { nullptr };
+#endif
 
 }
 
