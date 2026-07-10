@@ -145,7 +145,7 @@ extern bool isCustomHeapInitialized();
 
 #include "wrappers/generic-memalign.cpp"
 
-#if defined(__APPLE__)
+#if defined(__APPLE__) || defined(_WIN32)
 
 // Ownership hook consumed by the alloc8 interposition layer. Providing
 // these strong definitions makes alloc8 skip its internal per-pointer

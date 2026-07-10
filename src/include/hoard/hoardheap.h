@@ -26,13 +26,16 @@ using namespace HL;
 // that is, we carve objects out of chunks of this size.
 
 
-#if defined(_WIN32)
-// Larger superblock sizes are not yet working for Windows for some reason to be determined.
-#define SUPERBLOCK_SIZE 65536UL
-#else
+// 256KB superblocks on all platforms. Windows historically used 64KB
+// with a note that larger sizes were "not working"; retrying now that
+// the DllMain initialization deadlock and MSVC implicit-lifetime
+// breakage are fixed. 256KB raises the Windows big-object threshold
+// from 8KB to 32KB (fewer objects funneled through the serialized
+// mmap layer) and enables the fine-grained bins256k size classes and
+// the TLAB size-class LUT on Windows.
 #define SUPERBLOCK_SIZE 262144UL
 // unclear why this is not working with 524288UL and larger...
-#endif
+
 
 //#define SUPERBLOCK_SIZE (256*1048576)
 //#define SUPERBLOCK_SIZE (512*1048576)

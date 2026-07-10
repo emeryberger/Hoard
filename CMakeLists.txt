@@ -94,6 +94,11 @@ if(WIN32)
   #
   set(HOARD_SOURCES ${WINDOWS_SOURCES})
   add_definitions(-DNDEBUG -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DALLOC8_NO_DLLMAIN)
+  # Compile-time inline ownership hook for alloc8's Windows wrapper:
+  # replaces SEH-probe foreign-pointer detection (which dereferences
+  # masked addresses and, after init, skipped checking entirely) with
+  # Hoard's O(1) ownership map. See hoardownsinline.h.
+  add_definitions(-DALLOC8_XXOWNS_INLINE_HEADER=\"hoardownsinline.h\")
 
 elseif(APPLE)
   set(HOARD_SOURCES ${MACOS_SOURCES})

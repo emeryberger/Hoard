@@ -49,10 +49,16 @@ extern "C" {
 }
 
 static inline bool alloc8_xxowns_inline (const void * ptr) {
+#if defined(__GNUC__) || defined(__clang__)
   if (__builtin_expect(
         Hoard::OwnershipMap<HOARD_OWNS_CHUNK_SIZE>::contains (ptr), 1)) {
     return true;
   }
+#else
+  if (Hoard::OwnershipMap<HOARD_OWNS_CHUNK_SIZE>::contains (ptr)) {
+    return true;
+  }
+#endif
   auto * p = reinterpret_cast<const char *>(ptr);
   return (p >= hoardInitBufferStart && p < hoardInitBufferEnd);
 }
