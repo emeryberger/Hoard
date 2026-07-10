@@ -328,14 +328,20 @@ jobs:
           $timeouts = @{ "rptest" = 900 }
 
           $failed = @()
-          foreach ($b in $benchmarks) {
-            $name = $b[0]
-            $tmo = if ($timeouts.ContainsKey($name)) { $timeouts[$name] } else { 120 }
-            $cmd = @($withdll, "/d:$hoard") + $b[1..($b.Count-1)]
-            powershell -NoProfile -ExecutionPolicy Bypass -File $watchdog `
-              -Name $name -TimeoutSec $tmo -OutDir watchdog -LogFile hoard.txt @cmd
-            if ($LASTEXITCODE -ne 0) {
-              $failed += "$name (exit $LASTEXITCODE)"
+          # Experiment branch: the remaining Windows-256KB crash is a rare
+          # race (~12% per benchmark execution); loop the suite to make a
+          # single CI run statistically near-certain to reproduce it under
+          # the crash-capture watchdog.
+          foreach ($iter in 1..5) {
+            foreach ($b in $benchmarks) {
+              $name = "$($b[0])-i$iter"
+              $tmo = if ($timeouts.ContainsKey($b[0])) { $timeouts[$b[0]] } else { 120 }
+              $cmd = @($withdll, "/d:$hoard") + $b[1..($b.Count-1)]
+              powershell -NoProfile -ExecutionPolicy Bypass -File $watchdog `
+                -Name $name -TimeoutSec $tmo -OutDir watchdog -LogFile hoard.txt @cmd
+              if ($LASTEXITCODE -ne 0) {
+                $failed += "$name (exit $LASTEXITCODE)"
+              }
             }
           }
 
