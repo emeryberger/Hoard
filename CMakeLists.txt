@@ -59,9 +59,7 @@ include_directories(${printf_SOURCE_DIR})
 FetchContent_Declare(
   alloc8
   GIT_REPOSITORY https://github.com/emeryberger/alloc8.git
-  # TEMPORARY (experiment branch only): pin to the Windows ownership-hook
-  # branch (alloc8#11) until it merges; revert to main before merging.
-  GIT_TAG        win-xxowns-hook
+  GIT_TAG        main
   GIT_SHALLOW    TRUE
 )
 FetchContent_MakeAvailable(alloc8)
