@@ -69,10 +69,22 @@ if ($finished) {
     if ($cdb) {
       Write-Host "### $Name crashed - re-running under cdb for the faulting stack ###"
       $env:_NT_SYMBOL_PATH = "srv*C:\symbols*https://msdl.microsoft.com/download/symbols"
-      $crashLog = Join-Path $OutDir "$Name-crash-stacks.txt"
-      $crashDump = Join-Path $OutDir "$Name-crash.dmp"
-      & $cdb -G -o -c ".lines; g; !analyze -v; ~*kb 64; .dump /ma `"$crashDump`"; q" `
-        @(@($exe) + $cmdArgs) 2>&1 | Tee-Object -FilePath $crashLog | Select-Object -Last 80 | Write-Host
+      # sxd ibp/epr: don't stop on initial breakpoints or process exit, so
+      # the first stop after g is the actual exception. -o follows the
+      # benchmark child under withdll. The crash is nondeterministic, so
+      # retry a few times until a run faults under the debugger.
+      for ($try = 1; $try -le 5; $try++) {
+        $crashLog = Join-Path $OutDir "$Name-crash-try$try.txt"
+        $crashDump = Join-Path $OutDir "$Name-crash.dmp"
+        & $cdb -G -o -c ".lines; sxd ibp; sxd epr; g; !analyze -v; ~*kb 64; .dump /ma `"$crashDump`"; q" `
+          @(@($exe) + $cmdArgs) 2>&1 | Set-Content -Path $crashLog
+        if (Select-String -Path $crashLog -Pattern "EXCEPTION_RECORD|Access violation|c0000005" -Quiet) {
+          Write-Host "### crash reproduced under cdb on try $try ###"
+          Get-Content $crashLog | Select-Object -Last 100 | Write-Host
+          break
+        }
+        Write-Host "  (no fault under cdb on try $try)"
+      }
     }
   }
   exit $code
