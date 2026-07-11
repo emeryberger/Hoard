@@ -88,7 +88,12 @@ if(BUILD_JEMALLOC)
     GIT_SHALLOW       TRUE
     BUILD_IN_SOURCE   TRUE
     # jemalloc ships autogen.sh; run it, then configure with an install prefix.
+    # --with-jemalloc-prefix= (empty) makes jemalloc export plain malloc/free so
+    # it interposes the system allocator under LD_PRELOAD / DYLD_INSERT_LIBRARIES.
+    # (On macOS jemalloc otherwise defaults to a "je_" prefix and does NOT
+    # intercept; Linux already defaults to no prefix.)
     CONFIGURE_COMMAND ./autogen.sh --prefix=<INSTALL_DIR> --disable-debug
+                        --with-jemalloc-prefix=
     BUILD_COMMAND     make build_lib_shared -j
     INSTALL_COMMAND   make install_lib_shared install_include
     # Copy the resulting shared library into the common lib directory.
@@ -117,15 +122,14 @@ if(BUILD_TCMALLOC)
     GIT_SHALLOW       TRUE
     CMAKE_ARGS
       -DCMAKE_BUILD_TYPE=Release
-      -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
       -DBUILD_SHARED_LIBS=ON
       -DBUILD_TESTING=OFF
       -DGPERFTOOLS_BUILD_STATIC=OFF
       -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-    # Copy the minimal (malloc-only) shared library into the common lib dir.
-    INSTALL_COMMAND   ${CMAKE_COMMAND} --build . --target install
-    COMMAND           ${CMAKE_COMMAND} -E copy
-                        <INSTALL_DIR>/lib/${_tcmalloc_lib}
+    # gperftools' CMake build defines no install() rules; the shared library is
+    # produced directly in the build dir. Skip install and copy from there.
+    INSTALL_COMMAND   ${CMAKE_COMMAND} -E copy
+                        <BINARY_DIR>/${_tcmalloc_lib}
                         ${ALLOC_LIB_DIR}/${_tcmalloc_lib}
     LOG_CONFIGURE     TRUE
     LOG_BUILD         TRUE
