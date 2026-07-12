@@ -46,14 +46,25 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
-#else
-#include <sys/mman.h>
-#ifndef MAP_NORESERVE
-#define MAP_NORESERVE 0
-#endif
 #endif
 
 namespace Hoard {
+
+#if !defined(_WIN32)
+  namespace ownershipdetail {
+    // Fixed bitmap geometry: one bit per 256KB chunk over a 2^48-byte
+    // address space. The storage lives in libhoard.cpp as an ordinary
+    // (non-weak) zero-initialized global so it lands in a zerofill
+    // segment — a weak definition here (e.g. a template static member)
+    // would be coalesced into __data and bloat the binary by 128MB.
+    // Hidden visibility keeps every reference within the dylib direct
+    // (no GOT load on the free fast path).
+    constexpr size_t kChunkSize = 262144;
+    constexpr size_t kNumWords = (1ULL << 48) / kChunkSize / 64;
+    extern __attribute__((visibility("hidden")))
+    std::atomic<uint64_t> bits[kNumWords];
+  }
+#endif
 
   template <size_t ChunkSize>
   class OwnershipMap {
@@ -77,23 +88,15 @@ namespace Hoard {
       uint64_t word = l2[chunk >> 6].load (std::memory_order_relaxed);
       return (word >> (chunk & 63)) & 1;
 #else
-      // Relaxed load on the hot path: the pointer is written exactly
-      // once (before any Hoard-owned pointer can be freed), and the
-      // subsequent array access carries an address dependency. Fall
-      // back to an acquire load before concluding the map is absent.
-      auto * bits = _bits.load (std::memory_order_relaxed);
-#if defined(__GNUC__) || defined(__clang__)
-      if (__builtin_expect(bits == nullptr, 0)) {
-#else
-      if (bits == nullptr) {
-#endif
-        bits = _bits.load (std::memory_order_acquire);
-        if (bits == nullptr) {
-          return false;
-        }
-      }
+      // Relaxed load: the bit for a chunk is set (with release ordering)
+      // before any pointer inside that chunk can escape a malloc, so any
+      // execution in which a Hoard pointer legitimately reaches free()
+      // already carries the happens-before edge that makes its bit
+      // visible. One load and a bit test; the bitmap itself is static
+      // storage, so there is no pointer chase and no init check.
       size_t chunk = a / ChunkSize;
-      uint64_t word = bits[chunk >> 6].load (std::memory_order_relaxed);
+      uint64_t word =
+        ownershipdetail::bits[chunk >> 6].load (std::memory_order_relaxed);
       return (word >> (chunk & 63)) & 1;
 #endif
     }
@@ -112,13 +115,9 @@ namespace Hoard {
                                  std::memory_order_release);
       });
 #else
-      auto * bits = ensureBits();
-      if (bits == nullptr) {
-        return;
-      }
-      forEachChunk (start, len, [bits] (size_t chunk) {
-        bits[chunk >> 6].fetch_or (1ULL << (chunk & 63),
-                                   std::memory_order_release);
+      forEachChunk (start, len, [] (size_t chunk) {
+        ownershipdetail::bits[chunk >> 6].fetch_or
+          (1ULL << (chunk & 63), std::memory_order_release);
       });
 #endif
     }
@@ -139,13 +138,9 @@ namespace Hoard {
                                   std::memory_order_release);
       });
 #else
-      auto * bits = _bits.load (std::memory_order_acquire);
-      if (bits == nullptr) {
-        return;
-      }
-      forEachChunk (start, len, [bits] (size_t chunk) {
-        bits[chunk >> 6].fetch_and (~(1ULL << (chunk & 63)),
-                                    std::memory_order_release);
+      forEachChunk (start, len, [] (size_t chunk) {
+        ownershipdetail::bits[chunk >> 6].fetch_and
+          (~(1ULL << (chunk & 63)), std::memory_order_release);
       });
 #endif
     }
@@ -235,46 +230,25 @@ namespace Hoard {
     }
 #endif
 
-#if !defined(_WIN32)
-    static std::atomic<uint64_t> * ensureBits() {
-      auto * bits = _bits.load (std::memory_order_acquire);
-      if (bits != nullptr) {
-        return bits;
-      }
-      void * p = mmap (nullptr, NumWords * sizeof(uint64_t),
-                       PROT_READ | PROT_WRITE,
-                       MAP_PRIVATE | MAP_ANON | MAP_NORESERVE, -1, 0);
-      if (p == MAP_FAILED) {
-        return nullptr;
-      }
-      auto * fresh = reinterpret_cast<std::atomic<uint64_t> *>(p);
-      std::atomic<uint64_t> * expected = nullptr;
-      if (!_bits.compare_exchange_strong (expected, fresh,
-                                          std::memory_order_acq_rel)) {
-        munmap (p, NumWords * sizeof(uint64_t));
-        return expected;
-      }
-      return fresh;
-    }
-#endif
-
-    // Defined out of line below. NOTE: deliberately not inline
-    // static members: libhoard.cpp does `#define inline __forceinline`
+#if defined(_WIN32)
+    // Defined out of line below. NOTE: deliberately not an inline
+    // static member: libhoard.cpp does `#define inline __forceinline`
     // on Windows, which is invalid on data declarations; a template's
     // static member may be defined in a header without `inline`.
-#if defined(_WIN32)
     static std::atomic<std::atomic<std::atomic<uint64_t> *> *> _l1;
 #else
-    static std::atomic<std::atomic<uint64_t> *> _bits;
+    // Unix storage is the fixed-geometry zerofill array declared in
+    // ownershipdetail above (defined in libhoard.cpp).
+    static_assert (ChunkSize == ownershipdetail::kChunkSize,
+                   "OwnershipMap chunk size must match the static bitmap");
+    static_assert (NumWords == ownershipdetail::kNumWords,
+                   "OwnershipMap bitmap geometry mismatch");
 #endif
   };
 
 #if defined(_WIN32)
   template <size_t ChunkSize>
   std::atomic<std::atomic<std::atomic<uint64_t> *> *> OwnershipMap<ChunkSize>::_l1 { nullptr };
-#else
-  template <size_t ChunkSize>
-  std::atomic<std::atomic<uint64_t> *> OwnershipMap<ChunkSize>::_bits { nullptr };
 #endif
 
 }

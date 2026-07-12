@@ -74,12 +74,12 @@ namespace Hoard {
 	_magicShift (computeMagicShift(sz)),
 	_magicMul (computeMagicMul(sz)),
 	_totalObjects ((unsigned int) (bufferSize / sz)),
-	_owner (nullptr),
-	_prev (nullptr),
-	_next (nullptr),
 	_reapableObjects (_totalObjects),
 	_objectsFree (_totalObjects),
-	_position (start)
+	_position (start),
+	_owner (nullptr),
+	_prev (nullptr),
+	_next (nullptr)
     {
       assert ((HL::align<Alignment>((size_t) start) == (size_t) start));
       assert (_objectSize >= Alignment);
@@ -306,14 +306,11 @@ namespace Hoard {
 
     enum { MAGIC_NUMBER = 0xcafed00d };
 
-    // Field order matters for performance. The free fast path (executed
-    // on every free from the TLAB) reads _magicNumber, _objectSize,
-    // _start, and _objectSizeIsPowerOfTwo (plus _magicMul/_magicShift
-    // for non-power-of-two sizes): all read-only after construction and
-    // deliberately grouped in the first cache line, right after the
-    // vtable pointer. Owner-side mutable state comes next, and the
-    // cross-thread delayed-free fields sit on their own cache line so
-    // remote frees do not invalidate the lines the owner is reading.
+    // Field order matters for performance. Read-only normalize()/getSize()
+    // fields are grouped first. Owner-side allocation mutables and
+    // cross-thread ownership/linking fields start on separate cache lines so
+    // writes from malloc/free/remote-free do not invalidate the line the TLAB
+    // reads while classifying and normalizing pointers.
 
     /// A magic number used to verify validity of this header.
     const size_t _magicNumber;
@@ -336,17 +333,8 @@ namespace Hoard {
     /// Total objects in the superblock.
     const unsigned int _totalObjects;
 
-    /// The owner of this superblock.
-    HeapType * _owner;
-
-    /// The preceding superblock in a linked list.
-    BlockType* _prev;
-
-    /// The succeeding superblock in a linked list.
-    BlockType* _next;
-
     /// The number of objects available to be 'reap'ed.
-    unsigned int _reapableObjects;
+    alignas(CACHE_LINE_SIZE) unsigned int _reapableObjects;
 
     /// The number of objects available for (re)use.
     unsigned int _objectsFree;
@@ -356,6 +344,15 @@ namespace Hoard {
 
     /// The list of freed objects.
     FreeSLList _freeList;
+
+    /// The owner of this superblock.
+    alignas(CACHE_LINE_SIZE) HeapType * _owner;
+
+    /// The preceding superblock in a linked list.
+    BlockType* _prev;
+
+    /// The succeeding superblock in a linked list.
+    BlockType* _next;
 
     /// The lock.
     LockType _theLock;
@@ -379,10 +376,17 @@ namespace Hoard {
     // This ensures at most 25% additional memory per superblock, which
     // is absorbed into Hoard's existing O(1) blowup guarantee.
 
-    /// Maximum delayed frees per superblock (1/4 of total objects).
-    /// Keeps delayed memory bounded to preserve blowup guarantees.
+    /// Maximum delayed frees per superblock. The queue is a shock
+    /// absorber, not a ledger: pushes skip the emptiness accounting, so
+    /// objects parked here are invisible until the owner drains them —
+    /// and an idle or dead owner may never drain. A small cap forces
+    /// sustained cross-thread frees onto the locked path, whose
+    /// bookkeeping lets emptied superblocks flow to the global heap for
+    /// reuse instead of stranding memory. (Bounded by 1/4 of total
+    /// objects so small-capacity superblocks keep their blowup bound.)
     unsigned int maxDelayedFrees() const {
-      return _totalObjects / 4 + 1;
+      unsigned int quarter = _totalObjects / 4 + 1;
+      return (quarter < 256) ? quarter : 256;
     }
 
     /// Try to push to delayed free queue (lock-free, bounded).

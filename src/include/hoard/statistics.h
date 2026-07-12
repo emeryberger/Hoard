@@ -25,9 +25,12 @@ namespace Hoard {
    * @brief Tracks in-use and allocated object counts per size class.
    *
    * Padded to cache line size to prevent false sharing between adjacent
-   * bins' statistics in the per-bin array. Note: we use padding instead
-   * of alignas() because alignas on class types can cause issues with
-   * array allocation under certain compiler optimizations.
+   * bins' statistics in the per-bin array. Padding, NOT alignas: an
+   * alignas here raises the alignment of every enclosing heap type, and
+   * those are placement-newed into static buffers — any buffer that
+   * under-delivers the promised alignment is UB that GCC on x86-64
+   * exploits with aligned vector stores (observed SIGSEGV in the heap
+   * constructor with GCC 14).
    */
   class Statistics {
   public:

@@ -78,7 +78,9 @@ namespace Hoard {
     SuperHeap * _theHeap;
 
     inline static SuperHeap * getHeap (void) {
-      static double theHeapBuf[sizeof(SuperHeap) / sizeof(double) + 1];
+      // alignas: placement-new into an under-aligned buffer is UB (see
+      // getMainHoardHeap).
+      alignas(SuperHeap) static char theHeapBuf[sizeof(SuperHeap)];
       static auto * theHeap = new (&theHeapBuf[0]) SuperHeap;
       return theHeap;
     }
