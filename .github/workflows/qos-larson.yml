@@ -67,18 +67,21 @@ jobs:
 
       - name: Larson QoS gate
         run: |
-          # MIN_RATIO is the floor for hoard/mimalloc. It is set from measured
-          # runner variance -- see the calibration note in scripts/qos_larson.py.
-          # 0 disables gating (report-only).
-          MIN_RATIO=0
-          REPORT_ONLY="--report-only"
+          # Floor for hoard/mimalloc, calibrated from measured runner variance
+          # (see the calibration note in scripts/qos_larson.py). Observed:
+          #   ubuntu  1t 0.84-0.90  4t 0.94-0.97
+          #   macos   1t 0.93-1.03  4t 0.96-1.12  (shared runners, ~0.1 swing)
+          # 0.75 sits clear of that noise and still trips on a ~17% regression.
+          # --retry-on-fail re-measures before failing, so a one-off dip from a
+          # noisy neighbour cannot break the build on its own.
           python3 scripts/qos_larson.py \
             --larson "$PWD/larson_bin" \
             --hoard "${{ steps.libs.outputs.hoard }}" \
             --mimalloc "${{ steps.libs.outputs.mimalloc }}" \
             --jemalloc "${{ steps.libs.outputs.jemalloc }}" \
             --threads 1,4 --reps 5 --sleep 3 \
-            --min-ratio $MIN_RATIO $REPORT_ONLY \
+            --min-ratio 0.75 --retry-on-fail \
+            ${{ inputs.report_only && '--report-only' || '' }} \
             --json qos-${{ matrix.os }}.json
 
       - name: Upload QoS results

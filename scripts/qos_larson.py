@@ -22,6 +22,26 @@ outlier a shared runner will produce.
 Interposition is VERIFIED, not assumed: a silently-not-preloaded library just
 measures the system allocator, which would make the gate meaningless (and on
 macOS, SIP strips DYLD_INSERT_LIBRARIES from system binaries -- see CLAUDE.md).
+
+CALIBRATING --min-ratio
+-----------------------
+The floor is set from MEASURED runner variance, not guessed. Observed
+hoard/mimalloc across repeated CI runs (report-only, reps=5):
+
+    ubuntu-latest (4 cpu, x86_64):  1t 0.84-0.90    4t 0.94-0.97
+    macos-latest  (3 cpu, arm64):   1t 0.93-1.03    4t 0.96-1.12
+
+Linux is fairly tight. The macOS runners are shared and genuinely noisy: the
+RATIO itself swings by ~0.1 between runs, with up to 35% min-max spread within
+a single config. So the floor has to sit well below the worst observed value
+(0.84), which is why it is 0.75 rather than something snug like 0.80 -- a gate
+that flakes gets ignored, and an ignored gate is worse than none.
+
+On top of that, --retry-on-fail re-measures from scratch before failing, so a
+one-off noise dip has to happen twice independently to break the build. That is
+what buys the gate its sensitivity: it reliably catches a real regression
+(Hoard currently sits at ~0.9x mimalloc, so 0.75 trips on roughly a 17% drop)
+without failing on runner noise.
 """
 
 import argparse
@@ -101,6 +121,8 @@ def main():
     p.add_argument("--sleep", type=int, default=3, help="larson run seconds")
     p.add_argument("--min-ratio", type=float, default=0.0,
                    help="fail if hoard_median < min-ratio * mimalloc_median")
+    p.add_argument("--retry-on-fail", action="store_true",
+                   help="re-measure once before failing, to reject runner noise")
     p.add_argument("--report-only", action="store_true",
                    help="measure and report, never fail (used to calibrate)")
     p.add_argument("--json", default=None, help="write results here")
@@ -119,60 +141,74 @@ def main():
         verify_interposition(args.larson, lib, name)
     print()
 
-    results = {}
-    for nthreads in [int(t) for t in args.threads.split(",")]:
-        # mimalloc-bench canonical larson parameters.
-        largs = [args.sleep, 7, 8, 1000, 10000, 1, nthreads]
-        cfg = f"{nthreads}t"
-        runs = {name: [] for name, _ in allocators}
+    def measure_and_report(label=""):
+        """One full interleaved measurement pass. Returns (results, failures)."""
+        results = {}
+        for nthreads in [int(t) for t in args.threads.split(",")]:
+            # mimalloc-bench canonical larson parameters.
+            largs = [args.sleep, 7, 8, 1000, 10000, 1, nthreads]
+            cfg = f"{nthreads}t"
+            runs = {name: [] for name, _ in allocators}
 
-        # Interleaved: rep-major, so runner drift hits all allocators equally.
-        for _rep in range(args.reps):
-            for name, lib in allocators:
-                runs[name].append(run_larson(args.larson, largs, lib))
+            # Interleaved: rep-major, so runner drift hits all allocators equally.
+            for _rep in range(args.reps):
+                for name, lib in allocators:
+                    runs[name].append(run_larson(args.larson, largs, lib))
 
-        results[cfg] = {n: {"runs": r, "median": statistics.median(r)}
-                        for n, r in runs.items()}
+            results[cfg] = {n: {"runs": r, "median": statistics.median(r)}
+                            for n, r in runs.items()}
 
-    # ---- report ----
-    print(f"larson <sleep> 7 8 1000 10000 1 <threads>, "
-          f"median of {args.reps} interleaved runs (Mops/sec)\n")
-    hdr = f"{'config':>8}  " + "".join(f"{n:>12}" for n, _ in allocators) + \
-          f"{'hoard/mi':>11}{'hoard/je':>11}"
-    print(hdr)
-    print("-" * len(hdr))
+        print(f"{label}larson <sleep> 7 8 1000 10000 1 <threads>, "
+              f"median of {args.reps} interleaved runs (Mops/sec)\n")
+        hdr = f"{'config':>8}  " + "".join(f"{n:>12}" for n, _ in allocators) + \
+              f"{'hoard/mi':>11}{'hoard/je':>11}"
+        print(hdr)
+        print("-" * len(hdr))
 
-    failures = []
-    for cfg, res in results.items():
-        h = res["hoard"]["median"]
-        mi = res["mimalloc"]["median"]
-        je = res.get("jemalloc", {}).get("median")
-        row = f"{cfg:>8}  " + "".join(
-            f"{res[n]['median']/1e6:>12.1f}" for n, _ in allocators)
-        r_mi = h / mi if mi else float("nan")
-        row += f"{r_mi:>11.2f}"
-        row += f"{h/je:>11.2f}" if je else f"{'-':>11}"
-        print(row)
-        if args.min_ratio and r_mi < args.min_ratio:
-            failures.append((cfg, r_mi))
+        failures = []
+        for cfg, res in results.items():
+            h = res["hoard"]["median"]
+            mi = res["mimalloc"]["median"]
+            je = res.get("jemalloc", {}).get("median")
+            row = f"{cfg:>8}  " + "".join(
+                f"{res[n]['median']/1e6:>12.1f}" for n, _ in allocators)
+            r_mi = h / mi if mi else float("nan")
+            row += f"{r_mi:>11.2f}"
+            row += f"{h/je:>11.2f}" if je else f"{'-':>11}"
+            print(row)
+            if args.min_ratio and r_mi < args.min_ratio:
+                failures.append((cfg, r_mi))
 
-    # Spread, so a noisy runner is visible rather than silently shifting a median.
-    print("\nspread (min-max as % of median):")
-    for cfg, res in results.items():
-        parts = []
-        for name, _ in allocators:
-            r = res[name]["runs"]
-            med = res[name]["median"]
-            parts.append(f"{name} {100*(max(r)-min(r))/med:.0f}%")
-        print(f"  {cfg:>8}  " + "  ".join(parts))
+        # Spread, so a noisy runner is visible rather than silently shifting a median.
+        print("\nspread (min-max as % of median):")
+        for cfg, res in results.items():
+            parts = []
+            for name, _ in allocators:
+                r = res[name]["runs"]
+                med = res[name]["median"]
+                parts.append(f"{name} {100*(max(r)-min(r))/med:.0f}%")
+            print(f"  {cfg:>8}  " + "  ".join(parts))
+        print()
+        return results, failures
 
-    if args.json:
-        with open(args.json, "w") as f:
-            json.dump({"platform": platform.system(),
-                       "machine": platform.machine(),
-                       "cpus": os.cpu_count(),
-                       "min_ratio": args.min_ratio,
-                       "results": results}, f, indent=2)
+    results, failures = measure_and_report()
+
+    # Confirm before failing: CI runners are noisy enough (see the calibration
+    # note above) that a single dip below the floor is more likely to be a noisy
+    # neighbour than a real regression. Re-measure from scratch and fail only if
+    # it reproduces -- a flaky gate gets ignored, and an ignored gate is useless.
+    if failures and args.retry_on_fail and not args.report_only:
+        print(f"below the {args.min_ratio:.2f}x floor on "
+              f"{', '.join(c for c, _ in failures)}; re-measuring to confirm "
+              f"(this is noise-rejection, not a retry until green)...\n")
+        results2, failures2 = measure_and_report(label="CONFIRMATION PASS: ")
+        confirmed = {c for c, _ in failures} & {c for c, _ in failures2}
+        if not confirmed:
+            print("Did not reproduce: treating the first pass as runner noise.")
+            failures = []
+        else:
+            failures = [f for f in failures2 if f[0] in confirmed]
+            results = results2
 
     print()
     if args.report_only:
