@@ -33,6 +33,11 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y cmake build-essential autoconf
 
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        # jemalloc builds via autogen.sh, which needs autoconf.
+        run: brew install autoconf automake
+
       - name: Build Hoard and the comparison allocators
         run: |
           cmake -B build -DCMAKE_BUILD_TYPE=Release \
