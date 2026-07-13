@@ -195,8 +195,10 @@ extern "C" int xxpthread_create(pthread_t *thread,
                                 const pthread_attr_t *attr,
                                 void * (*start_routine)(void *),
                                 void * arg) {
-  // Force initialization of the TLAB before our first thread is created.
-  static TheCustomHeapType * t = getCustomHeap();
+  // Must be the *calling* thread's heap, fetched on every call: a static
+  // would pin every future pthread_create to the first creator's TLAB, which
+  // is destroyed when that thread exits (threads here spawn other threads).
+  TheCustomHeapType * t = getCustomHeap();
 
   anyThreadCreated = true;
 
