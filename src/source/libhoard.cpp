@@ -152,9 +152,23 @@ extern bool isCustomHeapInitialized();
 // Storage for the ownership bitmap (see ownershipmap.h): an ordinary
 // non-weak zero-initialized global so it lands in a zerofill segment —
 // reserved address space only; pages materialize on first touch.
+//
+// Plain uint64_t, accessed via std::atomic_ref (see ownershipmap.h) —
+// NOT std::atomic. An array of std::atomic cannot be constant-initialized
+// with libc++ (its default constructor is not usable in a constant
+// expression), so an unoptimized build emits a dynamic initializer that
+// default-constructs all 2^24 atomics from __mod_init_func. That runs
+// *after* Hoard has begun serving malloc (we interpose it, so dyld and
+// other images' initializers allocate through us first), and it wipes the
+// ownership bits of every superblock mapped during startup: alloc8 then
+// sees those pointers as foreign and misroutes their free/malloc_size.
+// It would also touch all 128MB, turning reserved address space into
+// resident memory. A plain integer array has no constructor to run, so it
+// lands in zerofill at every optimization level; constinit enforces that
+// at compile time rather than leaving it to the optimizer.
 namespace Hoard {
   namespace ownershipdetail {
-    std::atomic<uint64_t> bits[kNumWords];
+    constinit uint64_t bits[kNumWords] = {};
   }
 }
 #endif

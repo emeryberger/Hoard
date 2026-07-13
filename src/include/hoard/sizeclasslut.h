@@ -26,8 +26,12 @@
  * two must agree for sizes up to LargestSmallObject.
  *
  * Size classes (see bins256k.h):
- *   8-128 bytes:    8-byte increments (classes 0-15)
- *   128-1024 bytes: four classes per power of two (classes 16-27)
+ *   16-128 bytes:   16-byte increments (classes 0-7)
+ *   128-1024 bytes: four classes per power of two (classes 8-19)
+ *
+ * Every class is a multiple of 16 so that contiguously packed objects
+ * stay 16-byte aligned (malloc's fundamental-alignment guarantee).
+ * See the alignment note in bins256k.h.
  */
 
 #ifndef HOARD_SIZECLASSLUT_H
@@ -43,15 +47,15 @@ namespace Hoard {
   // Value = size class in the bins256k.h table.
   alignas(64) static constexpr uint8_t sizeClassLUT[129] = {
     // Generated: index k = (sz+7)/8 covers sizes 8(k-1)+1..8k; value = class.
-    0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
-    15, 16, 16, 16, 16, 17, 17, 17, 17, 18, 18, 18, 18, 19, 19, 19,
-    19, 20, 20, 20, 20, 20, 20, 20, 20, 21, 21, 21, 21, 21, 21, 21,
-    21, 22, 22, 22, 22, 22, 22, 22, 22, 23, 23, 23, 23, 23, 23, 23,
-    23, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
-    24, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
-    25, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
-    26, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-    27,
+    0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7,
+    7, 8, 8, 8, 8, 9, 9, 9, 9, 10, 10, 10, 10, 11, 11, 11,
+    11, 12, 12, 12, 12, 12, 12, 12, 12, 13, 13, 13, 13, 13, 13, 13,
+    13, 14, 14, 14, 14, 14, 14, 14, 14, 15, 15, 15, 15, 15, 15, 15,
+    15, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16,
+    16, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17,
+    17, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18,
+    18, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19,
+    19
   };
 
   // Fast size class lookup for small objects (≤ 1024 bytes).
@@ -63,11 +67,10 @@ namespace Hoard {
     return sizeClassLUT[index];
   }
 
-  // Class size lookup (inverse of size class) for classes 0-26.
+  // Class size lookup (inverse of size class) for classes 0-19.
   // Returns the actual allocation size for a given size class.
-  alignas(64) static constexpr size_t classSizeLUT[28] = {
-    8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128,
-    160, 192, 224, 256, 320, 384, 448, 512, 640, 768, 896, 1024
+  alignas(64) static constexpr size_t classSizeLUT[20] = {
+    16, 32, 48, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384, 448, 512, 640, 768, 896, 1024
   };
 
   static inline size_t getClassSizeLUT(int sizeClass) {

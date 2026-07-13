@@ -93,7 +93,7 @@ if(WIN32)
   # ALLOC8_NO_DLLMAIN: Hoard provides its own DllMain in wintls.cpp
   #
   set(HOARD_SOURCES ${WINDOWS_SOURCES})
-  add_definitions(-DNDEBUG -D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DALLOC8_NO_DLLMAIN)
+  add_definitions(-D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DALLOC8_NO_DLLMAIN)
   # Compile-time inline ownership hook for alloc8's Windows wrapper:
   # replaces SEH-probe foreign-pointer detection (which dereferences
   # masked addresses and, after init, skipped checking entirely) with
@@ -102,7 +102,7 @@ if(WIN32)
 
 elseif(APPLE)
   set(HOARD_SOURCES ${MACOS_SOURCES})
-  add_compile_options(-DNDEBUG -ftls-model=initial-exec -ftemplate-depth=1024)
+  add_compile_options(-ftls-model=initial-exec -ftemplate-depth=1024)
   # Compile-time inline ownership hook for alloc8: the predicate in
   # hoardownsinline.h (backed by Hoard's superblock ownership map) inlines
   # directly into alloc8's replace_free/replace_realloc/malloc_size hot
@@ -111,8 +111,14 @@ elseif(APPLE)
   add_definitions(-DALLOC8_XXOWNS_INLINE_HEADER=\"hoardownsinline.h\")
 else()
   set(HOARD_SOURCES ${UNIX_SOURCES})
-  add_definitions(-DNDEBUG)
 endif()
+
+# NDEBUG is deliberately NOT forced here. The Release and RelWithDebInfo
+# configs already define it (CMAKE_CXX_FLAGS_<CONFIG>), so adding it
+# unconditionally changed nothing for them while making it impossible to
+# ever get an assertion-checked build: the asserts throughout the heap
+# layers (isValid(), alignment, size-class invariants) were compiled out
+# in every configuration, including Debug. Leave it to the config.
 
 # Force Release build type for optimal performance (memory allocators need aggressive inlining)
 if(NOT CMAKE_BUILD_TYPE)

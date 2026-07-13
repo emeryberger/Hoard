@@ -118,8 +118,8 @@ namespace Hoard {
     {
       static_assert(gcd<Alignment, DesiredAlignment>::value == DesiredAlignment,
 		    "Alignment mismatch.");
-      static_assert(SuperblockSize != 262144 || NumBins >= 28,
-		    "sizeclasslut.h classes (0-27) must fit in NumBins.");
+      static_assert(SuperblockSize != 262144 || NumBins >= 20,
+		    "sizeclasslut.h classes (0-19) must fit in NumBins.");
       static_assert((Alignment >= 2 * sizeof(size_t)),
 		    "Alignment must be enough to hold two pointers.");
     }
