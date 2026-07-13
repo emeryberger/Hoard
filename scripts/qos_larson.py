@@ -159,9 +159,13 @@ def main():
                             for n, r in runs.items()}
 
         print(f"{label}larson <sleep> 7 8 1000 10000 1 <threads>, "
-              f"median of {args.reps} interleaved runs (Mops/sec)\n")
-        hdr = f"{'config':>8}  " + "".join(f"{n:>12}" for n, _ in allocators) + \
-              f"{'hoard/mi':>11}{'hoard/je':>11}"
+              f"median of {args.reps} interleaved runs.")
+        print("Throughput in Mops/sec: HIGHER IS BETTER.")
+        print("The last two columns are how many times FASTER Hoard is than "
+              "that allocator:\n  >1.00 = Hoard wins, <1.00 = Hoard loses "
+              "(flagged SLOWER).\n")
+        hdr = (f"{'config':>8}  " + "".join(f"{n:>12}" for n, _ in allocators)
+               + f"{'vs mimalloc':>14}{'vs jemalloc':>14}")
         print(hdr)
         print("-" * len(hdr))
 
@@ -172,9 +176,16 @@ def main():
             je = res.get("jemalloc", {}).get("median")
             row = f"{cfg:>8}  " + "".join(
                 f"{res[n]['median']/1e6:>12.1f}" for n, _ in allocators)
+
+            def fmt_ratio(r):
+                # Spell out the direction: a bare "0.82" reads as fine until you
+                # remember higher-is-better. Mark the losses -- but judge on the
+                # DISPLAYED value, so 0.996 does not print "1.00x SLOWER".
+                return f"{r:.2f}x" + (" SLOWER" if round(r, 2) < 1.0 else "")
+
             r_mi = h / mi if mi else float("nan")
-            row += f"{r_mi:>11.2f}"
-            row += f"{h/je:>11.2f}" if je else f"{'-':>11}"
+            row += f"{fmt_ratio(r_mi):>14}"
+            row += f"{fmt_ratio(h/je):>14}" if je else f"{'-':>14}"
             print(row)
             if args.min_ratio and r_mi < args.min_ratio:
                 failures.append((cfg, r_mi))
