@@ -59,16 +59,24 @@
 namespace Hoard {
   namespace sizeclasses {
 
+    // NOTE: the namespace-scope constants and tables below are declared
+    // `static constexpr`, NOT `inline constexpr`. libhoard.cpp does
+    // `#define inline __forceinline` on Windows, which MSVC rejects on data
+    // declarations ("'__forceinline' not permitted on data declarations").
+    // ownershipmap.h carries the same warning. Internal linkage per TU is
+    // fine here: these are compile-time constants, and the tables are a few
+    // hundred bytes.
+
     /// Alignment quantum: minimum class size AND class-size granularity.
-    inline constexpr size_t kQuantum = 16;
+    static constexpr size_t kQuantum = 16;
 
     /// Largest object served from a size class (the big-object threshold).
-    inline constexpr size_t kBigObject = 32768;
+    static constexpr size_t kBigObject = 32768;
 
     /// Sizes up to this are resolved by lookup table; above, by closed form.
-    inline constexpr size_t kLutMaxSize = 1024;
+    static constexpr size_t kLutMaxSize = 1024;
 
-    inline constexpr int kMaxBins = 64;
+    static constexpr int kMaxBins = 64;
 
     struct SizeTable {
       size_t sizes[kMaxBins] = {};
@@ -93,8 +101,8 @@ namespace Hoard {
       return t;
     }
 
-    inline constexpr SizeTable kTable = makeSizes();
-    inline constexpr int kNumBins = kTable.count;
+    static constexpr SizeTable kTable = makeSizes();
+    static constexpr int kNumBins = kTable.count;
 
     /// The class sizes, compacted to exactly kNumBins entries and put on a
     /// cache line: this is read on the TLAB malloc/free fast path (via
@@ -112,7 +120,7 @@ namespace Hoard {
       return cs;
     }
 
-    inline constexpr ClassSizes kSizes = makeClassSizes();
+    static constexpr ClassSizes kSizes = makeClassSizes();
 
     constexpr size_t classSize(int c) {
       return kSizes.v[c];
@@ -150,7 +158,7 @@ namespace Hoard {
 
     /// Lookup table for sz <= kLutMaxSize, at 8-byte granularity.
     /// Index = (sz + 7) / 8, so entry k covers sizes 8(k-1)+1 .. 8k.
-    inline constexpr int kLutEntries = (int) (kLutMaxSize / 8) + 1;   // 129
+    static constexpr int kLutEntries = (int) (kLutMaxSize / 8) + 1;   // 129
 
     /// Cache-line aligned: read on the TLAB malloc fast path.
     struct alignas(64) Lut {
@@ -166,7 +174,7 @@ namespace Hoard {
       return l;
     }
 
-    inline constexpr Lut kLut = makeLut();
+    static constexpr Lut kLut = makeLut();
 
     /// The fast path used by both consumers.
     constexpr int classFor(size_t sz) {
