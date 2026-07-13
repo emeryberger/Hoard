@@ -81,14 +81,20 @@ volatile bool anyThreadCreated = false;
 #include "mactlsfast.h"
 #endif
 
-// On macOS the xx* entry points are called only from the alloc8
-// interposition layer linked into this same dylib. Hidden visibility
-// keeps them out of the export table and lets LTO inline them into
-// alloc8's replace_malloc/replace_free wrappers.
-#if defined(__APPLE__)
+// The xx* entry points are called only from the interposition layer linked
+// into this same library. Hidden visibility keeps them out of the dynamic
+// symbol table and lets LTO inline them into replace_malloc/replace_free.
+//
+// This matters just as much on ELF as on Mach-O, and for an extra reason: a
+// default-visibility symbol in a shared object is *preemptible*, so the
+// compiler must emit a PLT indirection for it and cannot inline through it.
+// Left exported, `malloc` compiled to nothing but `b xxmalloc@plt` -- every
+// allocation paid an indirect jump and the whole TLAB fast path stayed
+// out-of-line behind it.
+#if defined(__APPLE__) || defined(__ELF__)
 #define HOARD_HOOK __attribute__((visibility("hidden")))
 #else
-#define HOARD_HOOK
+#define HOARD_HOOK   // Windows: exported from the DLL.
 #endif
 
 //
