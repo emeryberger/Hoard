@@ -59,10 +59,22 @@ namespace Hoard {
     // would be coalesced into __data and bloat the binary by 128MB.
     // Hidden visibility keeps every reference within the dylib direct
     // (no GOT load on the free fast path).
+    //
+    // Plain uint64_t accessed through std::atomic_ref, NOT std::atomic:
+    // an array of std::atomic cannot be constant-initialized with libc++,
+    // so it would acquire a dynamic initializer that zeroes the whole map
+    // from __mod_init_func — after Hoard has already started registering
+    // superblocks. See the definition in libhoard.cpp. atomic_ref gives
+    // the identical atomic operations on storage that is guaranteed to be
+    // zerofill with no constructor.
     constexpr size_t kChunkSize = 262144;
     constexpr size_t kNumWords = (1ULL << 48) / kChunkSize / 64;
     extern __attribute__((visibility("hidden")))
-    std::atomic<uint64_t> bits[kNumWords];
+    uint64_t bits[kNumWords];
+
+    using AtomicWord = std::atomic_ref<uint64_t>;
+    static_assert (alignof(uint64_t) >= AtomicWord::required_alignment,
+                   "bitmap words must be suitably aligned for atomic_ref");
   }
 #endif
 
@@ -96,7 +108,8 @@ namespace Hoard {
       // storage, so there is no pointer chase and no init check.
       size_t chunk = a / ChunkSize;
       uint64_t word =
-        ownershipdetail::bits[chunk >> 6].load (std::memory_order_relaxed);
+        ownershipdetail::AtomicWord (ownershipdetail::bits[chunk >> 6])
+          .load (std::memory_order_relaxed);
       return (word >> (chunk & 63)) & 1;
 #endif
     }
@@ -116,8 +129,8 @@ namespace Hoard {
       });
 #else
       forEachChunk (start, len, [] (size_t chunk) {
-        ownershipdetail::bits[chunk >> 6].fetch_or
-          (1ULL << (chunk & 63), std::memory_order_release);
+        ownershipdetail::AtomicWord (ownershipdetail::bits[chunk >> 6])
+          .fetch_or (1ULL << (chunk & 63), std::memory_order_release);
       });
 #endif
     }
@@ -139,8 +152,8 @@ namespace Hoard {
       });
 #else
       forEachChunk (start, len, [] (size_t chunk) {
-        ownershipdetail::bits[chunk >> 6].fetch_and
-          (~(1ULL << (chunk & 63)), std::memory_order_release);
+        ownershipdetail::AtomicWord (ownershipdetail::bits[chunk >> 6])
+          .fetch_and (~(1ULL << (chunk & 63)), std::memory_order_release);
       });
 #endif
     }

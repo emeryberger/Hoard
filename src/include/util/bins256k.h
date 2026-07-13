@@ -28,9 +28,19 @@ namespace HL {
 /// Replaces the generic power-of-two classes (worst-case internal
 /// fragmentation ~100%) with finer classes, mirroring jemalloc's and
 /// mimalloc's spacing:
-///   8-128 bytes:    8-byte increments (16 classes)
-///   128-1024 bytes: four classes per power of two (~25% max waste)
-///   1024-32768:     four classes per power of two (~25% max waste)
+///   16-128 bytes:    16-byte increments (8 classes)
+///   128-1024 bytes:  four classes per power of two (~25% max waste)
+///   1024-32768:      four classes per power of two (~25% max waste)
+///
+/// Every class is a multiple of 16, and the smallest is 16. Objects are
+/// packed contiguously from a 16-byte-aligned superblock base, so an
+/// object size that is not a multiple of 16 misaligns every subsequent
+/// object in the superblock and breaks malloc's fundamental-alignment
+/// guarantee (alignof(max_align_t) == 16). The old 8-byte-spaced classes
+/// (8, 24, 40, ..., 120) returned 8-byte-aligned pointers for half of all
+/// such allocations. 16 is also macOS malloc's minimum allocation size.
+/// hoardsuperblockheader.h asserts both invariants (_objectSize >=
+/// Alignment, and _objectSize % Alignment == 0).
 ///
 /// Non-power-of-two object sizes are fully supported by the superblock
 /// header via a precomputed multiplicative inverse (see fastModulo in
@@ -50,14 +60,18 @@ public:
     static_assert(getSizeClass(BIG_OBJECT) == NUM_BINS - 1,
 		  "Big-object threshold must map to the last class.");
     static_assert(getSizeClass(1) == 0, "Smallest size must map to class 0.");
-    static_assert(getSizeClass(8) == 0, "8 must map to class 0 (8 bytes).");
-    static_assert(getSizeClass(9) == 1, "9 must map to class 1 (16 bytes).");
-    static_assert(getSizeClass(1025) == 28, "1025 must map to class 28 (1280).");
-    static_assert(getSizeClass(2048) == 31, "2048 must map to class 31.");
-    static_assert(getSizeClass(2049) == 32, "2049 must map to class 32 (2560).");
+    static_assert(getSizeClass(8) == 0, "8 must map to class 0 (16 bytes).");
+    static_assert(getSizeClass(16) == 0, "16 must map to class 0 (16 bytes).");
+    static_assert(getSizeClass(17) == 1, "17 must map to class 1 (32 bytes).");
+    static_assert(getSizeClass(1025) == 20, "1025 must map to class 20 (1280).");
+    static_assert(getSizeClass(2048) == 23, "2048 must map to class 23.");
+    static_assert(getSizeClass(2049) == 24, "2049 must map to class 24 (2560).");
+    // Alignment invariant: every class is a multiple of 16 (see above).
+    static_assert(getClassSize(0) % 16 == 0 && getClassSize(0) >= 16,
+                  "Smallest class must be a multiple of 16, at least 16.");
   }
 
-  enum { NUM_BINS = 48 };
+  enum { NUM_BINS = 40 };
   enum { BIG_OBJECT = 262144 / 8 };
   enum { NumBins = NUM_BINS };
   enum { MaxObjectSize = BIG_OBJECT };
@@ -96,21 +110,24 @@ private:
 
   /// Classes for 1024 < sz <= 32768: four per power of two.
   /// For sz in (2^k, 2^(k+1)], classes at 2^k + q * 2^(k-2), q = 1..4.
+  /// The +19 is the index of the last class at or below 1024, so that
+  /// k=10, q=1 lands on the first large class (1280).
   static inline constexpr int getSizeClassLarge(size_t sz) {
     unsigned int k = ilog2c(sz - 1);            // 10..14
     size_t base = (size_t)1 << k;
     size_t quarter = base >> 2;
     int q = (int)((sz - base + quarter - 1) >> (k - 2)); // 1..4
-    return 27 + (int)(k - 10) * 4 + q;
+    return 19 + (int)(k - 10) * 4 + q;
   }
 
-  // Size class table:
-  // 0-15:  Small (8-byte increments): 8,16,24,...,128
-  // 16-27: Medium (quarter spacing): 160,192,224,256,320,384,448,512,640,768,896,1024
-  // 28-47: Large (quarter spacing): 1280,...,32768
+  // Size class table. Every class above 8 is a multiple of 16 (see the
+  // alignment note above).
+  // 0-7:   Small: 16-byte increments, 16..128
+  // 8-19:  Medium (quarter spacing): 160,192,224,256,...,1024
+  // 20-39: Large (quarter spacing): 1280,...,32768
   static constexpr size_t _sizes[NUM_BINS] = {
-    // Small: 8-byte increments (16 classes)
-    8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128,
+    // Small (8 classes)
+    16, 32, 48, 64, 80, 96, 112, 128,
     // Medium: quarter spacing (12 classes)
     160, 192, 224, 256, 320, 384, 448, 512, 640, 768, 896, 1024,
     // Large: quarter spacing (20 classes)
@@ -125,14 +142,14 @@ private:
   // Entry i corresponds to sizes (i*8+1) to ((i+1)*8).
   static constexpr int _lookup[LOOKUP_TABLE_SIZE] = {
     // Generated: entry i covers sizes (i*8+1)..((i+1)*8); value = size class.
-    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
-    16, 16, 16, 16, 17, 17, 17, 17, 18, 18, 18, 18, 19, 19, 19, 19,
-    20, 20, 20, 20, 20, 20, 20, 20, 21, 21, 21, 21, 21, 21, 21, 21,
-    22, 22, 22, 22, 22, 22, 22, 22, 23, 23, 23, 23, 23, 23, 23, 23,
-    24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
-    25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
-    26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
-    27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27
+    0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7,
+    8, 8, 8, 8, 9, 9, 9, 9, 10, 10, 10, 10, 11, 11, 11, 11,
+    12, 12, 12, 12, 12, 12, 12, 12, 13, 13, 13, 13, 13, 13, 13, 13,
+    14, 14, 14, 14, 14, 14, 14, 14, 15, 15, 15, 15, 15, 15, 15, 15,
+    16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16,
+    17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17,
+    18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18,
+    19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19
   };
 };
 
