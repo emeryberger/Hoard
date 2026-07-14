@@ -50,8 +50,21 @@
 // Maximize the degree of inlining.
 #pragma inline_depth(255)
 
-// Turn inlining hints into requirements.
-#define inline __forceinline
+// NOTE: do NOT `#define inline __forceinline` here.
+//
+// It was legacy and redundant -- Heap-Layers already maps INLINE to
+// __forceinline on MSVC (and has its own copy of this #define commented out),
+// and every hot path force-inlines explicitly (INLINE, TLAB_ALWAYS_INLINE, or
+// a bare __forceinline). What the macro DID do was rewrite `inline` on *data*
+// declarations, which MSVC rejects outright:
+//
+//   error C2433: '__forceinline' not permitted on data declarations
+//
+// so no header reachable from here could use a C++17 `inline` variable or a
+// `static inline` member. That trap cost three separate build breakages
+// (ownershipmap.h's bitmap, sizeclasses.h's tables, shardedglobalheap.h's
+// retain counter), each caught only by Windows CI. Removing it lets headers
+// use ordinary modern C++.
 #pragma warning(disable:4273)
 #pragma warning(disable: 4098)  // Library conflict.
 #pragma warning(disable: 4355)  // 'this' used in base member initializer list.
