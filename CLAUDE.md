@@ -256,6 +256,14 @@ Globals that Hoard's own entry points touch **must be constant-initialized** —
 
 This bit the ownership bitmap (`ownershipmap.h` / `libhoard.cpp`): an array of `std::atomic<uint64_t>` **cannot** be constant-initialized with libc++ (its default constructor is not usable in a constant expression), so unoptimized builds emitted a dynamic initializer that walked all 2^24 elements at load and zeroed the map, wiping the ownership bits of every superblock mapped during startup. alloc8 then saw those pointers as foreign and misrouted their `free`/`malloc_size` (objc aborted with "corrupt data pointer"; `malloc_size` returned 0). Optimized builds constant-folded it to zerofill and were unaffected — an optimization-level-dependent miscompile of the invariant. The storage is now a plain `uint64_t` array (no constructor, always zerofill) accessed via `std::atomic_ref`, marked `constinit` so the compiler enforces it. It would also have touched all 128MB, turning reserved address space into resident memory.
 
+### Interposition-layer overhead (alloc8)
+
+Hoard's fast path is only as short as alloc8's entry points, which sit in front of every `malloc`/`free`. Measured on a tight recycle loop (M1 Max), alloc8's per-op entry work was **~36% of the whole allocation fast path**. It is now one acquire load (`g_fast` in alloc8) gating init, passthrough and stats together, and Hoard compiles with `-DALLOC8_NO_CALLER_RA` (CMakeLists.txt) because it never reads alloc8's caller-return-address hint — a `thread_local` store that cost ~15% on its own.
+
+Do NOT relax alloc8's `ensure_init` acquire load to relaxed (worth another ~12%): dyld constructors can allocate from several threads before alloc8's priority-101 init runs — that is why `alloc8_init_once` has a spin-wait — and a relaxed load could observe `INIT_DONE` without the values it publishes.
+
+If a change to the fast path shows no benefit, check whether alloc8 is the bottleneck before optimizing Hoard: the *bulk* gap is Hoard's (locks and per-object bookkeeping), but the *recycle* gap was alloc8's.
+
 ### Baseline Comparisons
 
 When optimizing, compare against mimalloc and jemalloc, not system malloc. Use consistent benchmark parameters across runs. Larson is sensitive to cross-thread free patterns; threadtest measures pure per-thread throughput.
