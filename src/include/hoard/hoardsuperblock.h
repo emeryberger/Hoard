@@ -56,6 +56,15 @@ namespace Hoard {
     }
 
 
+    /// Global-heap retain-cache bookkeeping (see ShardedGlobalHeap).
+    INLINE bool isRetainedUnpurged() const {
+      return _header.isRetainedUnpurged();
+    }
+
+    INLINE void setRetainedUnpurged (bool v) {
+      _header.setRetainedUnpurged (v);
+    }
+
     constexpr INLINE size_t getObjectSize() const {
       if (_header.isValid()) {
 	return _header.getObjectSize();
