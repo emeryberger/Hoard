@@ -192,6 +192,62 @@ namespace Hoard {
       }
     }
 
+    /// Batch free: the counterpart of mallocMany, called with the heap lock
+    /// already held (see RedirectFree::freeMany).
+    ///
+    /// The batch comes from a single TLAB bin, so every object has the SAME
+    /// size class and this heap owns all of them. That lets the whole
+    /// per-object preamble hoist out of the loop: the size-class lookup (which
+    /// costs a superblock header load), the statistics read-modify-write, and
+    /// the emptiness-threshold test each happen ONCE for the batch rather than
+    /// once per object.
+    ///
+    /// Objects are also grouped into runs from the same superblock. The TLAB
+    /// bin is LIFO and bulk frees arrive in allocation order, so runs are long
+    /// in practice, and each run does the emptiness-class bookkeeping once
+    /// (see EmptyClass::freeRun) instead of reading the superblock's fullness
+    /// twice per object.
+    INLINE void freeMany (void ** objs, size_t n) override {
+      if (n == 0) {
+	return;
+      }
+      Check<HoardManager, sanityCheck> check (this);
+
+      // Every object in the batch shares a size class: read it once.
+      SuperblockType * first = SuperHeap::getSuperblock (objs[0]);
+      assert (first->getOwner() == this);
+      auto sz = first->getObjectSize ();
+      auto binIndex = (int) binType::getSizeClass (sz);
+
+      size_t i = 0;
+      while (i < n) {
+	SuperblockType * s = SuperHeap::getSuperblock (objs[i]);
+	assert (s->getOwner() == this);
+	assert (s->getObjectSize() == sz);
+
+	// Collect the run of objects that belong to this same superblock.
+	size_t run = i + 1;
+	while (run < n && SuperHeap::getSuperblock (objs[run]) == s) {
+	  run++;
+	}
+	_otherBins(binIndex).freeRun (s, &objs[i], run - i);
+	i = run;
+      }
+
+      // Statistics: one update for the whole batch.
+      auto& stats = _stats(binIndex);
+      auto u = stats.getInUse();
+      auto a = stats.getAllocated();
+      assert (u >= n);
+      u -= (unsigned int) n;
+      stats.setInUse (u);
+
+      // And one emptiness-threshold test.
+      if (HL_EXPECT_FALSE(thresholdFunctionClass::function (u, a, sz))) {
+	slowPathFree (binIndex, u, a);
+      }
+    }
+
     INLINE void lock() {
       _theLock.lock();
     }

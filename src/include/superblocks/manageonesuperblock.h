@@ -73,6 +73,23 @@ namespace Hoard {
       }
     }
 
+    /// Batch free of a run of objects that all belong to superblock s.
+    ///
+    /// MUST mirror free() above: _current is held OUTSIDE the parent's
+    /// emptiness-class lists, so objects going to it must NOT touch that
+    /// bookkeeping. Without this override the run would fall through to
+    /// EmptyClass::freeRun, which would transfer the cached superblock INTO
+    /// the emptiness lists -- where it does not belong -- and corrupt them.
+    inline void freeRun (SuperblockType * s, void ** objs, size_t n) {
+      if (likely(s == _current)) {
+	for (size_t i = 0; i < n; i++) {
+	  _current->free (objs[i]);
+	}
+      } else {
+	SuperHeap::freeRun (s, objs, n);
+      }
+    }
+
     /// Get the current superblock and remove it.
     SuperblockType * get() {
       if (likely(_current)) {

@@ -200,6 +200,25 @@ namespace Hoard {
       }
     }
 
+    /// Free n objects that ALL belong to superblock s, doing the emptiness
+    /// class bookkeeping ONCE for the whole run instead of once per object.
+    /// Fullness is a function of the superblock's free count, so a run of
+    /// frees can only move it in one direction: computing it before and after
+    /// is equivalent to recomputing it every time, and a single transfer
+    /// lands the superblock in the same class.
+    INLINE void freeRun (SuperblockType * s, void ** objs, size_t n) {
+      Check<EmptyClass, MyChecker> check (this);
+      auto oldCl = getFullness (s);
+      for (size_t i = 0; i < n; i++) {
+	s->free (objs[i]);
+      }
+      auto newCl = getFullness (s);
+
+      if (oldCl != newCl) {
+	transfer (s, oldCl, newCl);
+      }
+    }
+
     /// Find the superblock (by bit-masking) that holds a given pointer.
     static INLINE SuperblockType * getSuperblock (void * ptr) {
       return SuperblockType::getSuperblock (ptr);

@@ -47,6 +47,12 @@ namespace Hoard {
     /// Free an object.
     inline virtual void free (void *) {}
 
+    /// Batch free, with this heap's lock already held. The batch comes from
+    /// one TLAB bin, so every object shares a size class and this owner --
+    /// which is what lets the implementation hoist the per-object size-class
+    /// lookup, statistics update and threshold check out of the loop.
+    inline virtual void freeMany (void **, size_t) {}
+
     /// Lock this memory manager.
     inline virtual void lock (void) {}
 
