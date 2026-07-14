@@ -176,16 +176,25 @@ namespace Hoard {
       // touched at all: no dependent loads through cold memory.
       if (HL_EXPECT_TRUE(s == _cachedSuperblock)) {
         ptr = normalizeCached (ptr);
-        if (HL_EXPECT_TRUE(!_cachedRemote &&
-                           _localHeapBytes + _cachedClassSize <= _adaptiveThreshold)) {
+        if (HL_EXPECT_TRUE(!_cachedRemote)) {
+          if (HL_EXPECT_FALSE(_localHeapBytes + _cachedClassSize
+                              > _adaptiveThreshold)) {
+            // TLAB full: make room by flushing a BATCH home under one lock
+            // rather than paying two lock acquisitions for this one object
+            // (see flushBin).
+            if (flushBin (_cachedSizeClass, _cachedClassSize) == 0) {
+              _parentHeap->free (ptr);   // nothing in this bin to flush
+              return;
+            }
+          }
           _localHeap(_cachedSizeClass).insert ((HL::SLList::Entry *) ptr);
           _localHeapBytes += _cachedClassSize;
           return;
         }
-        // Foreign superblock or TLAB at capacity: return the object to
-        // its owning heap (RedirectFree's lock-free delayed-free path).
-        // The cache stays valid: it still normalizes correctly and
-        // routes subsequent frees to this same branch.
+        // Foreign superblock: return the object to its owning heap
+        // (RedirectFree's lock-free delayed-free path). The cache stays
+        // valid: it still normalizes correctly and routes subsequent frees
+        // to this same branch.
         _parentHeap->free (ptr);
         return;
       }
@@ -198,8 +207,7 @@ namespace Hoard {
       	ptr = s->normalize (ptr);
       	auto sz = s->getObjectSizeUnchecked ();
 
-      	if (HL_EXPECT_TRUE((sz <= LargestObject) &&
-                           (sz + _localHeapBytes <= _adaptiveThreshold))) {
+      	if (HL_EXPECT_TRUE(sz <= LargestObject)) {
       	  assert (getSize(ptr) >= sizeof(HL::SLList::Entry *));
           // Use lookup table for size class (faster than bsr instruction).
       	  auto c = tlabSizeClass(sz);
@@ -228,6 +236,14 @@ namespace Hoard {
                            != _myOwner);
 
           if (HL_EXPECT_TRUE(!_cachedRemote)) {
+            if (HL_EXPECT_FALSE(_localHeapBytes + classSize
+                                > _adaptiveThreshold)) {
+              // TLAB full: flush a batch home under one lock (see flushBin).
+              if (flushBin (c, classSize) == 0) {
+                _parentHeap->free (ptr);   // nothing in this bin to flush
+                return;
+              }
+            }
             _localHeap(c).insert ((HL::SLList::Entry *) ptr);
             _localHeapBytes += classSize;
             return;
@@ -236,7 +252,7 @@ namespace Hoard {
           return;
       	}
 
-      	// Slow path: large object or TLAB full - free to parent heap.
+      	// Slow path: large object - free to parent heap.
         _cachedSuperblock = invalidCacheSentinel();  // Invalidate cache
       	_parentHeap->free (ptr);
       }
@@ -304,6 +320,51 @@ namespace Hoard {
 
     /// Maximum number of objects fetched per bin refill.
     enum { MaxRefillBatch = 64 };
+
+    /// Maximum number of objects returned home per bin flush. The mirror
+    /// image of MaxRefillBatch.
+    enum { MaxFlushBatch = 64 };
+
+    /// Flush up to MaxFlushBatch objects from bin c back to their owning
+    /// heap under a SINGLE lock acquisition; return how many were flushed
+    /// (0 if the bin was empty).
+    ///
+    /// This is the counterpart of refill(). Without it, a thread whose live
+    /// set outgrows the TLAB pays two lock acquisitions (superblock, then
+    /// owning heap) on EVERY free, because each object is handed to the
+    /// parent heap one at a time -- the dominant cost of any bulk workload.
+    ///
+    /// Blowup preservation: flushing only ever REMOVES objects from the
+    /// TLAB, so _localHeapBytes <= _adaptiveThreshold <= LocalHeapThreshold
+    /// still holds. The caller flushes before inserting, and each flush frees
+    /// at least one object of the class it is about to insert, so the
+    /// threshold is never exceeded.
+    NO_INLINE size_t flushBin (int c, size_t classSize) {
+      void * objs[MaxFlushBatch];
+      size_t n = 0;
+      while (n < (size_t) MaxFlushBatch) {
+        auto * e = _localHeap(c).get();
+        if (e == nullptr) {
+          break;
+        }
+        objs[n++] = e;
+      }
+      if (n == 0) {
+        return 0;
+      }
+      _localHeapBytes -= n * classSize;
+      if (HL_EXPECT_TRUE(_homeHeap != nullptr)) {
+        // Batch: one lock for the whole run of same-owner objects.
+        _homeHeap->freeMany (objs, n);
+      } else {
+        // No home heap yet (nothing has refilled): objects can only have
+        // reached a bin via a home-owned free, but stay correct regardless.
+        for (size_t i = 0; i < n; i++) {
+          _parentHeap->free (objs[i]);
+        }
+      }
+      return n;
+    }
 
     /// Refill an empty bin with a batch of objects fetched under one
     /// parent-heap lock acquisition; return one of them.
