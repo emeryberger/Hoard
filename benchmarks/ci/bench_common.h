@@ -146,4 +146,39 @@ static inline unsigned int bench_rand(unsigned int* seed) {
   return (*seed >> 16) & 0x7fff;
 }
 
+/*
+ * Emit a benchmark's result line.
+ *
+ * Prints to stdout as usual, and ALSO appends to the file named by BENCH_OUT
+ * when that variable is set.
+ *
+ * Why: on Windows the benchmarks run under DLL injection (withdll.exe), and
+ * their stdout was not being captured -- CI could see exit codes but never a
+ * number, so Windows could be crash-tested and never performance-tested. A file
+ * we open, write and fclose ourselves does not depend on how the injected
+ * process inherited its standard handles, nor on the CRT flushing a buffer
+ * during teardown, so the result survives either way.
+ */
+#include <stdarg.h>
+
+static inline void bench_report(const char* fmt, ...) {
+  va_list ap;
+
+  va_start(ap, fmt);
+  vprintf(fmt, ap);
+  va_end(ap);
+  fflush(stdout);
+
+  const char* path = getenv("BENCH_OUT");
+  if (path != NULL && path[0] != '\0') {
+    FILE* f = fopen(path, "a");
+    if (f != NULL) {
+      va_start(ap, fmt);
+      vfprintf(f, fmt, ap);
+      va_end(ap);
+      fclose(f);            /* explicit: the line is on disk before we exit */
+    }
+  }
+}
+
 #endif /* BENCH_COMMON_H */

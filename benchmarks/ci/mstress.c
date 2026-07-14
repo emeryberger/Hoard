@@ -85,7 +85,7 @@ int main(int argc, char** argv) {
   }
 
   double elapsed = bench_timer_elapsed(&start);
-  printf("mstress: threads=%d scale=%d iterations=%d allocs=%ld time=%.3f sec (%.0f ops/sec)\n",
+  bench_report("mstress: threads=%d scale=%d iterations=%d allocs=%ld time=%.3f sec (%.0f ops/sec)\n",
          nthreads, scale, iterations, total_allocs, elapsed, total_allocs / elapsed);
 
   /* Cleanup transfer array */

@@ -327,6 +327,15 @@ jobs:
           # lock; ~10 minutes even in the last green master run).
           $timeouts = @{ "rptest" = 900 }
 
+          # BENCH_OUT: the benchmarks append their result line to this file
+          # themselves (see benchmarks/ci/bench_common.h). Their stdout is NOT
+          # reliably captured through withdll's DLL injection, so without this
+          # Windows could only ever see exit codes -- crash-tested, never
+          # performance-tested. A file the benchmark opens and fcloses itself
+          # does not depend on how the injected process inherited its handles.
+          $env:BENCH_OUT = "$PWD\hoard-results.txt"
+          if (Test-Path $env:BENCH_OUT) { Remove-Item $env:BENCH_OUT }
+
           $failed = @()
           foreach ($b in $benchmarks) {
             $name = $b[0]
@@ -337,6 +346,15 @@ jobs:
             if ($LASTEXITCODE -ne 0) {
               $failed += "$name (exit $LASTEXITCODE)"
             }
+          }
+
+          Write-Output ""
+          Write-Output "=== Hoard benchmark results (Windows) ==="
+          if (Test-Path $env:BENCH_OUT) {
+            Get-Content $env:BENCH_OUT | Tee-Object -FilePath hoard.txt -Append
+          } else {
+            Write-Error "No benchmark results captured -- BENCH_OUT file missing."
+            exit 1
           }
 
           if ($failed.Count -gt 0) {
@@ -371,6 +389,7 @@ jobs:
           path: |
             benchmarks/ci/build/Release/baseline.txt
             benchmarks/ci/build/Release/hoard.txt
+            benchmarks/ci/build/Release/hoard-results.txt
 
       - name: Upload hang diagnostics (stacks and dumps)
         if: always()

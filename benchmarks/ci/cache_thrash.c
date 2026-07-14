@@ -85,7 +85,7 @@ int main(int argc, char** argv) {
 
   double elapsed = bench_timer_elapsed(&start);
   long total_ops = (long)nthreads * iterations;
-  printf("cache-thrash: threads=%d iterations=%d obj_size=%d working_set=%d time=%.3f sec (%.0f ops/sec)\n",
+  bench_report("cache-thrash: threads=%d iterations=%d obj_size=%d working_set=%d time=%.3f sec (%.0f ops/sec)\n",
          nthreads, iterations, obj_size, working_set, elapsed, total_ops / elapsed);
 
   free(threads);

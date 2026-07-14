@@ -118,7 +118,7 @@ int main(int argc, char** argv) {
   bench_thread_join_all(threads, nthreads);
 
   double elapsed = bench_timer_elapsed(&start);
-  printf("sh8bench: threads=%d ops=%ld time=%.3f sec (%.0f ops/sec)\n",
+  bench_report("sh8bench: threads=%d ops=%ld time=%.3f sec (%.0f ops/sec)\n",
          nthreads, total_ops, elapsed, total_ops / elapsed);
 
   /* Cleanup shared */

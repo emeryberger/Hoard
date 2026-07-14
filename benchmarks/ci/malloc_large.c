@@ -33,7 +33,7 @@ int main(int argc, char** argv) {
   }
 
   double elapsed = bench_timer_elapsed(&start);
-  printf("malloc-large: iterations=%d time=%.3f sec (%.0f ops/sec)\n",
+  bench_report("malloc-large: iterations=%d time=%.3f sec (%.0f ops/sec)\n",
          iterations, elapsed, iterations / elapsed);
 
   return 0;
