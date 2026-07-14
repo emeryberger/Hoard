@@ -23,25 +23,31 @@ Interposition is VERIFIED, not assumed: a silently-not-preloaded library just
 measures the system allocator, which would make the gate meaningless (and on
 macOS, SIP strips DYLD_INSERT_LIBRARIES from system binaries -- see CLAUDE.md).
 
-CALIBRATING --min-ratio
------------------------
+CALIBRATING --min-ratio, AND WHY ONLY LINUX GATES
+-------------------------------------------------
 The floor is set from MEASURED runner variance, not guessed. Observed
-hoard/mimalloc across repeated CI runs (report-only, reps=5):
+hoard/mimalloc across repeated CI runs of UNCHANGED code:
 
-    ubuntu-latest (4 cpu, x86_64):  1t 0.84-0.90    4t 0.94-0.97
-    macos-latest  (3 cpu, arm64):   1t 0.93-1.03    4t 0.96-1.12
+    ubuntu-latest (4 cpu, x86_64):  0.84 - 0.97      <- tight, gateable
+    macos-latest  (3 cpu, arm64):   0.64 - 1.12      <- NOT gateable
 
-Linux is fairly tight. The macOS runners are shared and genuinely noisy: the
-RATIO itself swings by ~0.1 between runs, with up to 35% min-max spread within
-a single config. So the floor has to sit well below the worst observed value
-(0.84), which is why it is 0.75 rather than something snug like 0.80 -- a gate
-that flakes gets ignored, and an ignored gate is worse than none.
+Linux is tight, so it gates at 0.75: comfortably clear of its worst observed
+value (0.84) while still tripping on roughly a 17% regression (Hoard sits at
+~0.95-1.0x).
 
-On top of that, --retry-on-fail re-measures from scratch before failing, so a
-one-off noise dip has to happen twice independently to break the build. That is
-what buys the gate its sensitivity: it reliably catches a real regression
-(Hoard currently sits at ~0.9x mimalloc, so 0.75 trips on roughly a 17% drop)
-without failing on runner noise.
+macOS is REPORT-ONLY, and that is a deliberate concession. Its ratio spans 0.48
+on unchanged code -- a master run measured 0.64x and 0.69x while the run before
+and after it measured ~1.0x, and a local interleaved A/B of the same commits
+showed larson flat. The variation is BETWEEN runners, not within a job: the bad
+run's spread was only 6% (hoard) and 16% (mimalloc), so the numbers looked
+perfectly stable -- that runner was simply, consistently slow for Hoard.
+
+That also means --retry-on-fail cannot save it: the confirmation pass
+re-measures in the SAME job on the SAME runner, so it rejects a transient blip
+but not a runner that is degraded for its whole lifetime. Any floor low enough
+to survive 0.64 (i.e. below ~0.6) would be too low to catch a real regression,
+so gating there would only teach people to ignore a red check. We measure and
+print macOS instead, and gate on Linux.
 """
 
 import argparse
@@ -223,6 +229,21 @@ def main():
 
     print()
     if args.report_only:
+        # Report-only still has to be USEFUL: surface a bad ratio loudly so a
+        # real regression on this platform is noticed by a human, even though it
+        # cannot safely fail the build here.
+        low = [(c, r["hoard"]["median"] / r["mimalloc"]["median"])
+               for c, r in results.items()
+               if r["mimalloc"]["median"]
+               and r["hoard"]["median"] / r["mimalloc"]["median"] < 0.75]
+        if low:
+            print("::warning::larson below 0.75x mimalloc on " +
+                  ", ".join(f"{c} ({r:.2f}x)" for c, r in low) +
+                  " -- report-only on this platform (runner-to-runner variance "
+                  "is too large to gate on; see scripts/qos_larson.py). Compare "
+                  "the ABSOLUTE numbers above against another run before "
+                  "believing it: a slow runner drags Hoard down without "
+                  "necessarily moving the spread.")
         print("report-only: not gating.")
         return 0
     if failures:
