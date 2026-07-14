@@ -180,6 +180,9 @@ namespace Hoard {
     // normalize pointers without touching this header at all.
     const char * getStart() const { return _start; }
     bool objectSizeIsPowerOfTwo() const { return _objectSizeIsPowerOfTwo; }
+    bool isRetainedUnpurged() const { return _retainedUnpurged; }
+    void setRetainedUnpurged (bool v) { _retainedUnpurged = v; }
+
     size_t getMagicMul() const { return _magicMul; }
     unsigned getMagicShift() const { return _magicShift; }
 
@@ -323,6 +326,13 @@ namespace Hoard {
 
     /// True iff size is a power of two.
     const bool _objectSizeIsPowerOfTwo;
+
+    /// True while this superblock sits in the global heap's retain cache:
+    /// empty, but with its data pages deliberately NOT purged so the next
+    /// reuse does not have to fault them back in. Purely global-heap
+    /// bookkeeping (see ShardedGlobalHeap::put/get); fits in the header's
+    /// existing padding, so the header stays 256 bytes.
+    bool _retainedUnpurged = false;
 
     /// Shift amount for the multiplicative inverse.
     const unsigned _magicShift;

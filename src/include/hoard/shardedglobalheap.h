@@ -16,6 +16,9 @@
 #ifndef HOARD_SHARDEDGLOBALHEAP_H
 #define HOARD_SHARDEDGLOBALHEAP_H
 
+#include <atomic>
+#include <cstdlib>
+
 #include "hoardsuperblock.h"
 #include "processheap.h"
 #include "hoardconstants.h"
@@ -47,6 +50,42 @@ namespace Hoard {
     // Number of shards - enough to reduce contention but not too many
     enum { NumShards = 64 };
 
+    /// Bytes of empty superblocks currently held UNPURGED (the retain cache).
+    /// NOTE: deliberately NOT `static inline`. libhoard.cpp does
+    /// `#define inline __forceinline` on Windows, which MSVC rejects on data
+    /// declarations; a template's static member may be defined out of class
+    /// without `inline` (same workaround as OwnershipMap::_l1).
+    static std::atomic<size_t> _retainedBytes;
+
+    /// Retain-cache budget, in bytes. Overridable with HOARD_RETAIN_MB
+    /// (0 disables the cache, restoring purge-every-empty-superblock).
+    static size_t retainBudgetBytes() {
+      static const size_t budget = [] () -> size_t {
+        // Default: 64MB. Big enough that ordinary request-scoped churn is
+        // served from resident pages; small enough that a program which frees
+        // a large working set still hands nearly all of it back.
+        size_t mb = 64;
+        if (const char * e = getenv ("HOARD_RETAIN_MB")) {
+          char * end = nullptr;
+          auto v = strtoul (e, &end, 10);
+          if (end && *end == '\0') {
+            mb = (size_t) v;
+          }
+        }
+        return mb * 1048576UL;
+      }();
+      return budget;
+    }
+
+    /// A superblock is leaving the global heap: if it was held unpurged, it no
+    /// longer counts against the retain budget.
+    static void releaseFromRetainCache (SuperblockType * s) {
+      if (s && s->isRetainedUnpurged()) {
+        s->setRetainedUnpurged (false);
+        _retainedBytes.fetch_sub (SuperblockSize, std::memory_order_relaxed);
+      }
+    }
+
     ShardedGlobalHeap() {
       for (int i = 0; i < NumShards; i++) {
         _shards[i] = getShardHeap(i);
@@ -68,9 +107,29 @@ namespace Hoard {
       // allocator metadata lives in the purged region. No thread can
       // legitimately free into a fully-empty superblock concurrently,
       // and TLAB-cached objects count as live, so this is race-free.
+      sb->setRetainedUnpurged (false);
+
       if (sb->getObjectsFree() == sb->getTotalObjects()) {
         sb->clear();
-        sb->purgeData();
+        // Retain cache: keep a bounded amount of empty superblocks WITHOUT
+        // purging, so a workload that cycles memory reuses resident pages
+        // instead of faulting them back in. Purging every empty superblock
+        // costs ~27% on cyclic bulk reuse, because the pages we discard are
+        // exactly the ones about to be reallocated.
+        //
+        // Beyond the budget we still purge, so a program that frees a large
+        // working set still returns nearly all of it to the OS -- which is the
+        // point of purge-on-empty, and where Hoard is far better than
+        // allocators that simply hoard pages.
+        if (retainBudgetBytes() > 0 &&
+            _retainedBytes.fetch_add (SuperblockSize,
+                                      std::memory_order_relaxed)
+              + SuperblockSize <= retainBudgetBytes()) {
+          sb->setRetainedUnpurged (true);
+        } else {
+          _retainedBytes.fetch_sub (SuperblockSize, std::memory_order_relaxed);
+          sb->purgeData();
+        }
       }
 
       int shard = getThreadShard();
@@ -86,11 +145,14 @@ namespace Hoard {
         _shards[localShard]->get(sz, reinterpret_cast<SuperHeap *>(dest)));
       if (s) {
         assert(s->isValidSuperblock());
+        releaseFromRetainCache (s);
         return s;
       }
 
       // Slow path: steal from another shard using power-of-two choices
-      return stealSuperblock(sz, dest, localShard);
+      auto * stolen = stealSuperblock(sz, dest, localShard);
+      releaseFromRetainCache (stolen);
+      return stolen;
     }
 
   private:
@@ -175,6 +237,17 @@ namespace Hoard {
     ShardedGlobalHeap& operator=(const ShardedGlobalHeap&);
 
   };
+
+  template <size_t SuperblockSize,
+	    template <class LockType_,
+		      int SuperblockSize_,
+		      typename HeapType_> class Header_,
+	    int EmptinessClasses,
+	    class MmapSource,
+	    class LockType>
+  std::atomic<size_t>
+  ShardedGlobalHeap<SuperblockSize, Header_, EmptinessClasses,
+		    MmapSource, LockType>::_retainedBytes { 0 };
 
 }
 
