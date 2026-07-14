@@ -1,0 +1,92 @@
+name: Larson QoS
+
+# Performance gate: Hoard must stay within a set fraction of mimalloc's larson
+# throughput. Allocators are all measured in the SAME job on the SAME runner and
+# compared as a RATIO, which cancels most of the (large) speed variation between
+# CI runners -- an absolute ops/sec threshold would either flake constantly or be
+# too loose to catch anything. See scripts/qos_larson.py.
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+    inputs:
+      report_only:
+        description: "Measure and report without failing (used to calibrate the floor)"
+        type: boolean
+        default: false
+
+jobs:
+  qos-larson:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y cmake build-essential autoconf
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        # jemalloc builds via autogen.sh, which needs autoconf.
+        run: brew install autoconf automake
+
+      - name: Build Hoard and the comparison allocators
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release \
+                -DBUILD_MIMALLOC=ON -DBUILD_JEMALLOC=ON
+          cmake --build build -j$(getconf _NPROCESSORS_ONLN)
+
+      - name: Build larson
+        run: c++ -O2 -o larson_bin benchmarks/larson/larson.cpp -lpthread
+
+      - name: Locate allocator libraries
+        id: libs
+        run: |
+          set -e
+          if [ "${{ runner.os }}" = "macOS" ]; then EXT=dylib; else EXT=so; fi
+          HOARD=$(ls build/libhoard.$EXT)
+          # Version suffixes differ by platform (libmimalloc.2.dylib,
+          # libmimalloc.so.2.x); take the first match and let the script's
+          # interposition check catch anything wrong.
+          MI=$(ls build/allocators/lib/libmimalloc*.$EXT* | head -1)
+          JE=$(ls build/allocators/lib/libjemalloc*.$EXT* | head -1)
+          for f in "$HOARD" "$MI" "$JE"; do
+            [ -e "$f" ] || { echo "missing allocator library: $f"; exit 1; }
+          done
+          echo "hoard=$PWD/$HOARD"    >> $GITHUB_OUTPUT
+          echo "mimalloc=$PWD/$MI"    >> $GITHUB_OUTPUT
+          echo "jemalloc=$PWD/$JE"    >> $GITHUB_OUTPUT
+
+      - name: Larson QoS gate
+        run: |
+          # Floor for hoard/mimalloc, calibrated from measured runner variance
+          # (see the calibration note in scripts/qos_larson.py). Observed:
+          #   ubuntu  1t 0.84-0.90  4t 0.94-0.97
+          #   macos   1t 0.93-1.03  4t 0.96-1.12  (shared runners, ~0.1 swing)
+          # 0.75 sits clear of that noise and still trips on a ~17% regression.
+          # --retry-on-fail re-measures before failing, so a one-off dip from a
+          # noisy neighbour cannot break the build on its own.
+          python3 scripts/qos_larson.py \
+            --larson "$PWD/larson_bin" \
+            --hoard "${{ steps.libs.outputs.hoard }}" \
+            --mimalloc "${{ steps.libs.outputs.mimalloc }}" \
+            --jemalloc "${{ steps.libs.outputs.jemalloc }}" \
+            --threads 1,4 --reps 5 --sleep 3 \
+            --min-ratio 0.75 --retry-on-fail \
+            ${{ inputs.report_only && '--report-only' || '' }} \
+            --json qos-${{ matrix.os }}.json
+
+      - name: Upload QoS results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qos-larson-${{ matrix.os }}
+          path: qos-${{ matrix.os }}.json
