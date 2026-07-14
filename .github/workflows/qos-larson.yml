@@ -67,20 +67,30 @@ jobs:
 
       - name: Larson QoS gate
         run: |
-          # Floor for hoard/mimalloc, calibrated from measured runner variance
-          # (see the calibration note in scripts/qos_larson.py). Observed:
-          #   ubuntu  1t 0.84-0.90  4t 0.94-0.97
-          #   macos   1t 0.93-1.03  4t 0.96-1.12  (shared runners, ~0.1 swing)
-          # 0.75 sits clear of that noise and still trips on a ~17% regression.
-          # --retry-on-fail re-measures before failing, so a one-off dip from a
-          # noisy neighbour cannot break the build on its own.
+          # Only Linux GATES. Its hoard/mimalloc ratio measured 0.84-0.97 across
+          # repeated runs of unchanged code, so a 0.75 floor is clear of the
+          # noise and still trips on a ~17% regression.
+          #
+          # macOS is REPORT-ONLY. Its ratio measured 0.64-1.12 on unchanged code
+          # -- a master run read 0.64x with the runs either side reading ~1.0x,
+          # and a local A/B of those commits showed larson flat. The variation is
+          # BETWEEN runners, not within a job (that run's spread was only 6-16%),
+          # so --retry-on-fail cannot reject it either: the confirmation pass
+          # re-measures on the SAME runner. Any floor low enough to survive 0.64
+          # is too low to catch a real regression, so gating there would only
+          # train people to ignore a red check. See scripts/qos_larson.py.
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            GATE="--min-ratio 0.75 --retry-on-fail"
+          else
+            GATE="--report-only"
+          fi
           python3 scripts/qos_larson.py \
             --larson "$PWD/larson_bin" \
             --hoard "${{ steps.libs.outputs.hoard }}" \
             --mimalloc "${{ steps.libs.outputs.mimalloc }}" \
             --jemalloc "${{ steps.libs.outputs.jemalloc }}" \
             --threads 1,4 --reps 5 --sleep 3 \
-            --min-ratio 0.75 --retry-on-fail \
+            $GATE \
             ${{ inputs.report_only && '--report-only' || '' }} \
             --json qos-${{ matrix.os }}.json
 
