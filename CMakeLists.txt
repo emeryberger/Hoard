@@ -86,6 +86,12 @@ set(WINDOWS_SOURCES
   ${ALLOC8_INTERPOSE_SOURCES}
 )
 
+# Hoard never reads alloc8's caller-return-address hint (alloc8_caller_ra), and
+# it is a thread_local store on EVERY malloc and free -- ~15% of the allocation
+# fast path. Opt out of it. (Harmlessly ignored by alloc8 versions that predate
+# the flag; the symbol is still defined either way.)
+add_definitions(-DALLOC8_NO_CALLER_RA)
+
 if(WIN32)
   #
   # ─── WINDOWS BUILD ───────────────────────────────────────────────────
