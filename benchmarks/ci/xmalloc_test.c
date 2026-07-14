@@ -119,7 +119,7 @@ int main(int argc, char** argv) {
   }
 
   double elapsed = bench_timer_elapsed(&start);
-  printf("xmalloc-test: producers=%d consumers=%d produced=%ld consumed=%ld time=%.3f sec\n",
+  bench_report("xmalloc-test: producers=%d consumers=%d produced=%ld consumed=%ld time=%.3f sec\n",
          num_producers, num_consumers, produced, consumed, elapsed);
 
   free(threads);

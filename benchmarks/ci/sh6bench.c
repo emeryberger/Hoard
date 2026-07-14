@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
   }
 
   double elapsed = bench_timer_elapsed(&start);
-  printf("sh6bench: iterations=%d time=%.3f sec (%.0f ops/sec)\n",
+  bench_report("sh6bench: iterations=%d time=%.3f sec (%.0f ops/sec)\n",
          iterations, elapsed, iterations / elapsed);
 
   free(ptrs);

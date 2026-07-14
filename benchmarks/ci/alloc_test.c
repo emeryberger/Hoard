@@ -66,7 +66,7 @@ int main(int argc, char** argv) {
   bench_thread_join_all(threads, nthreads);
 
   double elapsed = bench_timer_elapsed(&start);
-  printf("alloc-test: threads=%d allocs=%ld time=%.3f sec (%.0f ops/sec)\n",
+  bench_report("alloc-test: threads=%d allocs=%ld time=%.3f sec (%.0f ops/sec)\n",
          nthreads, total_allocs, elapsed, total_allocs / elapsed);
 
   free(threads);
