@@ -92,20 +92,21 @@ namespace Hoard {
           continue;
         }
 
-        // Free this object and every following one still owned by the same
-        // heap. They cannot move while we hold that heap's lock.
-        do {
-          owner->free (objs[i]);
-          i++;
-          if (i >= n) {
-            break;
-          }
+        // Find the run of objects still owned by this same heap. They cannot
+        // move while we hold its lock.
+        size_t run = i + 1;
+        while (run < n) {
           auto * next =
-            reinterpret_cast<SuperblockType *>(Heap::getSuperblock (objs[i]));
+            reinterpret_cast<SuperblockType *>(Heap::getSuperblock (objs[run]));
           if (reinterpret_cast<baseHeapType>(next->getOwner()) != owner) {
             break;   // different owner: re-lock on the next iteration
           }
-        } while (true);
+          run++;
+        }
+        // Hand the whole run over at once: the owner hoists the size-class
+        // lookup, the stats update and the threshold test out of the loop.
+        owner->freeMany (&objs[i], run - i);
+        i = run;
 
         owner->unlock();
       }
