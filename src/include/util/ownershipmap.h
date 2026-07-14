@@ -69,8 +69,27 @@ namespace Hoard {
     // zerofill with no constructor.
     constexpr size_t kChunkSize = 262144;
     constexpr size_t kNumWords = (1ULL << 48) / kChunkSize / 64;
+
+#if defined(__APPLE__)
+    // Mach-O: declared here, DEFINED in libhoard.cpp (see the note above --
+    // a weak/coalesced 128MB symbol cannot land in a zerofill section here).
     extern __attribute__((visibility("hidden")))
     uint64_t bits[kNumWords];
+#else
+    // ELF: define the storage right here as an inline variable. It is a
+    // plain integer array with no initializer, so it lands in .bss (zerofill,
+    // no file-size cost) and COMDAT-dedupes to one copy per shared object.
+    //
+    // This must NOT be confined to libhoard.cpp: alignedmmap.h calls
+    // OwnershipMap::set() unconditionally, so ANY consumer that builds Hoard's
+    // heaps from these headers without also compiling libhoard.cpp (alloc8's
+    // examples/hoard does exactly that) would otherwise fail to link with
+    // "undefined reference to Hoard::ownershipdetail::bits" -- and, because
+    // the symbol is hidden, it cannot be satisfied from another shared object
+    // either. Defining it in the header keeps such consumers working.
+    inline __attribute__((visibility("hidden")))
+    uint64_t bits[kNumWords];
+#endif
 
     using AtomicWord = std::atomic_ref<uint64_t>;
     static_assert (alignof(uint64_t) >= AtomicWord::required_alignment,

@@ -172,11 +172,15 @@ extern bool isCustomHeapInitialized();
 // resident memory. A plain integer array has no constructor to run, so it
 // lands in zerofill at every optimization level; constinit enforces that
 // at compile time rather than leaving it to the optimizer.
+#if defined(__APPLE__)
+// Mach-O only: on ELF the storage is an inline variable in ownershipmap.h, so
+// that consumers building Hoard's heaps from the headers alone still link.
 namespace Hoard {
   namespace ownershipdetail {
     constinit uint64_t bits[kNumWords] = {};
   }
 }
+#endif
 #endif
 
 #include "wrappers/generic-memalign.cpp"
