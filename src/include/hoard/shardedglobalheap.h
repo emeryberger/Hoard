@@ -51,7 +51,11 @@ namespace Hoard {
     enum { NumShards = 64 };
 
     /// Bytes of empty superblocks currently held UNPURGED (the retain cache).
-    static inline std::atomic<size_t> _retainedBytes { 0 };
+    /// NOTE: deliberately NOT `static inline`. libhoard.cpp does
+    /// `#define inline __forceinline` on Windows, which MSVC rejects on data
+    /// declarations; a template's static member may be defined out of class
+    /// without `inline` (same workaround as OwnershipMap::_l1).
+    static std::atomic<size_t> _retainedBytes;
 
     /// Retain-cache budget, in bytes. Overridable with HOARD_RETAIN_MB
     /// (0 disables the cache, restoring purge-every-empty-superblock).
@@ -233,6 +237,17 @@ namespace Hoard {
     ShardedGlobalHeap& operator=(const ShardedGlobalHeap&);
 
   };
+
+  template <size_t SuperblockSize,
+	    template <class LockType_,
+		      int SuperblockSize_,
+		      typename HeapType_> class Header_,
+	    int EmptinessClasses,
+	    class MmapSource,
+	    class LockType>
+  std::atomic<size_t>
+  ShardedGlobalHeap<SuperblockSize, Header_, EmptinessClasses,
+		    MmapSource, LockType>::_retainedBytes { 0 };
 
 }
 
