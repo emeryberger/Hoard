@@ -297,12 +297,10 @@ jobs:
       - name: DIAG withdll stdout probe
         shell: powershell
         run: |
+          $ErrorActionPreference = "Continue"
           cd benchmarks/ci/build/Release
           $withdll = "$PWD/../../../../build/_deps/alloc8-build/Release/withdll.exe"
           $hoard = "$PWD/../../../../build/Release/hoard.dll"
-
-          Write-Output "=== is this our withdll? (source marker via /?) ==="
-          & $withdll /? 2>&1 | Out-String | Write-Output
 
           Write-Output "=== PROBE A: trivial grandchild (cmd echo) under withdll+Hoard ==="
           # Same redirection mechanism the watchdog uses (cmd > file).
