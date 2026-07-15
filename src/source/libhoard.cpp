@@ -50,6 +50,10 @@
 // Maximize the degree of inlining.
 #pragma inline_depth(255)
 
+// EXPERIMENT (exp/reinstate-forceinline-define): temporarily re-add the macro
+// to measure whether it ever affected MSVC codegen. Revert before merge.
+#define inline __forceinline
+
 // NOTE: do NOT `#define inline __forceinline` here.
 //
 // It was legacy and redundant -- Heap-Layers already maps INLINE to
