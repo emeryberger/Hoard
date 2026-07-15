@@ -318,6 +318,21 @@ jobs:
           Write-Output "  exit=$LASTEXITCODE ; probeC.txt:"
           Get-Content probeC.txt | ForEach-Object { "    $_" }
 
+          Write-Output "=== PROBE D: replicate the watchdog exactly (Start-Process -NoNewWindow on a .cmd) ==="
+          $script = "probeD.cmd"
+          @(
+            '@echo off',
+            "`"$withdll`" /d:`"$hoard`" cmd /c `"echo PROBE_D_GRANDCHILD_VIA_STARTPROCESS`" > probeD.txt 2> probeD.err.txt",
+            'exit /b %ERRORLEVEL%'
+          ) | Set-Content -Path $script -Encoding ASCII
+          $p = Start-Process -FilePath $env:ComSpec -ArgumentList @('/d','/c',$script) -NoNewWindow -PassThru
+          $null = $p.Handle
+          $p.WaitForExit()
+          Write-Output "  exit=$($p.ExitCode) ; probeD.txt:"
+          if (Test-Path probeD.txt) { Get-Content probeD.txt | ForEach-Object { "    $_" } }
+          Write-Output "  probeD.err.txt:"
+          if (Test-Path probeD.err.txt) { Get-Content probeD.err.txt | ForEach-Object { "    $_" } }
+
       - name: Run benchmarks with Hoard (watchdogged)
         shell: powershell
         # Each benchmark runs under a watchdog: on hang, all-thread stacks
