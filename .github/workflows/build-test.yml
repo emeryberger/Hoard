@@ -381,6 +381,26 @@ jobs:
           Write-Output ""
           Write-Output "All benchmarks completed without crashes."
 
+      - name: Windows QoS (Hoard vs system heap)
+        if: always()
+        shell: powershell
+        run: |
+          cd benchmarks/ci/build/Release
+          # On Windows the only other allocator present is the system heap
+          # (mimalloc/jemalloc are not built here), so the gate compares Hoard to
+          # it -- the heap Hoard actually replaces -- across the whole suite, via
+          # the GEOMETRIC MEAN of the per-benchmark ratios. Individual benchmarks
+          # run once and are noisy (larson and sh8bench swing), but the geomean
+          # is steady: measured 1.54, 1.55, 1.59, 1.65 across four runs of
+          # unchanged code. The floor is 1.25x -- ~19% below the worst observed,
+          # so it does not flake, while still tripping if Hoard ever falls toward
+          # parity with the system heap on aggregate (a real, broad regression).
+          # See scripts/qos_windows.py.
+          python "$env:GITHUB_WORKSPACE\scripts\qos_windows.py" `
+            --baseline baseline.txt `
+            --hoard hoard-results.txt `
+            --min-ratio 1.25
+
       - name: Upload benchmark results
         if: always()
         uses: actions/upload-artifact@v4
