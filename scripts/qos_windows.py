@@ -39,14 +39,30 @@ import sys
 RATE_RE = re.compile(r'^(\w[\w-]*):\s.*\(([0-9]+)\s*ops/sec\)')
 
 
+def _read_text(path):
+    """Read a results file regardless of its encoding.
+
+    The two files come from different producers: the Hoard results file is
+    written by the benchmark itself (plain ASCII via fprintf), while the
+    baseline file is written by PowerShell's Tee-Object, which defaults to
+    UTF-16 on Windows. Decode whichever it is; a byte that is not valid in the
+    chosen encoding is replaced rather than fatal.
+    """
+    data = open(path, "rb").read()
+    if data[:2] in (b"\xff\xfe", b"\xfe\xff"):      # UTF-16 BOM
+        return data.decode("utf-16", errors="replace")
+    if b"\x00" in data[:200]:                          # UTF-16 without BOM
+        return data.decode("utf-16-le", errors="replace")
+    return data.decode("utf-8-sig", errors="replace")   # UTF-8 (BOM tolerated)
+
+
 def parse(path):
     """Return {benchmark_name: ops_per_sec} from a results file."""
     out = {}
-    with open(path) as f:
-        for line in f:
-            m = RATE_RE.match(line.strip())
-            if m and m.group(1) not in out:   # first occurrence wins
-                out[m.group(1)] = int(m.group(2))
+    for line in _read_text(path).splitlines():
+        m = RATE_RE.match(line.strip())
+        if m and m.group(1) not in out:   # first occurrence wins
+            out[m.group(1)] = int(m.group(2))
     return out
 
 
