@@ -294,6 +294,32 @@ jobs:
           "--- rptest ---" | Tee-Object -FilePath baseline.txt -Append
           .\rptest.exe 4 2>&1 | Tee-Object -FilePath baseline.txt -Append
 
+      - name: DIAG withdll stdout probe
+        shell: powershell
+        run: |
+          cd benchmarks/ci/build/Release
+          $withdll = "$PWD/../../../../build/_deps/alloc8-build/Release/withdll.exe"
+          $hoard = "$PWD/../../../../build/Release/hoard.dll"
+
+          Write-Output "=== is this our withdll? (source marker via /?) ==="
+          & $withdll /? 2>&1 | Out-String | Write-Output
+
+          Write-Output "=== PROBE A: trivial grandchild (cmd echo) under withdll+Hoard ==="
+          # Same redirection mechanism the watchdog uses (cmd > file).
+          cmd /c "`"$withdll`" /d:`"$hoard`" cmd /c `"echo PROBE_A_GRANDCHILD_STDOUT_OK`" > probeA.txt 2>&1"
+          Write-Output "  exit=$LASTEXITCODE ; probeA.txt:"
+          Get-Content probeA.txt | ForEach-Object { "    $_" }
+
+          Write-Output "=== PROBE B: larson under withdll+Hoard (the real case) ==="
+          cmd /c "`"$withdll`" /d:`"$hoard`" .\larson.exe 4 > probeB.txt 2>&1"
+          Write-Output "  exit=$LASTEXITCODE ; probeB.txt:"
+          Get-Content probeB.txt | ForEach-Object { "    $_" }
+
+          Write-Output "=== PROBE C: larson WITHOUT injection (baseline redirection) ==="
+          cmd /c ".\larson.exe 4 > probeC.txt 2>&1"
+          Write-Output "  exit=$LASTEXITCODE ; probeC.txt:"
+          Get-Content probeC.txt | ForEach-Object { "    $_" }
+
       - name: Run benchmarks with Hoard (watchdogged)
         shell: powershell
         # Each benchmark runs under a watchdog: on hang, all-thread stacks
