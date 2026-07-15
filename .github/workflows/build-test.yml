@@ -386,20 +386,20 @@ jobs:
         shell: powershell
         run: |
           cd benchmarks/ci/build/Release
-          # REPORT-ONLY for now. On Windows the only other allocator present is
-          # the system heap (mimalloc/jemalloc are not built here), so the gate
-          # compares Hoard to it -- the heap Hoard actually replaces -- across
-          # the whole suite, via the geometric mean of the per-benchmark ratios
-          # (steadier than any single benchmark; see scripts/qos_windows.py).
-          #
-          # Gathering geomean variance across runs before setting a hard floor,
-          # so we do not repeat the macOS mistake of a gate that flakes. It still
-          # emits a ::warning:: if the geomean drops below a provisional 1.15x,
-          # so a real regression is surfaced meanwhile.
+          # On Windows the only other allocator present is the system heap
+          # (mimalloc/jemalloc are not built here), so the gate compares Hoard to
+          # it -- the heap Hoard actually replaces -- across the whole suite, via
+          # the GEOMETRIC MEAN of the per-benchmark ratios. Individual benchmarks
+          # run once and are noisy (larson and sh8bench swing), but the geomean
+          # is steady: measured 1.54, 1.55, 1.59, 1.65 across four runs of
+          # unchanged code. The floor is 1.25x -- ~19% below the worst observed,
+          # so it does not flake, while still tripping if Hoard ever falls toward
+          # parity with the system heap on aggregate (a real, broad regression).
+          # See scripts/qos_windows.py.
           python "$env:GITHUB_WORKSPACE\scripts\qos_windows.py" `
             --baseline baseline.txt `
             --hoard hoard-results.txt `
-            --min-ratio 1.15 --report-only
+            --min-ratio 1.25
 
       - name: Upload benchmark results
         if: always()
