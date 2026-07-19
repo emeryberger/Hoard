@@ -73,6 +73,37 @@ namespace Hoard {
     enum { GrowthFactor = 2 };                   // Double when TLAB fills
     enum { SlowPathGrowTrigger = 16 };           // Grow after this many slow paths
 
+    /// One direct-mapped cache slot: a superblock plus copies of the
+    /// read-only header fields the free fast path needs, so a cache hit
+    /// never dereferences the (cold) superblock header. Defined up here so
+    /// applyFree()'s signature (below) can name it.
+    struct SbCacheEntry {
+      SuperblockType * sb;       ///< owning superblock (sentinel == empty)
+      uintptr_t        start;
+      size_t           objectSize;
+      size_t           classSize;
+      size_t           magicMul;
+      unsigned         magicShift;
+      int              sizeClass;
+      bool             pow2;
+      bool             remote;   ///< owned by a heap other than our home heap
+      // Pad to a power of two so indexing _sbCache is a shift, not a multiply
+      // (keeps the single-superblock hit path as short as the old single
+      // entry). NOT alignas: over-aligning a type that ends up inside a
+      // placement-new'd heap singleton miscompiles on GCC/x86 (see CLAUDE.md).
+      char             _pad[14];
+    };
+    static_assert(sizeof(SbCacheEntry) == 64,
+                  "SbCacheEntry must stay a 64-byte power-of-two for shift indexing");
+
+    /// Number of direct-mapped cache ways (power of two). The single-entry
+    /// predecessor thrashed whenever consecutive frees hit different
+    /// superblocks (larson with sizes spanning several classes): every free
+    /// reloaded ~7 cold header fields and recomputed the modulo. Indexing a
+    /// small set by superblock number keeps the O(1) single-compare hit path
+    /// while covering the bounded working set of a scattered free stream.
+    enum { SbCacheWays = 16 };
+
   public:
 
     enum { Alignment = ParentHeap::Alignment };
@@ -103,19 +134,16 @@ namespace Hoard {
       : _parentHeap (parent),
         _homeHeap (nullptr),
       	_localHeapBytes (0),
-        _cachedSuperblock (invalidCacheSentinel()),
-        _cachedSizeClass (-1),
-        _cachedClassSize (0),
-        _cachedStart (0),
-        _cachedObjectSize (1),
-        _cachedMagicMul (0),
-        _cachedMagicShift (0),
-        _cachedPow2 (true),
-        _cachedRemote (false),
         _myOwner (nullptr),
         _adaptiveThreshold (InitialThreshold),
         _slowPathCount (0)
     {
+      // Mark every cache slot empty. Only the sb field needs initializing:
+      // the other fields are read only after sb matches, i.e. after a full
+      // populate has written them.
+      for (unsigned i = 0; i < SbCacheWays; i++) {
+        _sbCache[i].sb = invalidCacheSentinel();
+      }
       static_assert(gcd<Alignment, DesiredAlignment>::value == DesiredAlignment,
 		    "Alignment mismatch.");
       static_assert(SuperblockSize != 262144 || NumBins >= 20,
@@ -167,104 +195,93 @@ namespace Hoard {
     }
 
 
+    /// Account for a free whose superblock header fields are already cached
+    /// in `e`, without touching the (cold) superblock header. Always inlined
+    /// so every caller keeps the identical hot-path codegen.
+    TLAB_ALWAYS_INLINE void applyFree (const SbCacheEntry & e, void * ptr) {
+      ptr = normalizeWith (e, ptr);
+      // ONE combined, predicted branch on the hot path. Splitting the remote
+      // test from the threshold test to make room for the flush below cost
+      // ~5% on 8-thread larson: every free paid the extra branch, even though
+      // a workload whose live set fits in the TLAB never overflows at all.
+      if (HL_EXPECT_TRUE(!e.remote &&
+                         _localHeapBytes + e.classSize <= _adaptiveThreshold)) {
+        _localHeap(e.sizeClass).insert ((HL::SLList::Entry *) ptr);
+        _localHeapBytes += e.classSize;
+        return;
+      }
+      // TLAB full (rare): flush a batch home under one lock. Out of line --
+      // inlining it here lengthens the hot path for no benefit.
+      if (HL_EXPECT_FALSE(!e.remote)) {
+        freeOverflow (ptr, e.sizeClass, e.classSize);
+        return;
+      }
+      // Foreign superblock: send it home. Kept off the helper for a reason:
+      // cross-thread frees are hot at high thread counts (larson at 8 threads
+      // is mostly these), and routing them through an extra call cost ~3%.
+      // Objects from a foreign-owned superblock are NOT adopted into the local
+      // bins -- recycling them here would hand this thread memory interleaved
+      // with other threads' live objects at cache-line granularity (larson's
+      // shuffled warmup), and a LIFO bin hands the same object back, so the
+      // false sharing would persist forever. Sending them home lets mixed
+      // working sets migrate apart instead.
+      _parentHeap->free (ptr);
+    }
+
     TLAB_ALWAYS_INLINE void free (void * ptr) {
       auto * s = getSuperblock (ptr);
 
-      // Ultra-fast path: same superblock as last free (common in loops).
-      // All fields needed to normalize the pointer and account for the
-      // object are cached in this TLAB, so the superblock header is not
-      // touched at all: no dependent loads through cold memory.
-      if (HL_EXPECT_TRUE(s == _cachedSuperblock)) {
-        ptr = normalizeCached (ptr);
-        // ONE combined, predicted branch on the hot path. Splitting the
-        // remote test from the threshold test to make room for the flush
-        // below cost ~5% on 8-thread larson: every free paid the extra
-        // branch, even though a workload whose live set fits in the TLAB
-        // never overflows at all. Keep the overflow work off this path.
-        if (HL_EXPECT_TRUE(!_cachedRemote &&
-                           _localHeapBytes + _cachedClassSize <= _adaptiveThreshold)) {
-          _localHeap(_cachedSizeClass).insert ((HL::SLList::Entry *) ptr);
-          _localHeapBytes += _cachedClassSize;
-          return;
-        }
-        // TLAB full (rare): flush a batch home under one lock. Out of line --
-        // inlining it here lengthens the hot path for no benefit.
-        if (HL_EXPECT_FALSE(!_cachedRemote)) {
-          freeOverflow (ptr, _cachedSizeClass, _cachedClassSize);
-          return;
-        }
-        // Foreign superblock: send it home. Kept RIGHT HERE, not behind the
-        // helper: cross-thread frees are hot at high thread counts (larson at
-        // 8 threads is mostly these), and routing them through an extra call
-        // cost ~3%. The cache stays valid: it still normalizes correctly and
-        // routes subsequent frees to this same branch.
-        _parentHeap->free (ptr);
+      // Direct-mapped cache indexed by superblock number. A hit needs one
+      // indexed load + compare and never touches the (cold) superblock
+      // header. Unlike the single-entry predecessor this stays hot across a
+      // scattered free stream (consecutive frees to different superblocks,
+      // e.g. larson with sizes spanning several classes): the whole bounded
+      // working set of superblocks lives in the set at once, so those frees
+      // hit instead of reloading ~7 cold header fields and recomputing the
+      // modulo every time. The compare is predicted-taken and, for both a
+      // single-superblock recycle loop and a bounded scattered stream, is
+      // actually taken -- so there is no mispredict penalty on the hot path.
+      SbCacheEntry & e = _sbCache[sbCacheIndex (s)];
+      if (HL_EXPECT_TRUE(s == e.sb)) {
+        applyFree (e, ptr);
         return;
       }
 
-      // Fast path: valid superblock with small object that fits in TLAB.
-      // Validity is checked exactly once here; the accessors below are
-      // the unchecked variants so the magic number is not re-read.
+      // Miss: read the header once and (re)populate this slot. Whatever
+      // superblock previously occupied it is simply overwritten -- the set
+      // keeps only the most recent occupant per index. Validity is checked
+      // exactly once here; the accessors below are the unchecked variants so
+      // the magic number is not re-read.
       if (HL_EXPECT_TRUE(s != nullptr && s->isValidSuperblock())) {
-
-      	ptr = s->normalize (ptr);
       	auto sz = s->getObjectSizeUnchecked ();
-
       	if (HL_EXPECT_TRUE(sz <= LargestObject)) {
-      	  assert (getSize(ptr) >= sizeof(HL::SLList::Entry *));
           // Use lookup table for size class (faster than bsr instruction).
       	  auto c = tlabSizeClass(sz);
-          auto classSize = tlabClassSize(c);
-
-          // Cache this superblock (and the header fields the cached
-          // path needs) for subsequent frees.
-          _cachedSuperblock = s;
-          _cachedSizeClass = c;
-          _cachedClassSize = classSize;
-          _cachedStart = (uintptr_t) s->getStart();
-          _cachedObjectSize = sz;
-          _cachedPow2 = s->objectSizeIsPowerOfTwo();
-          _cachedMagicMul = s->getMagicMul();
-          _cachedMagicShift = s->getMagicShift();
-          // Objects from superblocks owned by another heap are NOT
-          // adopted into the local bins: recycling them here would hand
-          // this thread memory interleaved with other threads' live
-          // objects at cache-line granularity (e.g. a shared-then-
-          // scattered working set like larson's shuffled warmup), and
-          // that false sharing then persists forever because a LIFO bin
-          // returns the same object right back. Sending foreign objects
-          // home makes the next malloc draw from this thread's own
-          // superblocks, so mixed working sets migrate apart instead.
-          _cachedRemote = (reinterpret_cast<const void *>(s->getOwner())
-                           != _myOwner);
-
-          // One combined, predicted branch (see the cached path above).
-          if (HL_EXPECT_TRUE(!_cachedRemote &&
-                             _localHeapBytes + classSize <= _adaptiveThreshold)) {
-            _localHeap(c).insert ((HL::SLList::Entry *) ptr);
-            _localHeapBytes += classSize;
-            return;
-          }
-          // TLAB full (rare): out of line. Foreign objects stay on the
-          // direct path below -- they are hot at high thread counts.
-          if (HL_EXPECT_FALSE(!_cachedRemote)) {
-            freeOverflow (ptr, c, classSize);
-            return;
-          }
-          _parentHeap->free (ptr);
+          e.sb = s;
+          e.sizeClass = c;
+          e.classSize = tlabClassSize(c);
+          e.start = (uintptr_t) s->getStart();
+          e.objectSize = sz;
+          e.pow2 = s->objectSizeIsPowerOfTwo();
+          e.magicMul = s->getMagicMul();
+          e.magicShift = s->getMagicShift();
+          e.remote = (reinterpret_cast<const void *>(s->getOwner())
+                      != _myOwner);
+          applyFree (e, ptr);
           return;
       	}
-
-      	// Slow path: large object - free to parent heap.
-        _cachedSuperblock = invalidCacheSentinel();  // Invalidate cache
-      	_parentHeap->free (ptr);
+      	// Large object - free to parent heap. Not cached (its size class is
+        // outside the small-object range these slots describe), so no cache
+        // entry can ever alias it; leave the cache untouched.
+      	_parentHeap->free (s->normalize (ptr));
       }
     }
 
     void clear() {
-      // Invalidate the superblock cache.
-      _cachedSuperblock = invalidCacheSentinel();
-      _cachedSizeClass = -1;
+      // Invalidate every superblock cache slot.
+      for (unsigned i = 0; i < SbCacheWays; i++) {
+        _sbCache[i].sb = invalidCacheSentinel();
+      }
 
       // Free every object to the 'parent' heap.
       int i = NumBins - 1;
@@ -302,20 +319,27 @@ namespace Hoard {
       return reinterpret_cast<SuperblockType *>(uintptr_t(1));
     }
 
-    /// Normalize a pointer into the cached superblock using the cached
-    /// header fields only (no superblock header access).
-    TLAB_ALWAYS_INLINE void * normalizeCached (void * ptr) const {
-      uintptr_t offset = (uintptr_t) ptr - _cachedStart;
+    /// Map a superblock to its cache slot. Superblocks are SuperblockSize-
+    /// aligned, so their "number" (address / SuperblockSize) is dense and
+    /// consecutive superblocks land in distinct slots.
+    static inline unsigned sbCacheIndex (SuperblockType * s) {
+      return (unsigned) (((uintptr_t) s / SuperblockSize) & (SbCacheWays - 1));
+    }
+
+    /// Normalize a pointer using cached header fields only (no header access).
+    TLAB_ALWAYS_INLINE void * normalizeWith (const SbCacheEntry & e,
+                                             void * ptr) const {
+      uintptr_t offset = (uintptr_t) ptr - e.start;
       size_t remainder;
-      if (HL_EXPECT_TRUE(_cachedPow2)) {
-        remainder = offset & (_cachedObjectSize - 1);
+      if (HL_EXPECT_TRUE(e.pow2)) {
+        remainder = offset & (e.objectSize - 1);
       } else {
 #if defined(_MSC_VER) && !defined(__clang__)
-        remainder = offset % _cachedObjectSize;
+        remainder = offset % e.objectSize;
 #else
         size_t quotient =
-          (size_t)(((__uint128_t) offset * _cachedMagicMul) >> _cachedMagicShift);
-        remainder = offset - quotient * _cachedObjectSize;
+          (size_t)(((__uint128_t) offset * e.magicMul) >> e.magicShift);
+        remainder = offset - quotient * e.objectSize;
 #endif
       }
       return (void *) ((uintptr_t) ptr - remainder);
@@ -459,24 +483,9 @@ namespace Hoard {
     /// The number of bytes we currently have on this thread.
     size_t _localHeapBytes;
 
-    /// Cached superblock pointer for fast consecutive frees.
-    SuperblockType * _cachedSuperblock;
-
-    /// Cached size class for the cached superblock.
-    int _cachedSizeClass;
-
-    // Copies of the cached superblock's read-only header fields, so the
-    // cached free path never dereferences the superblock header.
-    size_t _cachedClassSize;
-    uintptr_t _cachedStart;
-    size_t _cachedObjectSize;
-    size_t _cachedMagicMul;
-    unsigned _cachedMagicShift;
-    bool _cachedPow2;
-
-    /// Whether the cached superblock is owned by a heap other than the
-    /// one this TLAB refills from (see free()).
-    bool _cachedRemote;
+    /// Direct-mapped cache of recently-freed superblocks' header fields,
+    /// indexed by sbCacheIndex(). See SbCacheEntry / free().
+    SbCacheEntry _sbCache[SbCacheWays];
 
     /// Identity of the heap this TLAB last refilled from, as the opaque
     /// owner pointer superblock headers carry. Compared against
