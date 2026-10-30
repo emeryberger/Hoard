@@ -255,6 +255,66 @@ jobs:
           cmake -B benchmarks/ci/build -S benchmarks/ci -DCMAKE_BUILD_TYPE=Release
           cmake --build benchmarks/ci/build --config Release -j $env:NUMBER_OF_PROCESSORS
 
+      - name: Test _aligned_* interception under Hoard
+        shell: powershell
+        # Exercises the CRT aligned family (_aligned_malloc/realloc/recalloc/
+        # msize/free and the offset variants). The BASELINE run (system CRT)
+        # GATES this job -- it must pass, proving the test itself is sound. The
+        # Hoard-injection run is currently INFORMATIONAL (reported, not gating):
+        # it exposes a pre-existing Windows limitation -- the real ucrtbase
+        # _aligned_* functions take their backing block from the Hoard-hooked
+        # _malloc_base but do the size/free via inlined NT-heap calls, so
+        # _aligned_msize/_aligned_free hit the Windows heap on a Hoard pointer
+        # and abort (STATUS_HEAP_CORRUPTION). Both runs go through the benchmark
+        # watchdog, which captures the child's stdout through DLL injection and
+        # dumps the process tree on a hang; the test prints a flushed breadcrumb
+        # per op, so the failing call is visible in watchdog/aligned-hoard.out.txt.
+        # TODO(windows _aligned_*): make this run gate once the family is
+        # intercepted soundly (needs interactive Windows debugging of ucrtbase).
+        run: |
+          cd benchmarks/ci/build/Release
+          $withdll = "$PWD/../../../../build/_deps/alloc8-build/Release/withdll.exe"
+          $hoard = "$PWD/../../../../build/Release/hoard.dll"
+          $watchdog = "$PWD/../../../../.github/scripts/benchmark-watchdog.ps1"
+
+          # 1) Baseline on the real CRT -- GATES the job.
+          powershell -NoProfile -ExecutionPolicy Bypass -File $watchdog `
+            -Name aligned-baseline -TimeoutSec 120 -OutDir watchdog -LogFile aligned.txt `
+            .\aligned_test.exe
+          $baseCode = $LASTEXITCODE
+
+          # 2) Under Hoard injection -- informational.
+          powershell -NoProfile -ExecutionPolicy Bypass -File $watchdog `
+            -Name aligned-hoard -TimeoutSec 120 -OutDir watchdog -LogFile aligned.txt `
+            $withdll "/d:$hoard" .\aligned_test.exe
+          $hoardCode = $LASTEXITCODE
+
+          Write-Output "=== captured aligned_test output (baseline, then Hoard) ==="
+          if (Test-Path watchdog/aligned-baseline.out.txt) {
+            Write-Output "--- baseline tail ---"
+            Get-Content watchdog/aligned-baseline.out.txt -Tail 3
+          }
+          if (Test-Path watchdog/aligned-hoard.out.txt) {
+            Write-Output "--- hoard tail (last 25 lines) ---"
+            Get-Content watchdog/aligned-hoard.out.txt -Tail 25
+          }
+
+          $hoardOut = if (Test-Path watchdog/aligned-hoard.out.txt) { (Get-Content watchdog/aligned-hoard.out.txt -Raw) } else { "" }
+          if ($baseCode -ne 0) {
+            Write-Error "aligned_test FAILED on the system CRT baseline (exit $baseCode) -- test bug, not Hoard."
+            exit 1
+          }
+          if ($hoardCode -ne 0 -or $hoardOut -notmatch "ALIGNED TEST: PASS") {
+            Write-Warning "KNOWN LIMITATION: _aligned_* under Hoard injection failed (exit $hoardCode). Pre-existing Windows issue; not gating. See the step comment and the windows-hang-diagnostics artifact."
+          } else {
+            Write-Output "aligned_test passed on the baseline and under Hoard injection."
+          }
+          # The injected run is informational: a crashed child leaves a nonzero
+          # $LASTEXITCODE that would otherwise fail this powershell step. The
+          # baseline gate above already exited 1 on a real (test-bug) failure,
+          # so reaching here means the job should pass.
+          exit 0
+
       - name: Run benchmarks with system allocator (baseline)
         shell: powershell
         run: |
@@ -410,6 +470,7 @@ jobs:
             benchmarks/ci/build/Release/baseline.txt
             benchmarks/ci/build/Release/hoard.txt
             benchmarks/ci/build/Release/hoard-results.txt
+            benchmarks/ci/build/Release/aligned.txt
 
       - name: Upload hang diagnostics (stacks and dumps)
         if: always()

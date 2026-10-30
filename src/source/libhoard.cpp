@@ -21,10 +21,17 @@
 
 #include <atomic>
 #include <cstddef>
+#include <cstdint>
+#include <cerrno>
 #include <cstring>
 #include <new>
 
 #include "VERSION.h"
+
+// Largest request Hoard will attempt to satisfy. Defined once in
+// hoardconstants.h (Hoard::MaxAllocationSize) and enforced both here and in
+// TheCustomHeapType::malloc; see that header for the rationale.
+#define HOARD_MAX_ALLOCATION (Hoard::MaxAllocationSize)
 
 // Enable custom realloc implementation to avoid redundant size lookups
 #define HL_USE_XXREALLOC 1
@@ -243,6 +250,70 @@ extern "C" {
 
 extern "C" {
 
+  // --- Over-aligned allocation recovery (alignment >= SUPERBLOCK_SIZE) ------
+  //
+  // A pointer aligned to >= SUPERBLOCK_SIZE is itself superblock-aligned, so
+  // SuperblockType::getSuperblock() (a mask down to the superblock base) maps
+  // it to itself -- an address that holds object data, not a superblock
+  // header -- and Hoard's normalize()-based free cannot recover the
+  // allocation from it. For such requests xxmemalign stashes the canonical
+  // (Hoard-issued) pointer in the word immediately before the returned
+  // pointer; the free / usable-size / realloc paths recover it here.
+  //
+  // Detection is cheap and safe. A genuine Hoard object pointer is never
+  // superblock-aligned -- every object starts sizeof(Header) past a
+  // superblock base and none spans a whole superblock back to a boundary --
+  // so a superblock-aligned pointer that Hoard owns can only be one of these
+  // relocated allocations. Ownership of the byte just below the pointer is
+  // confirmed via the O(1) ownership map BEFORE any dereference, so a stray
+  // superblock-aligned pointer into foreign or unmapped memory is never read.
+  //
+  // Platform-independent: the ownership map (OwnershipMap<SUPERBLOCK_SIZE>) and
+  // the superblock accessors are the same on every platform -- Windows just
+  // uses a smaller SUPERBLOCK_SIZE (64KB) and a two-level ownership radix, both
+  // of which this code picks up automatically.
+  typedef Hoard::HoardHeapType::SuperblockType HoardSB;
+
+  // Returns the canonical Hoard pointer for a relocated over-aligned pointer,
+  // or nullptr if `ptr` is not one. Cold + noinline: callers gate it behind a
+  // single superblock-alignment test, so the fast path pays only that test.
+#if defined(__GNUG__) || defined(__clang__)
+  __attribute__((noinline, cold))
+#else
+  NO_INLINE
+#endif
+  static void * hoardRecoverOverAligned (void * ptr) {
+    const uintptr_t a = reinterpret_cast<uintptr_t>(ptr);
+    if (a == 0 || (a & (SUPERBLOCK_SIZE - 1)) != 0) {
+      return nullptr;            // not superblock-aligned: an ordinary pointer
+    }
+    // The stash sits in the word just below `ptr`; confirm that byte is
+    // Hoard's before touching it (never dereference foreign/unmapped memory).
+    if (!Hoard::OwnershipMap<SUPERBLOCK_SIZE>::contains (
+            reinterpret_cast<const void *>(a - 1))) {
+      return nullptr;
+    }
+    void * canonical = *reinterpret_cast<void **>(a - sizeof(void *));
+    // The canonical pointer must be a Hoard-owned address strictly below
+    // `ptr`, with a valid superblock header, whose object actually covers
+    // `ptr` (the last test also defends against a corrupted stash word).
+    if (canonical == nullptr ||
+        reinterpret_cast<uintptr_t>(canonical) >= a ||
+        !Hoard::OwnershipMap<SUPERBLOCK_SIZE>::contains (canonical)) {
+      return nullptr;
+    }
+    HoardSB * s = HoardSB::getSuperblock (canonical);
+    if (s == nullptr || !s->isValidSuperblock()) {
+      return nullptr;
+    }
+    const size_t objBytes = s->getSize (canonical);
+    if (objBytes == 0 ||
+        (a - reinterpret_cast<uintptr_t>(canonical)) >= objBytes) {
+      return nullptr;
+    }
+    return canonical;
+  }
+
 #if defined(__GNUG__) || defined(__clang__)
   __attribute__((alloc_size(1))) __attribute__((malloc))
   HOARD_HOOK void * xxmalloc (size_t sz)
@@ -250,23 +321,45 @@ extern "C" {
   HOARD_HOOK void * xxmalloc (size_t sz)
 #endif
   {
+    // Reject oversized requests up front. This is the single choke point
+    // for every allocation entry point (malloc, calloc, realloc, memalign
+    // all funnel here), so one check guards them all. It must live here and
+    // not rely on ANSIWrapper::malloc: the hot-path TheCustomHeapType::malloc
+    // deliberately bypasses ANSIWrapper (calling TLABBase::malloc directly),
+    // so the wrapper's only overflow guard never runs on the fast path.
+    // Without this, a size within sizeof(Header) of SIZE_MAX wraps when the
+    // big-object layer adds its header, mapping a tiny superblock while
+    // getSize() reports the astronomical requested size -- a heap buffer
+    // overflow (CWE-190 -> CWE-787).
+    if (HL_EXPECT_FALSE(sz > HOARD_MAX_ALLOCATION)) {
+      errno = ENOMEM;
+      return nullptr;
+    }
     // Single TLS lookup - getCustomHeap returns nullptr if not initialized
     auto * heap = getCustomHeap();
     if (heap != nullptr) {
       void * ptr = heap->malloc(sz);
-      if (ptr == nullptr) {
-	fprintf(stderr, "INTERNAL FAILURE.\n");
-	abort();
+      // A null result here means the OS could not back the request (OOM).
+      // malloc's contract is to return null on failure; aborting would turn
+      // any large/unsatisfiable request into a process kill (DoS).
+      if (HL_EXPECT_FALSE(ptr == nullptr)) {
+	errno = ENOMEM;
       }
       return ptr;
     }
     // We still haven't initialized the heap. Satisfy this memory
-    // request from the local buffer.
+    // request from the local buffer. Check remaining capacity BEFORE
+    // advancing the pointer: computing initBufferPtr + sz first (as the old
+    // code did) is pointer-arithmetic overflow for large sz, and the wrapped
+    // result can compare below the end and slip past the bounds check. sz is
+    // already capped at HOARD_MAX_ALLOCATION above, so the subtraction here
+    // cannot underflow.
     void * ptr = initBufferPtr;
-    initBufferPtr += sz;
-    if (initBufferPtr > initBuffer + MAX_LOCAL_BUFFER_SIZE) {
-      abort();
+    if (sz > (size_t) ((initBuffer + MAX_LOCAL_BUFFER_SIZE) - initBufferPtr)) {
+      errno = ENOMEM;
+      return nullptr;
     }
+    initBufferPtr += sz;
     {
       static bool initialized = false;
       if (!initialized) {
@@ -287,6 +380,16 @@ extern "C" {
     // Check init buffer first (cold path)
     if (HL_EXPECT_FALSE(ptr >= initBuffer && ptr < initBuffer + MAX_LOCAL_BUFFER_SIZE)) {
       return;
+    }
+
+    // Over-aligned (alignment >= SUPERBLOCK_SIZE) allocations carry a stashed
+    // canonical pointer; recover it. One superblock-alignment test on the hot
+    // path (predicted-not-taken: ordinary pointers are never aligned here).
+    if (HL_EXPECT_FALSE((reinterpret_cast<uintptr_t>(ptr) & (SUPERBLOCK_SIZE - 1)) == 0)) {
+      void * canonical = hoardRecoverOverAligned (ptr);
+      if (canonical != nullptr) {
+        ptr = canonical;
+      }
     }
 
     // The TLAB and Hoard internals use normalize() to handle internal pointers.
@@ -325,6 +428,12 @@ extern "C" {
     // alignof(max_align_t) here: with 8-byte-granularity size classes
     // (24, 40, ...), plain malloc only guarantees 8-byte alignment.
     if (alignment == 16) {
+      // Guard the round-up: for sz within 15 of SIZE_MAX, (sz+15)&~15 wraps
+      // to 0, after which the sz==0 nudge hands back a 16-byte object while
+      // the caller believes it got an enormous one.
+      if (sz > HOARD_MAX_ALLOCATION - 15) {
+        return nullptr;
+      }
       sz = (sz + 15) & ~(size_t) 15;
       if (sz == 0) {
         sz = 16;
@@ -332,8 +441,13 @@ extern "C" {
       return xxmalloc(sz);
     }
 
-    // Allocate enough space to satisfy alignment requirement.
-    // The extra alignment bytes ensure we can find an aligned address within.
+    // Over-allocate so an aligned address can be carved out. Requesting
+    // sz + alignment guarantees the containing object is strictly larger than
+    // `alignment`, which is what makes the two cases below correct. Guard the
+    // addition against wraparound (and cap the total) first.
+    if (sz > HOARD_MAX_ALLOCATION - alignment) {
+      return nullptr;
+    }
     size_t totalSize = sz + alignment;
     void* ptr = xxmalloc(totalSize);
     if (ptr == nullptr) {
@@ -343,9 +457,29 @@ extern "C" {
     // Calculate aligned address within the allocation.
     uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);
     uintptr_t alignedAddr = (addr + alignment - 1) & ~(alignment - 1);
+    void * aligned = reinterpret_cast<void*>(alignedAddr);
 
-    // Hoard's free path uses normalize() which will round this back to ptr.
-    return reinterpret_cast<void*>(alignedAddr);
+    if (alignment < SUPERBLOCK_SIZE) {
+      // The aligned pointer stays inside the containing object -- the object
+      // is larger than `alignment` (we asked for sz + alignment), so
+      // alignedAddr < addr + alignment <= addr + objectSize -- and therefore
+      // inside that object's FIRST superblock (alignment <= SUPERBLOCK_SIZE/2,
+      // the largest power of two below SUPERBLOCK_SIZE, so the bump cannot
+      // reach the next superblock boundary). Hoard's normalize()-based free
+      // recovers the object base from it directly, and getSize() reports the
+      // bytes remaining to the object end -- which is >= sz.
+      return aligned;
+    }
+
+    // alignment >= SUPERBLOCK_SIZE: `aligned` is itself superblock-aligned, so
+    // getSuperblock() cannot locate the header. Stash the canonical Hoard
+    // pointer in the word just below `aligned`; xxfree / xxmalloc_usable_size
+    // / xxrealloc recover it via hoardRecoverOverAligned(). There is always
+    // room and the stash never touches the header: `ptr` is never superblock-
+    // aligned, so alignedAddr - addr >= SUPERBLOCK_SIZE - sizeof(Header),
+    // which is far larger than sizeof(void*).
+    *reinterpret_cast<void **>(alignedAddr - sizeof(void *)) = ptr;
+    return aligned;
   }
 
   HOARD_HOOK size_t xxmalloc_usable_size (void * ptr) {
@@ -354,6 +488,18 @@ extern "C" {
       return static_cast<size_t>((initBuffer + MAX_LOCAL_BUFFER_SIZE) - (char*)ptr);
     }
     auto * heap = getCustomHeap();
+    // Over-aligned allocation: report the bytes remaining from `ptr` to the
+    // end of the underlying object (the object's usable size minus how far
+    // `ptr` sits past the canonical pointer).
+    if (HL_EXPECT_FALSE((reinterpret_cast<uintptr_t>(ptr) & (SUPERBLOCK_SIZE - 1)) == 0)) {
+      void * canonical = hoardRecoverOverAligned (ptr);
+      if (canonical != nullptr) {
+        size_t full = (heap != nullptr) ? heap->getSize(canonical) : 0;
+        size_t off = reinterpret_cast<uintptr_t>(ptr)
+                   - reinterpret_cast<uintptr_t>(canonical);
+        return (full > off) ? (full - off) : 0;
+      }
+    }
     if (heap != nullptr) {
       return heap->getSize(ptr);
     }
