@@ -127,6 +127,12 @@ def main():
     p.add_argument("--sleep", type=int, default=3, help="larson run seconds")
     p.add_argument("--min-ratio", type=float, default=0.0,
                    help="fail if hoard_median < min-ratio * mimalloc_median")
+    p.add_argument("--gate-threads", default=None,
+                   help="comma-separated thread counts that may FAIL the gate "
+                        "(default: all of --threads). Other configs are measured "
+                        "and reported but never gate -- use for a config whose "
+                        "runner-to-runner variance is too large to gate on "
+                        "(e.g. 1t here; see the calibration note).")
     p.add_argument("--retry-on-fail", action="store_true",
                    help="re-measure once before failing, to reject runner noise")
     p.add_argument("--report-only", action="store_true",
@@ -137,6 +143,10 @@ def main():
     allocators = [("hoard", args.hoard), ("mimalloc", args.mimalloc)]
     if args.jemalloc:
         allocators.append(("jemalloc", args.jemalloc))
+
+    # Which configs may fail the gate. Default: every measured thread count.
+    gate_cfgs = (None if not args.gate_threads
+                 else {f"{int(t)}t" for t in args.gate_threads.split(",")})
 
     print(f"Larson QoS ({platform.system()} {platform.machine()}, "
           f"{os.cpu_count()} cpus, {PRELOAD_VAR})")
@@ -193,7 +203,8 @@ def main():
             row += f"{fmt_ratio(r_mi):>14}"
             row += f"{fmt_ratio(h/je):>14}" if je else f"{'-':>14}"
             print(row)
-            if args.min_ratio and r_mi < args.min_ratio:
+            if (args.min_ratio and r_mi < args.min_ratio
+                    and (gate_cfgs is None or cfg in gate_cfgs)):
                 failures.append((cfg, r_mi))
 
         # Spread, so a noisy runner is visible rather than silently shifting a median.

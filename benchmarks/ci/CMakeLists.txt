@@ -42,6 +42,13 @@ foreach(bench ${BENCHMARKS})
   endif()
 endforeach()
 
+# Windows-only correctness test for the _aligned_* CRT family (runs under
+# withdll.exe /d:hoard.dll in CI to exercise Hoard's Detours interception of
+# aligned allocation). The _aligned_* API and <malloc.h> are Windows-only.
+if(WIN32)
+  add_executable(aligned_test aligned_test.c)
+endif()
+
 # Installation
 install(TARGETS ${BENCHMARKS}
   RUNTIME DESTINATION bin

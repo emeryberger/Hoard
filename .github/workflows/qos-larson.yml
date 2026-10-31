@@ -67,20 +67,28 @@ jobs:
 
       - name: Larson QoS gate
         run: |
-          # Only Linux GATES. Its hoard/mimalloc ratio measured 0.84-0.97 across
-          # repeated runs of unchanged code, so a 0.75 floor is clear of the
-          # noise and still trips on a ~17% regression.
+          # Only Linux GATES, and only on the 4-THREAD ratio. 4t is stable both
+          # across runners and within a job (measured 0.83-0.85 repeatedly, with
+          # only 3-4% run-to-run spread; a controlled same-runner Hoard-vs-Hoard
+          # A/B read 0.993, i.e. flat), so a 0.75 floor is clear of the noise and
+          # still trips on a real regression.
           #
-          # macOS is REPORT-ONLY. Its ratio measured 0.64-1.12 on unchanged code
-          # -- a master run read 0.64x with the runs either side reading ~1.0x,
-          # and a local A/B of those commits showed larson flat. The variation is
-          # BETWEEN runners, not within a job (that run's spread was only 6-16%),
-          # so --retry-on-fail cannot reject it either: the confirmation pass
-          # re-measures on the SAME runner. Any floor low enough to survive 0.64
-          # is too low to catch a real regression, so gating there would only
-          # train people to ignore a red check. See scripts/qos_larson.py.
+          # 1t is MEASURED and printed but does NOT gate (--gate-threads 4).
+          # ubuntu-latest is now a heterogeneous pool, and the single-thread
+          # hoard/mimalloc ratio swings with the CPU: 0.73-1.01 on IDENTICAL
+          # binaries across runners (10-16% within-job spread too), while a
+          # controlled same-runner Hoard-vs-Hoard A/B of a suspected regression
+          # came back 0.98 (flat). The variation is BETWEEN runners, so
+          # --retry-on-fail cannot reject it (the confirmation pass re-measures
+          # on the SAME runner). Any 1t floor low enough to survive 0.73 is too
+          # low to catch a real regression -- gating it would only train people
+          # to ignore a red check, the same reason macOS is report-only.
+          # See scripts/qos_larson.py.
+          #
+          # macOS is REPORT-ONLY (whole platform). Its ratio measured 0.64-1.12
+          # on unchanged code -- too variable between runners to gate on at all.
           if [ "${{ runner.os }}" = "Linux" ]; then
-            GATE="--min-ratio 0.75 --retry-on-fail"
+            GATE="--min-ratio 0.75 --gate-threads 4 --retry-on-fail"
           else
             GATE="--report-only"
           fi

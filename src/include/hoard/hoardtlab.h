@@ -89,6 +89,15 @@ public:
   using Parent::Parent;
 
   TLAB_ALWAYS_INLINE void * malloc (size_t sz) {
+    // Oversized-request guard. This path deliberately bypasses
+    // ANSIWrapper::malloc (the Parent) for speed, so the wrapper's overflow
+    // check never runs here -- enforce the cap directly. Without it a size
+    // within a header's width of SIZE_MAX wraps in the big-object layer and
+    // yields a tiny mapping reported as enormous. One predicted-not-taken
+    // compare on the hot path; the common small-object case is unaffected.
+    if (HL_EXPECT_FALSE(sz > Hoard::MaxAllocationSize)) {
+      return nullptr;
+    }
     return Hoard::TLABBase::malloc (sz);
   }
 

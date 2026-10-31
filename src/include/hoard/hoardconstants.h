@@ -16,7 +16,27 @@
 #ifndef HOARD_HOARDCONSTANTS_H
 #define HOARD_HOARDCONSTANTS_H
 
+#include <cstddef>
+#include <cstdint>
+
 namespace Hoard {
+
+  /// Largest request Hoard will attempt to satisfy, in bytes. Any size at
+  /// or below this leaves headroom for the internal additions on the
+  /// allocation path -- the big-object header (AddHeaderHeap adds
+  /// sizeof(Header)) and the superblock round-up in the mmap layer -- so
+  /// none of them can wrap a size_t and hand back a mapping smaller than
+  /// the caller was told it got (CWE-190 -> CWE-787). Requests above it are
+  /// rejected (nullptr / ENOMEM). PTRDIFF_MAX is the conventional ceiling:
+  /// a single object larger than it makes pointer subtraction within it
+  /// undefined, and it matches glibc's "cannot allocate more than
+  /// PTRDIFF_MAX" behavior.
+  ///
+  /// Enforced both at the xxmalloc entry point and in
+  /// TheCustomHeapType::malloc (which bypasses ANSIWrapper's own guard), so
+  /// the check survives even a future caller that reaches the heap by some
+  /// other path.
+  static constexpr size_t MaxAllocationSize = PTRDIFF_MAX;
 
   /// Cache line size for false sharing prevention.
   /// L1 data cache lines are 64 bytes on x86/x64 and ARM64.
