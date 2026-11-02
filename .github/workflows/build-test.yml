@@ -258,24 +258,29 @@ jobs:
       - name: Test _aligned_* interception under Hoard
         shell: powershell
         # Exercises the CRT aligned family (_aligned_malloc/realloc/recalloc/
-        # msize/free and the offset variants). The BASELINE run (system CRT)
-        # GATES this job -- it must pass, proving the test itself is sound. The
-        # Hoard-injection run is currently INFORMATIONAL (reported, not gating):
-        # it exposes a pre-existing Windows limitation -- the real ucrtbase
-        # _aligned_* functions take their backing block from the Hoard-hooked
-        # _malloc_base but do the size/free via inlined NT-heap calls, so
-        # _aligned_msize/_aligned_free hit the Windows heap on a Hoard pointer
-        # and abort (STATUS_HEAP_CORRUPTION). Both runs go through the benchmark
-        # watchdog, which captures the child's stdout through DLL injection and
-        # dumps the process tree on a hang; the test prints a flushed breadcrumb
-        # per op, so the failing call is visible in watchdog/aligned-hoard.out.txt.
-        # TODO(windows _aligned_*): make this run gate once the family is
-        # intercepted soundly (needs interactive Windows debugging of ucrtbase).
+        # msize/free and the offset variants) and GATES on both runs:
+        #   1) BASELINE (system CRT) must pass, proving the test is sound.
+        #   2) Under Hoard injection must ALSO pass.
+        # Hoard now intercepts the whole _aligned_* family in winwrapper-detours
+        # and implements it self-contained over xxmalloc/xxfree (base alloc and
+        # base free both go through Hoard -- no cross-heap mismatch), so the
+        # pre-existing STATUS_HEAP_CORRUPTION (real ucrtbase _aligned_msize/_free
+        # hitting the NT heap on a Hoard-backed base) can no longer occur -- as
+        # long as the family FULLY attaches. HOARD_DETOUR_REPORT makes init write
+        # a per-entry attachment report (raw Win32, reliable under injection
+        # where stdout is not); we assert every core _aligned_* export attached,
+        # because partial interception (our malloc feeding a real msize) is the
+        # exact mismatch that corrupts the heap. Both runs go through the
+        # watchdog, which captures stdout through injection and dumps the process
+        # tree on a hang; the report and per-op breadcrumbs are uploaded in the
+        # windows-hang-diagnostics artifact.
         run: |
           cd benchmarks/ci/build/Release
           $withdll = "$PWD/../../../../build/_deps/alloc8-build/Release/withdll.exe"
           $hoard = "$PWD/../../../../build/Release/hoard.dll"
           $watchdog = "$PWD/../../../../.github/scripts/benchmark-watchdog.ps1"
+          New-Item -ItemType Directory -Force -Path watchdog | Out-Null
+          $report = "$PWD\watchdog\aligned-detours.txt"
 
           # 1) Baseline on the real CRT -- GATES the job.
           powershell -NoProfile -ExecutionPolicy Bypass -File $watchdog `
@@ -283,11 +288,14 @@ jobs:
             .\aligned_test.exe
           $baseCode = $LASTEXITCODE
 
-          # 2) Under Hoard injection -- informational.
+          # 2) Under Hoard injection -- GATES the job. HOARD_DETOUR_REPORT is
+          # inherited by the injected child and written by Hoard's init.
+          $env:HOARD_DETOUR_REPORT = $report
           powershell -NoProfile -ExecutionPolicy Bypass -File $watchdog `
             -Name aligned-hoard -TimeoutSec 120 -OutDir watchdog -LogFile aligned.txt `
             $withdll "/d:$hoard" .\aligned_test.exe
           $hoardCode = $LASTEXITCODE
+          Remove-Item Env:\HOARD_DETOUR_REPORT
 
           Write-Output "=== captured aligned_test output (baseline, then Hoard) ==="
           if (Test-Path watchdog/aligned-baseline.out.txt) {
@@ -299,21 +307,46 @@ jobs:
             Get-Content watchdog/aligned-hoard.out.txt -Tail 25
           }
 
-          $hoardOut = if (Test-Path watchdog/aligned-hoard.out.txt) { (Get-Content watchdog/aligned-hoard.out.txt -Raw) } else { "" }
+          # Attachment report: show the _aligned_* rows and require that every
+          # core (non-dbg) member attached. Partial attachment is worse than
+          # none, so it fails the gate explicitly rather than risking a
+          # nondeterministic heap corruption.
+          $core = @("_aligned_malloc","_aligned_free","_aligned_realloc",
+                    "_aligned_recalloc","_aligned_msize","_aligned_offset_malloc",
+                    "_aligned_offset_realloc","_aligned_offset_recalloc")
+          $attachMissing = @()
+          if (Test-Path $report) {
+            Write-Output "--- detour attachment report (_aligned_* rows) ---"
+            Get-Content $report | Select-String -SimpleMatch "_aligned_" | ForEach-Object { $_.Line }
+            $rep = Get-Content $report -Raw
+            foreach ($name in $core) {
+              # Expect a line "HOARD_DETOUR ATTACHED <name>" (exact token match,
+              # so _aligned_malloc does not also satisfy _aligned_malloc_dbg).
+              if ($rep -notmatch "ATTACHED\s+$([regex]::Escape($name))(\r|\n)") {
+                $attachMissing += $name
+              }
+            }
+          } else {
+            Write-Warning "no detour attachment report at $report (init may not have run)"
+            $attachMissing = $core
+          }
+
           if ($baseCode -ne 0) {
             Write-Error "aligned_test FAILED on the system CRT baseline (exit $baseCode) -- test bug, not Hoard."
             exit 1
           }
-          if ($hoardCode -ne 0 -or $hoardOut -notmatch "ALIGNED TEST: PASS") {
-            Write-Warning "KNOWN LIMITATION: _aligned_* under Hoard injection failed (exit $hoardCode). Pre-existing Windows issue; not gating. See the step comment and the windows-hang-diagnostics artifact."
-          } else {
-            Write-Output "aligned_test passed on the baseline and under Hoard injection."
+          if ($attachMissing.Count -gt 0) {
+            Write-Error ("Hoard did not fully intercept the _aligned_* family; missing: " +
+                         ($attachMissing -join ", ") +
+                         ". Partial interception can corrupt the heap -- see winwrapper-detours.cpp.")
+            exit 1
           }
-          # The injected run is informational: a crashed child leaves a nonzero
-          # $LASTEXITCODE that would otherwise fail this powershell step. The
-          # baseline gate above already exited 1 on a real (test-bug) failure,
-          # so reaching here means the job should pass.
-          exit 0
+          $hoardOut = if (Test-Path watchdog/aligned-hoard.out.txt) { (Get-Content watchdog/aligned-hoard.out.txt -Raw) } else { "" }
+          if ($hoardCode -ne 0 -or $hoardOut -notmatch "ALIGNED TEST: PASS") {
+            Write-Error "aligned_test FAILED under Hoard injection (exit $hoardCode). See watchdog/aligned-hoard.out.txt in the windows-hang-diagnostics artifact."
+            exit 1
+          }
+          Write-Output "aligned_test passed on the baseline and under Hoard injection; full _aligned_* family attached."
 
       - name: Run benchmarks with system allocator (baseline)
         shell: powershell
