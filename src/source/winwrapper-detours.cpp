@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <strsafe.h>
 #include <tchar.h>
 #include <new>
 
@@ -661,6 +662,22 @@ struct DetourEntry {
 // Attach a single detour for a function from a module
 //
 static bool AttachDetour(HMODULE hModule, DetourEntry * entry) {
+  // Attach each logical hook exactly once. InstallDetours applies g_CRTDetours
+  // against EVERY module whose name matches the CRT filter, and on a /MD CRT the
+  // allocation symbols are exported by BOTH ucrtbase.dll AND the
+  // api-ms-win-crt-*.dll forwarders (whose names also contain "crt"). A
+  // forwarder's GetProcAddress returns the SAME ucrtbase address, so without
+  // this guard the same function is attached twice: the second DetourAttach
+  // overwrites *ppOriginal (the saved trampoline) with the already-detoured
+  // address and double-detours it, corrupting the trampoline. Enumeration order
+  // is not fixed, so the damage was nondeterministic -- it made the _aligned_*
+  // family crash on some runs and pass on others. Hooking the first module that
+  // exports the symbol is correct and complete (forwarders resolve to the same
+  // target); genuinely distinct per-module implementations keep their own entry.
+  if (entry->attached) {
+    return false;
+  }
+
   FARPROC proc = GetProcAddress(hModule, entry->name);
   if (proc == nullptr) {
     return false;
@@ -843,27 +860,44 @@ static bool InstallDetours() {
   // symbols DetourAttach actually found (e.g. whether the _aligned_* family is
   // interceptable on this UCRT). This runs during very early init under DLL
   // injection, where BOTH stdout and the CRT environment are unavailable (getenv
-  // returns null before the CRT populates its environment table -- confirmed:
-  // an earlier HOARD_DETOUR_REPORT=getenv version never wrote a file even though
-  // the malloc hooks were demonstrably active). So it is gated and pathed with
-  // pure Win32 only: if a sentinel file "hoard-detours.enable" exists in the
-  // current directory, write "hoard-detours.txt" beside it. CI drops the
-  // sentinel before the aligned run; a shipped DLL writes nothing.
-  if (GetFileAttributesW(L"hoard-detours.enable") != INVALID_FILE_ATTRIBUTES) {
-    HANDLE h = CreateFileW(L"hoard-detours.txt", GENERIC_WRITE, FILE_SHARE_READ,
-                           nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (h != INVALID_HANDLE_VALUE) {
-      for (size_t j = 0; j < sizeof(g_CRTDetours) / sizeof(g_CRTDetours[0]); j++) {
-        char line[256];
-        int n = snprintf(line, sizeof(line), "HOARD_DETOUR %s %s\r\n",
-                         g_CRTDetours[j].attached ? "ATTACHED" : "skipped ",
-                         g_CRTDetours[j].name);
-        if (n > 0) {
-          DWORD wrote = 0;
-          WriteFile(h, line, (DWORD)n, &wrote, nullptr);
+  // returns null before the CRT populates its environment table) AND relative
+  // paths are unreliable (the loader's working directory is not the process CWD
+  // this early) -- confirmed: getenv- and CWD-relative versions each failed to
+  // write a file though the malloc hooks were demonstrably active. So it is
+  // gated and pathed with pure Win32 only, against the EXECUTABLE's own
+  // directory (GetModuleFileNameW(NULL)): if "hoard-detours.enable" exists
+  // there, write "hoard-detours.txt" beside it. CI drops the sentinel next to
+  // the test exe before the aligned run; a shipped DLL writes nothing.
+  {
+    wchar_t dir[MAX_PATH];
+    DWORD dn = GetModuleFileNameW(nullptr, dir, MAX_PATH);
+    if (dn > 0 && dn < MAX_PATH) {
+      wchar_t * slash = wcsrchr(dir, L'\\');
+      if (slash) {
+        *(slash + 1) = L'\0';  // keep the trailing backslash
+        wchar_t sentinel[MAX_PATH], outPath[MAX_PATH];
+        if (SUCCEEDED(StringCchCopyW(sentinel, MAX_PATH, dir)) &&
+            SUCCEEDED(StringCchCatW(sentinel, MAX_PATH, L"hoard-detours.enable")) &&
+            GetFileAttributesW(sentinel) != INVALID_FILE_ATTRIBUTES &&
+            SUCCEEDED(StringCchCopyW(outPath, MAX_PATH, dir)) &&
+            SUCCEEDED(StringCchCatW(outPath, MAX_PATH, L"hoard-detours.txt"))) {
+          HANDLE h = CreateFileW(outPath, GENERIC_WRITE, FILE_SHARE_READ, nullptr,
+                                 CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+          if (h != INVALID_HANDLE_VALUE) {
+            for (size_t j = 0; j < sizeof(g_CRTDetours) / sizeof(g_CRTDetours[0]); j++) {
+              char line[256];
+              int n = snprintf(line, sizeof(line), "HOARD_DETOUR %s %s\r\n",
+                               g_CRTDetours[j].attached ? "ATTACHED" : "skipped ",
+                               g_CRTDetours[j].name);
+              if (n > 0) {
+                DWORD wrote = 0;
+                WriteFile(h, line, (DWORD)n, &wrote, nullptr);
+              }
+            }
+            CloseHandle(h);
+          }
         }
       }
-      CloseHandle(h);
     }
   }
 
