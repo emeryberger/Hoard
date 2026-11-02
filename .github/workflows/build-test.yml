@@ -280,7 +280,6 @@ jobs:
           $hoard = "$PWD/../../../../build/Release/hoard.dll"
           $watchdog = "$PWD/../../../../.github/scripts/benchmark-watchdog.ps1"
           New-Item -ItemType Directory -Force -Path watchdog | Out-Null
-          $report = "$PWD\watchdog\aligned-detours.txt"
 
           # 1) Baseline on the real CRT -- GATES the job.
           powershell -NoProfile -ExecutionPolicy Bypass -File $watchdog `
@@ -288,14 +287,20 @@ jobs:
             .\aligned_test.exe
           $baseCode = $LASTEXITCODE
 
-          # 2) Under Hoard injection -- GATES the job. HOARD_DETOUR_REPORT is
-          # inherited by the injected child and written by Hoard's init.
-          $env:HOARD_DETOUR_REPORT = $report
+          # 2) Under Hoard injection -- GATES the job. The attachment report is
+          # written by Hoard's init via pure Win32 (getenv/stdout are unavailable
+          # that early under injection), gated on a sentinel file in the CWD and
+          # emitted as hoard-detours.txt beside it. aligned_test runs with the
+          # CWD set here, so both land in this directory.
+          New-Item -ItemType File -Force -Path hoard-detours.enable | Out-Null
+          if (Test-Path hoard-detours.txt) { Remove-Item hoard-detours.txt }
           powershell -NoProfile -ExecutionPolicy Bypass -File $watchdog `
             -Name aligned-hoard -TimeoutSec 120 -OutDir watchdog -LogFile aligned.txt `
             $withdll "/d:$hoard" .\aligned_test.exe
           $hoardCode = $LASTEXITCODE
-          Remove-Item Env:\HOARD_DETOUR_REPORT
+          Remove-Item hoard-detours.enable -ErrorAction SilentlyContinue
+          $report = "hoard-detours.txt"
+          if (Test-Path $report) { Copy-Item $report watchdog/aligned-detours.txt }
 
           Write-Output "=== captured aligned_test output (baseline, then Hoard) ==="
           if (Test-Path watchdog/aligned-baseline.out.txt) {

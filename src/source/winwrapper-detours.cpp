@@ -839,30 +839,31 @@ static bool InstallDetours() {
   fprintf(stderr, "Hoard: Total %d modules patched, %d functions attached\n", modulesPatched, functionsAttached);
 #endif
 
-  // Optional per-entry attachment report: set HOARD_DETOUR_REPORT to a file
-  // path. Written with raw Win32 (not stdio): this runs during early init where
-  // stdout is not reliably connected under DLL injection -- the same reason the
-  // init banner never reaches a redirected stdout. Used to see exactly which
-  // CRT symbols DetourAttach actually found (e.g. whether _aligned_* is
-  // interceptable on this UCRT). entry->attached is already set by the loop.
-  {
-    const char * reportPath = getenv("HOARD_DETOUR_REPORT");
-    if (reportPath && *reportPath) {
-      HANDLE h = CreateFileA(reportPath, GENERIC_WRITE, FILE_SHARE_READ, nullptr,
-                             CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-      if (h != INVALID_HANDLE_VALUE) {
-        for (size_t j = 0; j < sizeof(g_CRTDetours) / sizeof(g_CRTDetours[0]); j++) {
-          char line[256];
-          int n = snprintf(line, sizeof(line), "HOARD_DETOUR %s %s\r\n",
-                           g_CRTDetours[j].attached ? "ATTACHED" : "skipped ",
-                           g_CRTDetours[j].name);
-          if (n > 0) {
-            DWORD wrote = 0;
-            WriteFile(h, line, (DWORD)n, &wrote, nullptr);
-          }
+  // Optional per-entry attachment report, used to see exactly which CRT
+  // symbols DetourAttach actually found (e.g. whether the _aligned_* family is
+  // interceptable on this UCRT). This runs during very early init under DLL
+  // injection, where BOTH stdout and the CRT environment are unavailable (getenv
+  // returns null before the CRT populates its environment table -- confirmed:
+  // an earlier HOARD_DETOUR_REPORT=getenv version never wrote a file even though
+  // the malloc hooks were demonstrably active). So it is gated and pathed with
+  // pure Win32 only: if a sentinel file "hoard-detours.enable" exists in the
+  // current directory, write "hoard-detours.txt" beside it. CI drops the
+  // sentinel before the aligned run; a shipped DLL writes nothing.
+  if (GetFileAttributesW(L"hoard-detours.enable") != INVALID_FILE_ATTRIBUTES) {
+    HANDLE h = CreateFileW(L"hoard-detours.txt", GENERIC_WRITE, FILE_SHARE_READ,
+                           nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h != INVALID_HANDLE_VALUE) {
+      for (size_t j = 0; j < sizeof(g_CRTDetours) / sizeof(g_CRTDetours[0]); j++) {
+        char line[256];
+        int n = snprintf(line, sizeof(line), "HOARD_DETOUR %s %s\r\n",
+                         g_CRTDetours[j].attached ? "ATTACHED" : "skipped ",
+                         g_CRTDetours[j].name);
+        if (n > 0) {
+          DWORD wrote = 0;
+          WriteFile(h, line, (DWORD)n, &wrote, nullptr);
         }
-        CloseHandle(h);
       }
+      CloseHandle(h);
     }
   }
 
