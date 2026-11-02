@@ -20,6 +20,9 @@
 #include <errno.h>
 #include <psapi.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <string.h>
+#include <strsafe.h>
 #include <tchar.h>
 #include <new>
 
@@ -142,6 +145,30 @@ static void * (__cdecl * Real_calloc_dbg)(size_t, size_t, int, const char *, int
 static size_t (__cdecl * Real_msize_dbg)(void *, int) = nullptr;
 static void * (__cdecl * Real_expand_dbg)(void *, size_t, int, const char *, int) = nullptr;
 static void * (__cdecl * Real_recalloc_dbg)(void *, size_t, size_t, int, const char *, int) = nullptr;
+
+// Aligned allocation family (ucrt/msvcrt). Signatures per the CRT headers;
+// the _dbg variants add (const char * filename, int linenumber) trailing args.
+// The Real_ trampolines are needed for Detours to record the original, and
+// _aligned_free / _aligned_(offset_)realloc are also called to forward foreign
+// aligned pointers (allocated before our detours installed).
+static void * (__cdecl * Real_aligned_malloc)(size_t, size_t) = nullptr;
+static void   (__cdecl * Real_aligned_free)(void *) = nullptr;
+static void * (__cdecl * Real_aligned_realloc)(void *, size_t, size_t) = nullptr;
+static void * (__cdecl * Real_aligned_recalloc)(void *, size_t, size_t, size_t) = nullptr;
+static size_t (__cdecl * Real_aligned_msize)(void *, size_t, size_t) = nullptr;
+static void * (__cdecl * Real_aligned_offset_malloc)(size_t, size_t, size_t) = nullptr;
+static void * (__cdecl * Real_aligned_offset_realloc)(void *, size_t, size_t, size_t) = nullptr;
+static void * (__cdecl * Real_aligned_offset_recalloc)(void *, size_t, size_t, size_t, size_t) = nullptr;
+
+// Debug variants.
+static void * (__cdecl * Real_aligned_malloc_dbg)(size_t, size_t, const char *, int) = nullptr;
+static void   (__cdecl * Real_aligned_free_dbg)(void *) = nullptr;
+static void * (__cdecl * Real_aligned_realloc_dbg)(void *, size_t, size_t, const char *, int) = nullptr;
+static void * (__cdecl * Real_aligned_recalloc_dbg)(void *, size_t, size_t, size_t, const char *, int) = nullptr;
+static size_t (__cdecl * Real_aligned_msize_dbg)(void *, size_t, size_t) = nullptr;
+static void * (__cdecl * Real_aligned_offset_malloc_dbg)(size_t, size_t, size_t, const char *, int) = nullptr;
+static void * (__cdecl * Real_aligned_offset_realloc_dbg)(void *, size_t, size_t, size_t, const char *, int) = nullptr;
+static void * (__cdecl * Real_aligned_offset_recalloc_dbg)(void *, size_t, size_t, size_t, size_t, const char *, int) = nullptr;
 
 // Windows Heap API
 static LPVOID (WINAPI * Real_HeapAlloc)(HANDLE, DWORD, SIZE_T) = nullptr;
@@ -287,6 +314,197 @@ static char * __cdecl Detour_strdup(const char * s) {
     }
   }
   return newString;
+}
+
+//
+// Aligned allocation family (_aligned_malloc / _aligned_offset_* and friends)
+//
+// Self-contained, mirroring the CRT's own contract: the pointer handed to the
+// caller has the underlying xxmalloc base stashed in the void* slot immediately
+// preceding it, and the _aligned_* free/realloc/msize paths recover that base.
+// Both the base allocation and its free therefore go through Hoard
+// (xxmalloc/xxfree) -- no dependence on which internal CRT layer the real
+// aligned functions would have used, so there is no cross-heap mismatch. This
+// one scheme covers every alignment (including >= SUPERBLOCK_SIZE) and the
+// offset variants uniformly, and relies only on xxmalloc/xxfree, whose recovery
+// is independent of Hoard's interior-pointer normalize() path.
+//
+// A pointer from this family MUST be released through the _aligned_* family,
+// exactly as the CRT requires. The one-word-before-the-pointer layout is
+// binary-compatible with the CRT's, so a foreign aligned pointer (allocated by
+// the real CRT during the pre-init window) is recognized via its stashed base
+// and forwarded to the real _aligned_* implementation.
+
+static inline bool IsPowerOfTwo(size_t x) {
+  return x != 0 && (x & (x - 1)) == 0;
+}
+
+// Core aligned allocator: returns `user` such that (user + offset) is aligned
+// to `alignment`, backed by an xxmalloc block whose base is stashed at user[-1].
+static void * HoardAlignedAlloc(size_t size, size_t alignment, size_t offset) {
+  if (!IsPowerOfTwo(alignment)) {
+    errno = EINVAL;
+    return nullptr;
+  }
+  // CRT contract: when size != 0, offset must be strictly less than size.
+  if (size != 0 && offset >= size) {
+    errno = EINVAL;
+    return nullptr;
+  }
+  const size_t hdr = sizeof(void *);
+  // Over-allocate size + alignment + hdr. xxmalloc enforces the absolute cap
+  // (PTRDIFF_MAX); here we only need the addition itself not to wrap.
+  if (size > SIZE_MAX - alignment || size + alignment > SIZE_MAX - hdr) {
+    errno = ENOMEM;
+    return nullptr;
+  }
+  void * base = xxmalloc(size + alignment + hdr);
+  if (base == nullptr) {
+    errno = ENOMEM;
+    return nullptr;
+  }
+  const uintptr_t b = reinterpret_cast<uintptr_t>(base);
+  // Align (b + hdr + offset) up to `alignment`, then back off `offset`. Since
+  // alignUp(x) >= x, user >= b + hdr, so the stash slot [user-hdr, user) never
+  // overlaps the object payload before base, and user + size stays within the
+  // block (user <= b + hdr + alignment - 1, so user + size <= b + total - 1).
+  const uintptr_t aligned =
+      (b + hdr + offset + (alignment - 1)) & ~static_cast<uintptr_t>(alignment - 1);
+  const uintptr_t user = aligned - offset;
+  // Stash base in the hdr bytes just below `user`. `user` may be aligned to
+  // less than sizeof(void*) (alignment can be as small as 1/2), so the slot is
+  // not necessarily pointer-aligned -- copy the bits in rather than doing a
+  // misaligned pointer store (UB). The slot is always within [base, user).
+  memcpy(reinterpret_cast<void *>(user - hdr), &base, hdr);
+  return reinterpret_cast<void *>(user);
+}
+
+// Recover the xxmalloc base stashed just before an aligned pointer (see above:
+// the slot may be unaligned, so read it with memcpy).
+static inline void * HoardAlignedBase(void * p) {
+  void * base;
+  memcpy(&base, reinterpret_cast<char *>(p) - sizeof(void *), sizeof(void *));
+  return base;
+}
+
+// Bytes available from the user pointer to the end of the backing object.
+static size_t HoardAlignedUsable(void * p) {
+  void * base = HoardAlignedBase(p);
+  size_t full = SafeGetHoardSize(base);
+  if (full == 0) {
+    return 0;  // foreign
+  }
+  size_t used = reinterpret_cast<uintptr_t>(p) - reinterpret_cast<uintptr_t>(base);
+  return (full > used) ? (full - used) : 0;
+}
+
+static void __cdecl Detour_aligned_free(void * p) {
+  if (p == nullptr) return;
+  void * base = HoardAlignedBase(p);
+  if (IsHoardPointer(base)) {
+    xxfree(base);
+  } else if (Real_aligned_free) {
+    // Foreign aligned block (real CRT, pre-init): forward to the original.
+    Real_aligned_free(p);
+  }
+}
+
+static void * HoardAlignedRealloc(void * p, size_t size, size_t alignment, size_t offset) {
+  if (p == nullptr) {
+    return HoardAlignedAlloc(size, alignment, offset);
+  }
+  if (size == 0) {
+    Detour_aligned_free(p);
+    return nullptr;
+  }
+  void * base = HoardAlignedBase(p);
+  // Foreign pointer: can't migrate it safely; forward to the real impl.
+  if (!IsHoardPointer(base)) {
+    if (offset != 0) {
+      if (Real_aligned_offset_realloc) return Real_aligned_offset_realloc(p, size, alignment, offset);
+    } else {
+      if (Real_aligned_realloc) return Real_aligned_realloc(p, size, alignment);
+      if (Real_aligned_offset_realloc) return Real_aligned_offset_realloc(p, size, alignment, 0);
+    }
+    errno = ENOMEM;
+    return nullptr;
+  }
+  size_t oldUsable = HoardAlignedUsable(p);
+  void * np = HoardAlignedAlloc(size, alignment, offset);
+  if (np == nullptr) {
+    return nullptr;  // original left intact, per realloc contract
+  }
+  memcpy(np, p, (oldUsable < size) ? oldUsable : size);
+  xxfree(base);
+  return np;
+}
+
+static void * HoardAlignedRecalloc(void * p, size_t num, size_t size,
+                                   size_t alignment, size_t offset) {
+  // Overflow-guarded num * size.
+  if (num != 0 && size > SIZE_MAX / num) {
+    errno = ENOMEM;
+    return nullptr;
+  }
+  const size_t req = num * size;
+  const size_t oldUsable =
+      (p != nullptr && IsHoardPointer(HoardAlignedBase(p))) ? HoardAlignedUsable(p) : 0;
+  void * np = HoardAlignedRealloc(p, req, alignment, offset);
+  if (np != nullptr && req > oldUsable) {
+    // _recalloc zeroes the grown region (end of old block .. end of new block).
+    memset(static_cast<char *>(np) + oldUsable, 0, req - oldUsable);
+  }
+  return np;
+}
+
+static void * __cdecl Detour_aligned_malloc(size_t size, size_t alignment) {
+  return HoardAlignedAlloc(size, alignment, 0);
+}
+static void * __cdecl Detour_aligned_offset_malloc(size_t size, size_t alignment, size_t offset) {
+  return HoardAlignedAlloc(size, alignment, offset);
+}
+static void * __cdecl Detour_aligned_realloc(void * p, size_t size, size_t alignment) {
+  return HoardAlignedRealloc(p, size, alignment, 0);
+}
+static void * __cdecl Detour_aligned_offset_realloc(void * p, size_t size, size_t alignment, size_t offset) {
+  return HoardAlignedRealloc(p, size, alignment, offset);
+}
+static void * __cdecl Detour_aligned_recalloc(void * p, size_t num, size_t size, size_t alignment) {
+  return HoardAlignedRecalloc(p, num, size, alignment, 0);
+}
+static void * __cdecl Detour_aligned_offset_recalloc(void * p, size_t num, size_t size, size_t alignment, size_t offset) {
+  return HoardAlignedRecalloc(p, num, size, alignment, offset);
+}
+static size_t __cdecl Detour_aligned_msize(void * p, size_t alignment, size_t offset) {
+  (void)alignment; (void)offset;
+  if (p == nullptr) return 0;
+  return HoardAlignedUsable(p);
+}
+
+// Debug variants: the extra (filename, line) / block-type args are ignored.
+static void * __cdecl Detour_aligned_malloc_dbg(size_t size, size_t alignment, const char *, int) {
+  return HoardAlignedAlloc(size, alignment, 0);
+}
+static void * __cdecl Detour_aligned_offset_malloc_dbg(size_t size, size_t alignment, size_t offset, const char *, int) {
+  return HoardAlignedAlloc(size, alignment, offset);
+}
+static void * __cdecl Detour_aligned_realloc_dbg(void * p, size_t size, size_t alignment, const char *, int) {
+  return HoardAlignedRealloc(p, size, alignment, 0);
+}
+static void * __cdecl Detour_aligned_offset_realloc_dbg(void * p, size_t size, size_t alignment, size_t offset, const char *, int) {
+  return HoardAlignedRealloc(p, size, alignment, offset);
+}
+static void * __cdecl Detour_aligned_recalloc_dbg(void * p, size_t num, size_t size, size_t alignment, const char *, int) {
+  return HoardAlignedRecalloc(p, num, size, alignment, 0);
+}
+static void * __cdecl Detour_aligned_offset_recalloc_dbg(void * p, size_t num, size_t size, size_t alignment, size_t offset, const char *, int) {
+  return HoardAlignedRecalloc(p, num, size, alignment, offset);
+}
+static void __cdecl Detour_aligned_free_dbg(void * p) {
+  Detour_aligned_free(p);
+}
+static size_t __cdecl Detour_aligned_msize_dbg(void * p, size_t alignment, size_t offset) {
+  return Detour_aligned_msize(p, alignment, offset);
 }
 
 // Debug variants
@@ -444,6 +662,22 @@ struct DetourEntry {
 // Attach a single detour for a function from a module
 //
 static bool AttachDetour(HMODULE hModule, DetourEntry * entry) {
+  // Attach each logical hook exactly once. InstallDetours applies g_CRTDetours
+  // against EVERY module whose name matches the CRT filter, and on a /MD CRT the
+  // allocation symbols are exported by BOTH ucrtbase.dll AND the
+  // api-ms-win-crt-*.dll forwarders (whose names also contain "crt"). A
+  // forwarder's GetProcAddress returns the SAME ucrtbase address, so without
+  // this guard the same function is attached twice: the second DetourAttach
+  // overwrites *ppOriginal (the saved trampoline) with the already-detoured
+  // address and double-detours it, corrupting the trampoline. Enumeration order
+  // is not fixed, so the damage was nondeterministic -- it made the _aligned_*
+  // family crash on some runs and pass on others. Hooking the first module that
+  // exports the symbol is correct and complete (forwarders resolve to the same
+  // target); genuinely distinct per-module implementations keep their own entry.
+  if (entry->attached) {
+    return false;
+  }
+
   FARPROC proc = GetProcAddress(hModule, entry->name);
   if (proc == nullptr) {
     return false;
@@ -505,6 +739,29 @@ static DetourEntry g_CRTDetours[] = {
   DETOUR_ENTRY_MANGLED("_msize_dbg", Real_msize_dbg, Detour_msize_dbg),
   DETOUR_ENTRY_MANGLED("_expand_dbg", Real_expand_dbg, Detour_expand_dbg),
   DETOUR_ENTRY_MANGLED("_recalloc_dbg", Real_recalloc_dbg, Detour_recalloc_dbg),
+
+  // Aligned allocation family. Must be intercepted as a unit so that both the
+  // backing allocation and its free go through Hoard (no cross-heap mismatch),
+  // and so large alignments / offset variants are handled by our own stash.
+  // Names the CRT doesn't export are skipped gracefully by AttachDetour.
+  DETOUR_ENTRY_MANGLED("_aligned_malloc", Real_aligned_malloc, Detour_aligned_malloc),
+  DETOUR_ENTRY_MANGLED("_aligned_free", Real_aligned_free, Detour_aligned_free),
+  DETOUR_ENTRY_MANGLED("_aligned_realloc", Real_aligned_realloc, Detour_aligned_realloc),
+  DETOUR_ENTRY_MANGLED("_aligned_recalloc", Real_aligned_recalloc, Detour_aligned_recalloc),
+  DETOUR_ENTRY_MANGLED("_aligned_msize", Real_aligned_msize, Detour_aligned_msize),
+  DETOUR_ENTRY_MANGLED("_aligned_offset_malloc", Real_aligned_offset_malloc, Detour_aligned_offset_malloc),
+  DETOUR_ENTRY_MANGLED("_aligned_offset_realloc", Real_aligned_offset_realloc, Detour_aligned_offset_realloc),
+  DETOUR_ENTRY_MANGLED("_aligned_offset_recalloc", Real_aligned_offset_recalloc, Detour_aligned_offset_recalloc),
+
+  // Aligned debug variants.
+  DETOUR_ENTRY_MANGLED("_aligned_malloc_dbg", Real_aligned_malloc_dbg, Detour_aligned_malloc_dbg),
+  DETOUR_ENTRY_MANGLED("_aligned_free_dbg", Real_aligned_free_dbg, Detour_aligned_free_dbg),
+  DETOUR_ENTRY_MANGLED("_aligned_realloc_dbg", Real_aligned_realloc_dbg, Detour_aligned_realloc_dbg),
+  DETOUR_ENTRY_MANGLED("_aligned_recalloc_dbg", Real_aligned_recalloc_dbg, Detour_aligned_recalloc_dbg),
+  DETOUR_ENTRY_MANGLED("_aligned_msize_dbg", Real_aligned_msize_dbg, Detour_aligned_msize_dbg),
+  DETOUR_ENTRY_MANGLED("_aligned_offset_malloc_dbg", Real_aligned_offset_malloc_dbg, Detour_aligned_offset_malloc_dbg),
+  DETOUR_ENTRY_MANGLED("_aligned_offset_realloc_dbg", Real_aligned_offset_realloc_dbg, Detour_aligned_offset_realloc_dbg),
+  DETOUR_ENTRY_MANGLED("_aligned_offset_recalloc_dbg", Real_aligned_offset_recalloc_dbg, Detour_aligned_offset_recalloc_dbg),
 
   // NOTE: Exit functions are NOT intercepted - they cause intermittent hangs
   // and are not needed for memory allocation replacement.
@@ -598,6 +855,51 @@ static bool InstallDetours() {
 #ifdef HOARD_DEBUG
   fprintf(stderr, "Hoard: Total %d modules patched, %d functions attached\n", modulesPatched, functionsAttached);
 #endif
+
+  // Optional per-entry attachment report, used to see exactly which CRT
+  // symbols DetourAttach actually found (e.g. whether the _aligned_* family is
+  // interceptable on this UCRT). This runs during very early init under DLL
+  // injection, where BOTH stdout and the CRT environment are unavailable (getenv
+  // returns null before the CRT populates its environment table) AND relative
+  // paths are unreliable (the loader's working directory is not the process CWD
+  // this early) -- confirmed: getenv- and CWD-relative versions each failed to
+  // write a file though the malloc hooks were demonstrably active. So it is
+  // gated and pathed with pure Win32 only, against the EXECUTABLE's own
+  // directory (GetModuleFileNameW(NULL)): if "hoard-detours.enable" exists
+  // there, write "hoard-detours.txt" beside it. CI drops the sentinel next to
+  // the test exe before the aligned run; a shipped DLL writes nothing.
+  {
+    wchar_t dir[MAX_PATH];
+    DWORD dn = GetModuleFileNameW(nullptr, dir, MAX_PATH);
+    if (dn > 0 && dn < MAX_PATH) {
+      wchar_t * slash = wcsrchr(dir, L'\\');
+      if (slash) {
+        *(slash + 1) = L'\0';  // keep the trailing backslash
+        wchar_t sentinel[MAX_PATH], outPath[MAX_PATH];
+        if (SUCCEEDED(StringCchCopyW(sentinel, MAX_PATH, dir)) &&
+            SUCCEEDED(StringCchCatW(sentinel, MAX_PATH, L"hoard-detours.enable")) &&
+            GetFileAttributesW(sentinel) != INVALID_FILE_ATTRIBUTES &&
+            SUCCEEDED(StringCchCopyW(outPath, MAX_PATH, dir)) &&
+            SUCCEEDED(StringCchCatW(outPath, MAX_PATH, L"hoard-detours.txt"))) {
+          HANDLE h = CreateFileW(outPath, GENERIC_WRITE, FILE_SHARE_READ, nullptr,
+                                 CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+          if (h != INVALID_HANDLE_VALUE) {
+            for (size_t j = 0; j < sizeof(g_CRTDetours) / sizeof(g_CRTDetours[0]); j++) {
+              char line[256];
+              int n = snprintf(line, sizeof(line), "HOARD_DETOUR %s %s\r\n",
+                               g_CRTDetours[j].attached ? "ATTACHED" : "skipped ",
+                               g_CRTDetours[j].name);
+              if (n > 0) {
+                DWORD wrote = 0;
+                WriteFile(h, line, (DWORD)n, &wrote, nullptr);
+              }
+            }
+            CloseHandle(h);
+          }
+        }
+      }
+    }
+  }
 
   // NOTE: We intentionally do NOT hook kernel32 (HeapAlloc/HeapFree) or
   // ntdll (RtlAllocateHeap/RtlFreeHeap) functions. These low-level Windows
