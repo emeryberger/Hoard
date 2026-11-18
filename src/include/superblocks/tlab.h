@@ -447,6 +447,33 @@ namespace Hoard {
       // (both routes are correct), never breaks anything.
       _myOwner = reinterpret_cast<const void *>
         (getSuperblock (objs[0])->getOwner());
+      // Refresh the cached remote flag of every superblock this batch came
+      // from. The free path caches `remote` per superblock and never
+      // re-reads it while the entry keeps hitting, so a superblock that was
+      // cached as foreign (e.g. one holding blocks inherited from a thread
+      // that has since exited) and later MIGRATED into this thread's home
+      // heap (via the global heap) stayed classified as foreign forever:
+      // every free of the thread's own objects went through the delayed
+      // queue, the home heap drained it, and the bin refilled -- a slow loop
+      // on every operation (larson: ~100M "foreign" frees in 5s instead of
+      // ~24K). Objects handed out by the home heap prove their superblock is
+      // home-owned now, so this is the cheap moment to correct the flag, off
+      // the hot path. Consecutive objects mostly share a superblock, so the
+      // header is read about once per superblock.
+      {
+        SuperblockType * prev = nullptr;
+        for (size_t i = 0; i < got; i++) {
+          auto * s = getSuperblock (objs[i]);
+          if (s == prev) {
+            continue;
+          }
+          prev = s;
+          SbCacheEntry & e = _sbCache[sbCacheIndex (s)];
+          if (e.sb == s) {
+            e.remote = (reinterpret_cast<const void *>(s->getOwner()) != _myOwner);
+          }
+        }
+      }
       for (size_t i = 1; i < got; i++) {
         _localHeap(c).insert (reinterpret_cast<HL::SLList::Entry *>(objs[i]));
       }
