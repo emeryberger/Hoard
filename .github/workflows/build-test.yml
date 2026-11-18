@@ -20,6 +20,17 @@ jobs:
           cmake -B build -DCMAKE_BUILD_TYPE=Release
           cmake --build build -j$(nproc)
 
+      - name: Regression probes (size overflow, over-alignment, thread teardown)
+        run: |
+          cmake -B tests/regression/build -S tests/regression -DCMAKE_BUILD_TYPE=Release
+          cmake --build tests/regression/build -j$(nproc)
+          cd tests/regression/build
+          HOARD=$PWD/../../../build/libhoard.so
+          LD_PRELOAD=$HOARD ./overflow
+          LD_PRELOAD=$HOARD ./overaligned
+          LD_PRELOAD=$HOARD ./threadchurn 4 12
+          LD_PRELOAD=$HOARD ./teardown 100
+
       - name: Build benchmarks
         run: |
           cmake -B benchmarks/ci/build -S benchmarks/ci -DCMAKE_BUILD_TYPE=Release

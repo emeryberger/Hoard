@@ -44,9 +44,7 @@
 #define USE_THREAD_KEYWORD 1
 #endif
 
-#if !defined(USE_THREAD_KEYWORD)
 #include <pthread.h>
-#endif
 
 #if defined(__SVR4) || defined(__FreeBSD__) || defined(__NetBSD__)
 #include <dlfcn.h>
@@ -90,6 +88,61 @@ static __thread double tlabBuffer[BUFFER_SIZE] INITIAL_EXEC_ATTR;
 // Exported for inline TLS access in inlinetls.h
 __thread TheCustomHeapType * theTLAB INITIAL_EXEC_ATTR = nullptr;
 
+// Thread-exit teardown via a pthread-key destructor.
+//
+// Flushing a thread's TLAB at exit must NOT depend on interposing
+// pthread_create. alloc8's version script exports our pthread_create as
+// pthread_create@@GLIBC_2.2.5, but since glibc 2.34 binaries reference
+// pthread_create@GLIBC_2.34, and ld.so refuses a versioned definition whose
+// version does not match -- so the lookup skips libhoard and binds libc's.
+// startMeUp() then never runs, and each exiting thread stranded up to
+// MAX_MEMORY_PER_TLAB of freed memory in its TLAB (unbounded growth under
+// thread churn). The same holds for threads created by any path we do not
+// interpose (static binaries, dlopen'd thread libraries, clone wrappers).
+//
+// So every TLAB registers itself under a pthread key when it is created on a
+// thread; the key's destructor runs on every normal thread exit regardless of
+// how the thread was created. Teardown resets theTLAB to nullptr, so a later
+// TSD destructor (or C++ thread_local destructor) that allocates or frees just
+// re-creates the TLAB on the next access -- which re-registers it, and glibc
+// re-runs our destructor on its next pass (up to PTHREAD_DESTRUCTOR_ITERATIONS).
+//
+// Neither pthread_key_create nor pthread_setspecific allocates for a key
+// created this early (glibc keeps the first 32 keys' values in the thread
+// descriptor), so this cannot recurse into malloc.
+
+static pthread_key_t theTLABExitKey;
+static pthread_once_t theTLABExitKeyOnce = PTHREAD_ONCE_INIT;
+static bool theTLABExitKeyValid = false;
+
+static void destroyThreadTLAB (TheCustomHeapType * tlab) {
+  if (tlab == nullptr || tlab != theTLAB) {
+    return;           // Already torn down (explicit exit path ran first).
+  }
+  // Detach first: anything the flush itself frees, or any later allocation on
+  // this thread, must not see a half-destroyed TLAB.
+  theTLAB = nullptr;
+  if (theTLABExitKeyValid) {
+    pthread_setspecific (theTLABExitKey, nullptr);
+  }
+  // The destructor returns every cached object to the parent heap.
+  tlab->~TheCustomHeapType();
+#if defined(HOARD_DISABLE_CPU_HEAP_SELECTION)
+  // Pairs with findUnusedHeap() in startMeUp; the thread->heap map is only
+  // consulted when CPU-based heap selection is disabled.
+  getMainHoardHeap()->releaseHeap();
+#endif
+}
+
+static void tlabExitKeyDestructor (void * p) {
+  destroyThreadTLAB (reinterpret_cast<TheCustomHeapType *>(p));
+}
+
+static void makeTLABExitKey() {
+  theTLABExitKeyValid =
+    (pthread_key_create (&theTLABExitKey, tlabExitKeyDestructor) == 0);
+}
+
 // Initialize the TLAB - exported for inlinetls.h cold path.
 
 TheCustomHeapType * initializeCustomHeap() __attribute__((constructor));
@@ -107,6 +160,13 @@ TheCustomHeapType * initializeCustomHeap() {
     new (reinterpret_cast<char *>(&tlabBuffer)) TheCustomHeapType(mainHeap);
     tlab = reinterpret_cast<TheCustomHeapType *>(&tlabBuffer);
     theTLAB = tlab;
+    // Register for teardown at thread exit (see above). Done after theTLAB is
+    // published so that, should anything here allocate, it hits the TLAB
+    // rather than recursing into initialization.
+    pthread_once (&theTLABExitKeyOnce, makeTLABExitKey);
+    if (theTLABExitKeyValid) {
+      pthread_setspecific (theTLABExitKey, tlab);
+    }
   }
   return tlab;
 }
@@ -214,7 +274,14 @@ extern "C" {
 
 
 // A special routine we call on thread exit to free up some resources.
+// With USE_THREAD_KEYWORD this is only an early, best-effort flush for threads
+// that went through our pthread_create/pthread_exit; the pthread-key
+// destructor above is what guarantees teardown, and it is a no-op if this has
+// already run.
 static void exitRoutine() {
+#if defined(USE_THREAD_KEYWORD)
+  destroyThreadTLAB (theTLAB);
+#else
   auto * heap = initializeCustomHeap();
 
   // Relinquish the assigned heap.
@@ -223,7 +290,6 @@ static void exitRoutine() {
   // Clear the heap (via its destructor).
   heap->~TheCustomHeapType();
 
-#if !defined(USE_THREAD_KEYWORD)
   // Reclaim the memory associated with the heap (thread-specific data).
   pthread_key_delete (theHeapKey);
 #endif
@@ -232,7 +298,9 @@ static void exitRoutine() {
 extern "C" {
   static inline void * startMeUp(void * a) {
     initializeCustomHeap();
+#if defined(HOARD_DISABLE_CPU_HEAP_SELECTION) || !defined(USE_THREAD_KEYWORD)
     getMainHoardHeap()->findUnusedHeap();
+#endif
     auto * z = (pair<threadFunctionType, void *> *) a;
     
     auto f   = z->first;
