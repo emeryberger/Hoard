@@ -18,6 +18,7 @@
 
 #include <windows.h>
 #include <errno.h>
+#include <stdint.h>
 #include <psapi.h>
 #include <stdio.h>
 #include <tchar.h>
@@ -210,9 +211,14 @@ static void __cdecl Detour_free(void * ptr) {
 }
 
 static void * __cdecl Detour_calloc(size_t num, size_t size) {
-  void * ptr = xxmalloc(num * size);
+  if (size != 0 && num > SIZE_MAX / size) {
+    errno = ENOMEM;
+    return nullptr;
+  }
+  const size_t total = num * size;
+  void * ptr = xxmalloc(total);
   if (ptr) {
-    memset(ptr, 0, num * size);
+    memset(ptr, 0, total);
   }
   return ptr;
 }
@@ -265,14 +271,34 @@ static void * __cdecl Detour_expand(void * ptr, size_t newSize) {
   return nullptr;
 }
 
+// _recalloc must zero the bytes it ADDS: everything past the old block's
+// extent. (The previous version zeroed [requestedSize, usable) instead -- the
+// slack PAST the request -- so for _recalloc(NULL, n, size), or any growth,
+// every newly requested byte came back holding recycled heap contents.)
+//
+// realloc preserves the first min(oldUsable, requested) bytes; zeroing from
+// there to the new usable extent clears every byte _recalloc adds (relative to
+// the old _msize, i.e. the usable size), and also the tail after an in-place
+// shrink. Known limit: calloc zeroes only num * size (zeroing the whole usable
+// extent would cost every calloc), so slack it left unzeroed can resurface if
+// _recalloc grows in place into it.
 static void * __cdecl Detour_recalloc(void * memblock, size_t num, size_t size) {
+  if (size != 0 && num > SIZE_MAX / size) {
+    errno = ENOMEM;
+    return nullptr;
+  }
   const size_t requestedSize = num * size;
+  const size_t oldSize = (memblock != nullptr) ? SafeGetHoardSize(memblock) : 0;
   void * ptr = Detour_realloc(memblock, requestedSize);
   if (ptr != nullptr) {
     // realloc always returns a Hoard pointer (via xxmalloc)
     const size_t actualSize = SafeGetHoardSize(ptr);
-    if (actualSize > requestedSize) {
-      memset(static_cast<char *>(ptr) + requestedSize, 0, actualSize - requestedSize);
+    // A foreign block (oldSize 0 with memblock != NULL) has an unknown extent
+    // and realloc copied requestedSize bytes from it best-effort; keep them.
+    const size_t keep = (memblock != nullptr && oldSize == 0) ? requestedSize
+                      : (oldSize < requestedSize) ? oldSize : requestedSize;
+    if (actualSize > keep) {
+      memset(static_cast<char *>(ptr) + keep, 0, actualSize - keep);
     }
   }
   return ptr;

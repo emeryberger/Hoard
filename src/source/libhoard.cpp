@@ -531,6 +531,16 @@ extern "C" {
     // Get old size once
     size_t oldSize = xxmalloc_usable_size(ptr);
 
+    // Every live Hoard object has a nonzero usable size, so 0 means the
+    // pointer could not be mapped back to its allocation. Proceeding would
+    // "move" the object by copying zero bytes and then freeing the original
+    // -- silently discarding the caller's data. Fail instead: the original
+    // block is left untouched, exactly as for any other realloc failure.
+    if (HL_EXPECT_FALSE(oldSize == 0)) {
+      errno = ENOMEM;
+      return nullptr;
+    }
+
     // If new size fits in old allocation, return original pointer
     if (sz <= oldSize) {
       return ptr;
@@ -562,6 +572,7 @@ extern "C" {
     // Overflow check
     size_t total = count * size;
     if (size != 0 && total / size != count) {
+      errno = ENOMEM;
       return nullptr;
     }
     void * ptr = xxmalloc(total);

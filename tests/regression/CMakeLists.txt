@@ -1,0 +1,13 @@
+cmake_minimum_required(VERSION 3.16)
+project(hoard_regression C CXX)
+set(CMAKE_CXX_STANDARD 20)
+find_package(Threads REQUIRED)
+# -fno-builtin: keep the compiler from folding impossible allocations to NULL.
+add_executable(overflow overflow.cpp)
+target_compile_options(overflow PRIVATE -fno-builtin -Wno-alloc-size-larger-than)
+add_executable(overaligned overaligned.c)
+target_compile_options(overaligned PRIVATE -fno-builtin)
+add_executable(threadchurn threadchurn.c)
+target_link_libraries(threadchurn Threads::Threads)
+add_executable(teardown teardown.cpp)
+target_link_libraries(teardown Threads::Threads)
