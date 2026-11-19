@@ -1,0 +1,19 @@
+{
+  "name": "macOS: Hoard master vs master + Heap-Layers NO_INLINE fix",
+  "reps": 9,
+  "timeout": 120,
+  "vars": {
+    "HOARD": "/Users/emerydb/git/Hoard"
+  },
+  "allocators": {
+    "master": {"lib": "${WORK}/worktrees/hoard-master-wt/build/libhoard.dylib"},
+    "noinline": {"lib": "${WORK}/builds/hoard-master-ni/libhoard.dylib"}
+  },
+  "benchmarks": [
+    {"name": "larson-1t", "metric": "larson", "group": "larson", "threads": 1,
+     "cmd": ["${HOARD}/benchmarks/larson/larson", "10", "7", "8", "1000", "10000", "1", "1"]},
+    {"name": "larson-8t", "metric": "larson", "group": "larson", "threads": 8,
+     "cmd": ["${HOARD}/benchmarks/larson/larson", "10", "7", "8", "1000", "10000", "1", "8"]}
+  ],
+  "pairs": [["noinline", "master"]]
+}
