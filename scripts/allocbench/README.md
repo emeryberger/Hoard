@@ -26,6 +26,18 @@ ssh host python3 hoard-bench/allocbench/build_hoard.py master=master   # `remote
 Specs can use `${WORK}` and `${LIBNAME}` (`libhoard.dylib` / `libhoard.so`), so
 one spec runs unchanged on macOS and Linux.
 
+Small helpers:
+
+```sh
+# Block until a PR's checks finish; exit 0 only if all passed. --min-checks
+# stops a PR whose checks haven't appeared yet from looking "all green".
+python3 wait_pr_checks.py emeryberger/Hoard 123 --min-checks 5
+
+# Before deleting local copies of files that were merged elsewhere: which are
+# byte-identical to a ref, which hold edits the ref lacks (exit 1), which are new.
+python3 compare_with_ref.py origin/master benchmarks/some-dir scripts/foo.py
+```
+
 Why each piece exists (all were real failures):
 
 - **verify before timing.** macOS SIP and hardened runtimes silently drop
