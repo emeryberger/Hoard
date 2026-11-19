@@ -1,0 +1,27 @@
+{
+  "name": "Linux: larson, Hoard (master, NO_INLINE fix) vs mimalloc and jemalloc",
+  "reps": 11,
+  "timeout": 120,
+  "vars": {
+    "L": "${WORK}/hoardfix/after/benchmarks/larson/larson"
+  },
+  "allocators": {
+    "hoard-master": {"lib": "${WORK}/hoardfix/after/build/libhoard.so"},
+    "hoard-noinline": {"lib": "${WORK}/hoardfix/after-ni/build/libhoard.so"},
+    "mimalloc3": {"lib": "${WORK}/allocs/mimalloc3/build/libmimalloc.so"},
+    "mimalloc2": {"lib": "${WORK}/allocs/mimalloc2/build/libmimalloc.so"},
+    "jemalloc": {"lib": "/usr/lib64/libjemalloc.so.2"}
+  },
+  "benchmarks": [
+    {"name": "larson-1t", "metric": "larson", "group": "larson", "threads": 1,
+     "verify_cmd": ["${L}", "1", "7", "8", "100", "1000", "1", "1"],
+     "cmd": ["${L}", "10", "7", "8", "1000", "10000", "1", "1"]},
+    {"name": "larson-8t", "metric": "larson", "group": "larson", "threads": 8,
+     "cmd": ["${L}", "10", "7", "8", "1000", "10000", "1", "8"]}
+  ],
+  "pairs": [
+    ["hoard-noinline", "hoard-master"],
+    ["hoard-master", "mimalloc3"],
+    ["hoard-noinline", "mimalloc3"]
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "name": "Linux: false-sharing benchmarks across allocators (identical Bazel/clang binaries)",
+  "reps": 5,
+  "timeout": 300,
+  "vars": {
+    "OUT": "${WORK}/google-tcmalloc/out"
+  },
+  "allocators": {
+    "glibc": {"lib": null, "bench_suffix": "-default"},
+    "tcmalloc-percpu": {"lib": null, "static": true, "bench_suffix": "-tcmalloc",
+                        "env": {"GLIBC_TUNABLES": "glibc.pthread.rseq=0"},
+                        "probe": {"cmd": ["${OUT}/probe"],
+                                  "expect": "owned_by_tcmalloc=yes.*per_cpu_caches_active=yes"}},
+    "tcmalloc-asis": {"lib": null, "static": true, "bench_suffix": "-tcmalloc",
+                      "probe": {"cmd": ["${OUT}/probe"],
+                                "expect": "owned_by_tcmalloc=yes.*per_cpu_caches_active=NO"}},
+    "hoard": {"lib": "${WORK}/hoardfix/after/build/libhoard.so", "bench_suffix": "-default"},
+    "jemalloc": {"lib": "/usr/lib64/libjemalloc.so.2", "bench_suffix": "-default"},
+    "gperftools": {"lib": "/usr/lib64/libtcmalloc.so.4", "bench_suffix": "-default"},
+    "mimalloc2": {"lib": "${WORK}/allocs/mimalloc2/build/libmimalloc.so", "bench_suffix": "-default"},
+    "mimalloc3": {"lib": "${WORK}/allocs/mimalloc3/build/libmimalloc.so", "bench_suffix": "-default"},
+    "snmalloc": {"lib": "${WORK}/allocs/snmalloc/build/libsnmallocshim.so", "bench_suffix": "-default"},
+    "ctl-adopt": {"lib": "${WORK}/hoardfix/adopt/build/libhoard.so", "bench_suffix": "-default"},
+    "ctl-bump": {"lib": "${WORK}/hoardfix/probe/libbump.so", "bench_suffix": "-default"}
+  },
+  "benchmarks": [
+    {"name": "scratch-1t",  "metric": "elapsed", "group": "cache-scratch", "threads": 1,
+     "verify_cmd": ["${OUT}/cache-scratch", "1", "1", "8", "1"],
+     "cmd": ["${OUT}/cache-scratch", "1", "1000", "8", "1000000"]},
+    {"name": "scratch-8t",  "metric": "elapsed", "group": "cache-scratch", "threads": 8,
+     "cmd": ["${OUT}/cache-scratch", "8", "1000", "8", "1000000"]},
+    {"name": "scratch-32t", "metric": "elapsed", "group": "cache-scratch", "threads": 32,
+     "cmd": ["${OUT}/cache-scratch", "32", "1000", "8", "1000000"]},
+    {"name": "thrash-1t",   "metric": "elapsed", "group": "cache-thrash", "threads": 1,
+     "cmd": ["${OUT}/cache-thrash", "1", "1000", "8", "1000000"]},
+    {"name": "thrash-8t",   "metric": "elapsed", "group": "cache-thrash", "threads": 8,
+     "cmd": ["${OUT}/cache-thrash", "8", "1000", "8", "1000000"]},
+    {"name": "thrash-32t",  "metric": "elapsed", "group": "cache-thrash", "threads": 32,
+     "cmd": ["${OUT}/cache-thrash", "32", "1000", "8", "1000000"]}
+  ],
+  "pairs": []
+}
