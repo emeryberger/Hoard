@@ -26,7 +26,7 @@
 # Env:   WORK, REPS (default 5),
 #        PRELOADS="name=/path/lib.so name2=/path/lib2.so ..." (optional)
 set -euo pipefail
-OUT=${WORK:-/tmp/google-tcmalloc}/out
+OUT=${WORK:-$HOME/hoard-bench/google-tcmalloc}/out
 REPS=${REPS:-5}
 NO_GLIBC_RSEQ=glibc.pthread.rseq=0
 med() { sort -g | awk '{a[NR]=$1} END{print a[int((NR+1)/2)]}'; }

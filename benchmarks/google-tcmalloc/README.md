@@ -12,8 +12,9 @@ AMD EPYC 9R14, 192 cores).
 ## Quick start
 
 ```sh
-benchmarks/google-tcmalloc/build.sh     # into $WORK (default /tmp/google-tcmalloc). First run downloads
-                                        # LLVM (1.2 GB, 12 GB unpacked) and Bazel deps (~0.6 GB); reruns are cached
+benchmarks/google-tcmalloc/build.sh     # into $WORK (default ~/hoard-bench/google-tcmalloc; not /tmp,
+                                        # which is tmpfs on many hosts). First run downloads LLVM (1.2 GB,
+                                        # 12 GB unpacked) and Bazel deps (~0.6 GB); reruns are cached
 benchmarks/google-tcmalloc/run.sh       # TCMalloc (both modes) + glibc on the same binaries
 
 # Compare other allocators on the SAME binaries (required, see below).

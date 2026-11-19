@@ -9,13 +9,16 @@
 # Everything else (Bazelisk, Bazel, Abseil, ...) is fetched into $WORK.
 #
 # Usage: benchmarks/google-tcmalloc/build.sh          # see README.md
-# Env:   WORK=/tmp/google-tcmalloc  TCMALLOC_COMMIT=<sha>  BAZEL_VERSION=<x.y.z>
+# Env:   WORK=~/hoard-bench/google-tcmalloc  TCMALLOC_COMMIT=<sha>  BAZEL_VERSION=<x.y.z>
 
 set -euo pipefail
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 BENCH=$(cd "$HERE/.." && pwd)                  # Hoard's benchmarks/ directory
-WORK=${WORK:-/tmp/google-tcmalloc}
+# Not /tmp: it is tmpfs on many Linux hosts, and this is ~13 GB (LLVM + Bazel)
+# that a reboot would throw away. Bazel's cache is keyed on this path, so
+# moving WORK later means one full rebuild.
+WORK=${WORK:-$HOME/hoard-bench/google-tcmalloc}
 
 # Pins: the versions these instructions were validated with (2026-11-18).
 TCMALLOC_COMMIT=${TCMALLOC_COMMIT:-6cb4939e97a057a7ecea2d277e0d77706c2fb820}
