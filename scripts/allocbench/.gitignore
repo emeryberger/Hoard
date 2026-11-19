@@ -1,0 +1,4 @@
+# Measurement output (per host): regenerate with `allocbench.py run`.
+*.results.jsonl
+*.results.jsonl.log
+__pycache__/

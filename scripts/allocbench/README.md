@@ -1,0 +1,39 @@
+# allocbench
+
+Interleaved, verified allocator benchmarking for Hoard (macOS and Linux).
+Full reference: `python3 allocbench.py --help`.
+
+```sh
+python3 allocbench.py verify specs/mac-noinline.json   # each allocator really serves malloc?
+python3 allocbench.py run    specs/mac-noinline.json   # interleaved, resumable -> *.results.jsonl
+python3 allocbench.py report specs/mac-noinline.json   # medians, paired ratios, speedups
+
+# On another machine (detached; survives a dropped ssh session):
+python3 allocbench.py remote start cloudnew specs/linux-larson-vs-mimalloc.json
+python3 allocbench.py remote status cloudnew specs/linux-larson-vs-mimalloc.json
+python3 allocbench.py remote wait   cloudnew specs/linux-larson-vs-mimalloc.json   # then fetches
+python3 allocbench.py report specs/linux-larson-vs-mimalloc.json \
+    --out specs/linux-larson-vs-mimalloc.cloudnew.results.jsonl
+
+python3 allocbench.py frame build/libhoard.so malloc free   # stack frame / size of entry points
+```
+
+Why each piece exists (all were real failures):
+
+- **verify before timing.** macOS SIP and hardened runtimes silently drop
+  `DYLD_INSERT_LIBRARIES`; a preload can load without serving `malloc`. Linux
+  uses `LD_DEBUG=bindings`; macOS checks the library loaded and reports the
+  malloc zone. Statically linked allocators declare a `probe` (e.g. Google
+  TCMalloc's per-CPU mode, which glibc's rseq registration silently disables).
+- **interleaved and shuffled.** Machine state drifts (thermal, scheduler,
+  efficiency cores). Every round runs every allocator, in a shuffled but
+  deterministic order, and pairs are compared round by round.
+- **resumable.** Results append to JSONL; `run` skips finished rows.
+- **paths under `${WORK}`** (`$ALLOCBENCH_WORK`, default `~/hoard-bench`), not
+  `/tmp`, which is tmpfs on many Linux hosts. `relocate.py` moves existing
+  artifacts (including git worktrees) out of `/tmp`.
+- **`frame`.** Found Heap-Layers redefining `NO_INLINE` to nothing: Hoard's
+  `malloc` had a 712-byte stack frame on Linux (24 bytes once fixed).
+
+Specs in `specs/` reproduce the November 2026 measurements; their paths
+assume the `${WORK}` layout used then and need adjusting for other machines.
