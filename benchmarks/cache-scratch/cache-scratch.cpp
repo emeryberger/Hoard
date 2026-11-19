@@ -73,17 +73,24 @@ extern "C" void * worker (void * arg)
   //   repeatedly write on it,
   //   then free it.
   workerArg * w = (workerArg *) arg;
-  delete w->_object;
+  delete [] w->_object;
   workerArg w1 = *w;
   for (int i = 0; i < w1._iterations; i++) {
     // Allocate the object.
     char * obj = new char[w1._objSize];
-    // Write into it a bunch of times.
+    // Write into it a bunch of times. The accesses MUST go through a
+    // volatile pointer: with plain stores the compiler sees an object that
+    // is written, read back, and freed, forwards the values, and deletes
+    // the stores -- and then, since C++14 permits eliding a matched
+    // new/delete pair, the allocation itself. The benchmark then never
+    // touches heap memory and cannot detect false sharing at all (that is
+    // what both clang and gcc did with the previous version).
+    volatile char * vobj = obj;
     for (int j = 0; j < w1._repetitions; j++) {
       for (int k = 0; k < w1._objSize; k++) {
-	obj[k] = (char) k;
-	volatile char ch = obj[k];
-	ch++;
+	vobj[k] = (char) k;
+	char ch = vobj[k];
+	vobj[k] = (char) (ch + 1);
       }
     }
     // Free the object.

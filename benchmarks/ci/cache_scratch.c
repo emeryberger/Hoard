@@ -5,7 +5,7 @@
  * causes cache-line contention by allocating objects from different
  * threads close together in memory.
  *
- * Usage: cache_scratch [threads] [iterations] [object_size]
+ * Usage: cache_scratch [threads] [iterations] [object_size] [repetitions]
  */
 
 #include "bench_common.h"
@@ -13,9 +13,11 @@
 #define DEFAULT_THREADS 4
 #define DEFAULT_ITERATIONS 1000000
 #define DEFAULT_OBJ_SIZE 8
+#define DEFAULT_REPETITIONS 1
 
 static int obj_size;
 static int iterations;
+static int repetitions;
 
 typedef struct {
   char* obj;
@@ -30,9 +32,15 @@ static BENCH_THREAD_RETURN worker(void* arg) {
     free(obj);
     obj = (char*)malloc(sz);
     if (obj) {
-      /* Touch every byte to stress cache */
-      for (int j = 0; j < sz; j++) obj[j] = (char)j;
-      for (int j = 0; j < sz; j++) obj[j] = (char)(obj[j] + 1);
+      /* Write the object repeatedly. Through a volatile pointer: plain
+         stores to an object that is freed right afterwards are dead, and
+         the compiler deletes them -- leaving a bare free/malloc loop that
+         never touches memory and so cannot detect false sharing. */
+      volatile char* v = obj;
+      for (int r = 0; r < repetitions; r++) {
+        for (int j = 0; j < sz; j++) v[j] = (char)j;
+        for (int j = 0; j < sz; j++) v[j] = (char)(v[j] + 1);
+      }
     }
   }
 
@@ -44,6 +52,7 @@ int main(int argc, char** argv) {
   int nthreads = (argc > 1) ? atoi(argv[1]) : DEFAULT_THREADS;
   iterations = (argc > 2) ? atoi(argv[2]) : DEFAULT_ITERATIONS;
   obj_size = (argc > 3) ? atoi(argv[3]) : DEFAULT_OBJ_SIZE;
+  repetitions = (argc > 4) ? atoi(argv[4]) : DEFAULT_REPETITIONS;
 
   bench_timer_t start;
   bench_thread_t* threads = (bench_thread_t*)malloc(sizeof(bench_thread_t) * nthreads);
