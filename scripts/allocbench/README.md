@@ -16,7 +16,15 @@ python3 allocbench.py report specs/linux-larson-vs-mimalloc.json \
     --out specs/linux-larson-vs-mimalloc.cloudnew.results.jsonl
 
 python3 allocbench.py frame build/libhoard.so malloc free   # stack frame / size of entry points
+
+# Build Hoard variants side by side (git refs, incl. PR heads) into ${WORK}/builds/NAME,
+# reporting the Heap-Layers/alloc8 commits fetched and the malloc/free frames:
+python3 build_hoard.py master=master mybranch=pr:123
+ssh host python3 hoard-bench/allocbench/build_hoard.py master=master   # `remote push` ships it
 ```
+
+Specs can use `${WORK}` and `${LIBNAME}` (`libhoard.dylib` / `libhoard.so`), so
+one spec runs unchanged on macOS and Linux.
 
 Why each piece exists (all were real failures):
 

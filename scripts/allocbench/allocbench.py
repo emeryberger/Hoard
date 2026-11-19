@@ -19,9 +19,10 @@ Spec (JSON):
   "reps": 9,
   "timeout": 300,
   "vars": {"HOARD": "/Users/me/git/Hoard"},            # ${VAR} expansion;
-                                                        # ${WORK} is built in:
-                                                        # $ALLOCBENCH_WORK or
-                                                        # ~/hoard-bench
+                                                        # built in: ${WORK}
+                                                        # ($ALLOCBENCH_WORK or
+                                                        # ~/hoard-bench) and
+                                                        # ${LIBNAME}
   "allocators": {
      "master": {"lib": "/tmp/a/libhoard.dylib"},
      "system": {"lib": null},                            # no preload
@@ -91,7 +92,10 @@ def load_spec(path):
         spec = json.load(f)
     # ${WORK}: where builds and benchmark artifacts live on THIS machine.
     # Deliberately not /tmp (tmpfs on Linux: wiped on reboot).
-    variables = {"WORK": os.environ.get("ALLOCBENCH_WORK", os.path.expanduser("~/hoard-bench"))}
+    # ${LIBNAME}: Hoard's library file name on this platform, so one spec can
+    # serve both macOS and Linux.
+    variables = {"WORK": os.environ.get("ALLOCBENCH_WORK", os.path.expanduser("~/hoard-bench")),
+                 "LIBNAME": "libhoard.dylib" if IS_MAC else "libhoard.so"}
     # Resolve spec vars in order, so a var may use ${WORK} or earlier vars.
     for k, v in spec.get("vars", {}).items():
         variables[k] = str(expand(v, variables))
@@ -400,6 +404,7 @@ def remote(action, host, spec_path):
     if action == "push":
         ssh(host, "mkdir", "-p", REMOTE_DIR + "/specs")
         subprocess.run(["rsync", "-a", os.path.join(here, "allocbench.py"),
+                        os.path.join(here, "build_hoard.py"),
                         "%s:%s/" % (host, REMOTE_DIR)], check=True)
         subprocess.run(["rsync", "-a", spec_path, "%s:%s/specs/" % (host, REMOTE_DIR)], check=True)
         print("pushed to %s:%s" % (host, REMOTE_DIR))
